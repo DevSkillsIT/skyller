@@ -1,0 +1,77 @@
+# =============================================================================
+# Skyller - Frontend Docker Compose
+# SPEC-006: Skyller Frontend com AG-UI Protocol
+# =============================================================================
+#
+# Este arquivo deve ser usado em conjunto com o docker-compose.yml principal:
+#
+#   docker-compose -f docker-compose.yml \
+#                  -f skyller/docker-compose.skyller.yml \
+#                  up -d
+#
+# =============================================================================
+
+version: '3.8'
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Skyller - Frontend Next.js com AG-UI
+  # ---------------------------------------------------------------------------
+  skyller:
+    build:
+      context: ./skyller
+      dockerfile: Dockerfile
+    container_name: skills-skyller
+    restart: unless-stopped
+    ports:
+      - "${SKYLLER_PORT:-3000}:3000"
+    environment:
+      # Next.js
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      PORT: 3000
+      HOSTNAME: "0.0.0.0"
+
+      # AG-UI Backend (Nexus Core)
+      NEXT_PUBLIC_AGUI_URL: ${NEXUS_CORE_URL:-http://172.28.0.30:7777}
+
+      # Auth (Keycloak)
+      AUTH_KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER}
+      AUTH_KEYCLOAK_ID: ${KEYCLOAK_CLIENT_ID:-skyller}
+      AUTH_KEYCLOAK_SECRET: ${KEYCLOAK_CLIENT_SECRET}
+
+      # NextAuth
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+
+      # Timezone
+      TZ: America/Sao_Paulo
+
+    networks:
+      skills-network:
+        ipv4_address: 172.28.0.50
+
+    depends_on:
+      - postgres
+      - redis
+
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# -----------------------------------------------------------------------------
+# Usar a rede existente do docker-compose.yml principal
+# -----------------------------------------------------------------------------
+networks:
+  skills-network:
+    external: true

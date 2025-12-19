@@ -18,6 +18,8 @@ const nextConfig: NextConfig = {
   /* config options here */
   // Configure pageExtensions to include md and mdx
   pageExtensions: ["ts", "tsx", "js", "jsx", "md", "mdx"],
+  // Output standalone para Docker (SPEC-006)
+  output: "standalone",
   webpack: (config, { isServer }) => {
     // Ignore the demo files during build
     config.module.rules.push({

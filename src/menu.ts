@@ -1,3 +1,17 @@
+/**
+ * SPEC-006-skyller - Menu de Integracoes
+ *
+ * VERSAO SIMPLIFICADA para build standalone.
+ * Apenas integracoes disponiveis via HttpAgent estao listadas.
+ *
+ * O arquivo original foi salvo em menu.ts.original
+ *
+ * Para habilitar mais integracoes:
+ * 1. Instale os pacotes necessarios (ex: pnpm add @ag-ui/agno)
+ * 2. Adicione a integracao aqui
+ * 3. Adicione o handler em agents.ts
+ */
+
 import type { MenuIntegrationConfig } from "./types/integration";
 export * from "./types/integration";
 
@@ -12,6 +26,23 @@ export * from "./types/integration";
  */
 
 export const menuIntegrations = [
+  // ===================================
+  // Integracao principal: Nexus Core (Skills AI)
+  // ===================================
+  {
+    id: "nexus-core",
+    name: "Nexus Core (Skills AI)",
+    features: [
+      "agentic_chat",
+      "tool_based_generative_ui",
+      "backend_tool_rendering",
+      "human_in_the_loop",
+    ],
+  },
+
+  // ===================================
+  // Integracoes via HttpAgent (generico)
+  // ===================================
   {
     id: "agent-spec-langgraph",
     name: "Open Agent Spec (LangGraph)",
@@ -28,10 +59,56 @@ export const menuIntegrations = [
     features: [
       "agentic_chat",
       "backend_tool_rendering",
+      "tool_based_generative_ui",
+      "human_in_the_loop",
+    ],
+  },
+  {
+    id: "microsoft-agent-framework-python",
+    name: "Microsoft Agent Framework (Python)",
+    features: [
+      "agentic_chat",
+      "backend_tool_rendering",
+      "human_in_the_loop",
+      "agentic_generative_ui",
+      "shared_state",
+      "tool_based_generative_ui",
+      "predictive_state_updates",
+    ],
+  },
+  {
+    id: "microsoft-agent-framework-dotnet",
+    name: "Microsoft Agent Framework (.NET)",
+    features: [
+      "agentic_chat",
+      "backend_tool_rendering",
+      "human_in_the_loop",
+      "agentic_generative_ui",
+      "shared_state",
+      "tool_based_generative_ui",
+      "predictive_state_updates",
+    ],
+  },
+
+  // ===================================
+  // Integracoes desabilitadas (requerem pacotes @ag-ui/* extras)
+  // Descomente e adicione em agents.ts quando os pacotes estiverem instalados
+  // ===================================
+
+  /*
+  // Requer: pnpm add @ag-ui/agno
+  {
+    id: "agno",
+    name: "Agno",
+    features: [
+      "agentic_chat",
+      "backend_tool_rendering",
       "human_in_the_loop",
       "tool_based_generative_ui",
     ],
   },
+
+  // Requer: pnpm add @ag-ui/langgraph
   {
     id: "langgraph",
     name: "LangGraph (Python)",
@@ -66,7 +143,6 @@ export const menuIntegrations = [
     name: "LangGraph (Typescript)",
     features: [
       "agentic_chat",
-      // "backend_tool_rendering",
       "human_in_the_loop",
       "agentic_generative_ui",
       "predictive_state_updates",
@@ -75,14 +151,8 @@ export const menuIntegrations = [
       "subgraphs",
     ],
   },
-  // {
-  //   id: "langchain",
-  //   name: "LangChain",
-  //   features: [
-  //     "agentic_chat",
-  //     "tool_based_generative_ui",
-  //   ],
-  // },
+
+  // Requer: pnpm add @ag-ui/mastra @mastra/client-js @mastra/libsql
   {
     id: "mastra",
     name: "Mastra",
@@ -104,6 +174,22 @@ export const menuIntegrations = [
       "tool_based_generative_ui",
     ],
   },
+
+  // Requer: pnpm add @ag-ui/pydantic-ai
+  {
+    id: "pydantic-ai",
+    name: "Pydantic AI",
+    features: [
+      "agentic_chat",
+      "backend_tool_rendering",
+      "human_in_the_loop",
+      "agentic_generative_ui",
+      "shared_state",
+      "tool_based_generative_ui",
+    ],
+  },
+
+  // Requer: pnpm add @ag-ui/spring-ai
   {
     id: "spring-ai",
     name: "Spring AI",
@@ -115,39 +201,13 @@ export const menuIntegrations = [
       "agentic_generative_ui",
     ],
   },
+
+  // Requer: pnpm add @ag-ui/crewai
   {
-    id: "pydantic-ai",
-    name: "Pydantic AI",
+    id: "crewai",
+    name: "CrewAI",
     features: [
       "agentic_chat",
-      "backend_tool_rendering",
-      "human_in_the_loop",
-      "agentic_generative_ui",
-      // Disabled until we can figure out why production builds break
-      // "predictive_state_updates",
-      "shared_state",
-      "tool_based_generative_ui",
-    ],
-  },
-  {
-    id: "adk-middleware",
-    name: "Google ADK",
-    features: [
-      "agentic_chat",
-      "backend_tool_rendering",
-      "human_in_the_loop",
-      // TODO: @contextablemark Re-enable predictive state updates once it is working
-      // "predictive_state_updates",
-      "shared_state",
-      "tool_based_generative_ui",
-    ],
-  },
-  {
-    id: "microsoft-agent-framework-dotnet",
-    name: "Microsoft Agent Framework (.NET)",
-    features: [
-      "agentic_chat",
-      "backend_tool_rendering",
       "human_in_the_loop",
       "agentic_generative_ui",
       "predictive_state_updates",
@@ -155,29 +215,8 @@ export const menuIntegrations = [
       "tool_based_generative_ui",
     ],
   },
-  {
-    id: "microsoft-agent-framework-python",
-    name: "Microsoft Agent Framework (Python)",
-    features: [
-      "agentic_chat",
-      "backend_tool_rendering",
-      "human_in_the_loop",
-      "agentic_generative_ui",
-      "predictive_state_updates",
-      "shared_state",
-      "tool_based_generative_ui",
-    ],
-  },
-  {
-    id: "agno",
-    name: "Agno",
-    features: [
-      "agentic_chat",
-      "backend_tool_rendering",
-      "human_in_the_loop",
-      "tool_based_generative_ui",
-    ],
-  },
+
+  // Requer: pnpm add @ag-ui/llamaindex
   {
     id: "llama-index",
     name: "LlamaIndex",
@@ -189,68 +228,14 @@ export const menuIntegrations = [
       "shared_state",
     ],
   },
-  {
-    id: "crewai",
-    name: "CrewAI",
-    features: [
-      "agentic_chat",
-      // "backend_tool_rendering",
-      "human_in_the_loop",
-      "agentic_generative_ui",
-      "predictive_state_updates",
-      "shared_state",
-      "tool_based_generative_ui",
-    ],
-  },
-  {
-    id: "a2a-basic",
-    name: "A2A (Direct)",
-    features: ["vnext_chat"],
-  },
-  // Disabled until we can support Vercel AI SDK v5
-  // {
-  //   id: "vercel-ai-sdk",
-  //   name: "Vercel AI SDK",
-  //   features: ["agentic_chat"],
-  // },
-  {
-    id: "middleware-starter",
-    name: "Middleware Starter",
-    features: ["agentic_chat"],
-  },
-  {
-    id: "server-starter",
-    name: "Server Starter",
-    features: ["agentic_chat"],
-  },
-  {
-    id: "server-starter-all-features",
-    name: "Server Starter (All Features)",
-    features: [
-      "agentic_chat",
-      "backend_tool_rendering",
-      "human_in_the_loop",
-      // "agentic_chat_reasoning",
-      "agentic_generative_ui",
-      "predictive_state_updates",
-      "shared_state",
-      "tool_based_generative_ui",
-    ],
-  },
-  {
-    id: "a2a",
-    name: "A2A",
-    features: ["a2a_chat"],
-  },
-  {
-    id: "aws-strands",
-    name: "AWS Strands",
-    features: [
-      "agentic_chat",
-      "backend_tool_rendering",
-      "agentic_generative_ui",
-      "shared_state",
-      "human_in_the_loop",
-    ],
-  },
+
+  // Pacotes nao disponiveis no npm:
+  // - middleware-starter (@ag-ui/middleware-starter)
+  // - server-starter (@ag-ui/server-starter)
+  // - server-starter-all-features (@ag-ui/server-starter-all-features)
+  // - adk-middleware (@ag-ui/adk)
+  // - a2a, a2a-basic (@a2a-js/sdk)
+  // - aws-strands (@ag-ui/aws-strands)
+  */
+
 ] as const satisfies readonly MenuIntegrationConfig[];

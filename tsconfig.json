@@ -24,14 +24,7 @@
     ],
     "paths": {
       "@/*": [
-        "./src/*",
-        "../../sdks/typescript/packages/client/src/*"
-      ],
-      "@ag-ui/client": [
-        "../../sdks/typescript/packages/client/src"
-      ],
-      "@ag-ui/client/*": [
-        "../../sdks/typescript/packages/client/src/*"
+        "./src/*"
       ]
     }
   },
@@ -44,6 +37,8 @@
   ],
   "exclude": [
     "node_modules",
-    "e2e"
+    "e2e",
+    "**/*.original",
+    "**/*.original/**"
   ]
 }
