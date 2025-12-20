@@ -24,6 +24,7 @@ function extractTenantFromIssuer(issuer: string): string {
  * Configuração do NextAuth v5 com Keycloak
  */
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
   providers: [
     Keycloak({
       clientId: process.env.AUTH_KEYCLOAK_ID!,
@@ -74,9 +75,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       return session
     },
-  },
-  pages: {
-    signIn: "/auth/signin", // Página customizada de login (opcional)
   },
   debug: process.env.NODE_ENV === "development",
 })

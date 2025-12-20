@@ -8,6 +8,7 @@
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { getToken } from "next-auth/jwt";
 import { isIntegrationValid, isFeatureAvailable } from "./utils/menu";
 
 /**
@@ -19,6 +20,7 @@ const PUBLIC_ROUTES = [
   "/_next/image",
   "/favicon.ico",
   "/images",
+  "/health",
 ];
 
 /**
@@ -28,21 +30,36 @@ function isPublicRoute(pathname: string): boolean {
   return PUBLIC_ROUTES.some(route => pathname.startsWith(route));
 }
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-pathname", pathname);
 
-  // NOTA: Autenticacao via NextAuth v5 usando auth() callback
-  // Temporariamente desabilitado ate Keycloak estar configurado
-  // Para habilitar: descomentar bloco abaixo e importar { auth } from "@/lib/auth"
-  /*
   // Verificar autenticacao para rotas protegidas
   if (!isPublicRoute(pathname)) {
-    // O middleware auth() do NextAuth v5 lida com a validacao
-    // Sera integrado quando Keycloak estiver 100% configurado
+    const token = await getToken({
+      req: request,
+      secret: process.env.NEXTAUTH_SECRET,
+    });
+
+    // Se nao tem token, redireciona para login
+    if (!token) {
+      const signInUrl = new URL("/api/auth/signin", request.url);
+      signInUrl.searchParams.set("callbackUrl", pathname);
+      return NextResponse.redirect(signInUrl);
+    }
+
+    // Adiciona informacoes do usuario aos headers para o backend
+    if (token.sub) {
+      requestHeaders.set("x-user-id", token.sub);
+    }
+    if (token.tenantId) {
+      requestHeaders.set("x-tenant-id", token.tenantId as string);
+    }
+    if (token.groups) {
+      requestHeaders.set("x-groups", (token.groups as string[]).join(","));
+    }
   }
-  */
 
   // Check for feature routes: /[integrationId]/feature/[featureId]
   const featureMatch = pathname.match(/^\/([^/]+)\/feature\/([^/]+)\/?$/);
