@@ -1,65 +1,16 @@
 /**
- * SPEC-006-skyller - Proxy + Auth Middleware
- * Combina validacao de rotas do AG-UI Dojo com autenticacao NextAuth v5
- *
- * Next.js 16 nao permite middleware.ts e proxy.ts simultaneamente,
- * entao combinamos as funcionalidades aqui.
+ * SPEC-006-skyller - Proxy Middleware
+ * Validacao de rotas do AG-UI Dojo
  */
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getToken } from "next-auth/jwt";
 import { isIntegrationValid, isFeatureAvailable } from "./utils/menu";
-
-/**
- * Rotas que nao requerem autenticacao
- */
-const PUBLIC_ROUTES = [
-  "/api/auth",
-  "/_next/static",
-  "/_next/image",
-  "/favicon.ico",
-  "/images",
-  "/health",
-];
-
-/**
- * Verifica se a rota e publica (nao requer auth)
- */
-function isPublicRoute(pathname: string): boolean {
-  return PUBLIC_ROUTES.some(route => pathname.startsWith(route));
-}
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-pathname", pathname);
-
-  // Verificar autenticacao para rotas protegidas
-  if (!isPublicRoute(pathname)) {
-    const token = await getToken({
-      req: request,
-      secret: process.env.NEXTAUTH_SECRET,
-    });
-
-    // Se nao tem token, redireciona para login
-    if (!token) {
-      const signInUrl = new URL("/api/auth/signin", request.url);
-      signInUrl.searchParams.set("callbackUrl", pathname);
-      return NextResponse.redirect(signInUrl);
-    }
-
-    // Adiciona informacoes do usuario aos headers para o backend
-    if (token.sub) {
-      requestHeaders.set("x-user-id", token.sub);
-    }
-    if (token.tenantId) {
-      requestHeaders.set("x-tenant-id", token.tenantId as string);
-    }
-    if (token.groups) {
-      requestHeaders.set("x-groups", (token.groups as string[]).join(","));
-    }
-  }
 
   // Check for feature routes: /[integrationId]/feature/[featureId]
   const featureMatch = pathname.match(/^\/([^/]+)\/feature\/([^/]+)\/?$/);
@@ -67,23 +18,19 @@ export async function proxy(request: NextRequest) {
   if (featureMatch) {
     const [, integrationId, featureId] = featureMatch;
 
-    // Check if integration exists
     if (!isIntegrationValid(integrationId)) {
       requestHeaders.set("x-not-found", "integration");
-    }
-    // Check if feature is available for this integration
-    else if (!isFeatureAvailable(integrationId, featureId)) {
+    } else if (!isFeatureAvailable(integrationId, featureId)) {
       requestHeaders.set("x-not-found", "feature");
     }
   }
 
-  // Check for integration routes: /[integrationId] (but not /[integrationId]/feature/...)
+  // Check for integration routes: /[integrationId]
   const integrationMatch = pathname.match(/^\/([^/]+)\/?$/);
 
   if (integrationMatch) {
     const [, integrationId] = integrationMatch;
 
-    // Skip the root path
     if (integrationId && integrationId !== "") {
       if (!isIntegrationValid(integrationId)) {
         requestHeaders.set("x-not-found", "integration");
@@ -100,8 +47,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Match all paths except static files
     "/((?!_next/static|_next/image|favicon.ico|images).*)",
   ],
 };
-
