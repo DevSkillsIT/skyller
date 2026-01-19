@@ -61,7 +61,12 @@ export async function GET(request: NextRequest) {
   if (providerOverride) {
     // Provider especificado explicitamente
     providerId = providerOverride;
-    tenantId = providerOverride.replace("keycloak-", "");
+    // SPEC-ORGS-001: nexus-admin usa KEYCLOAK_DEFAULT_REALM (Skyller)
+    if (providerOverride === "nexus-admin") {
+      tenantId = process.env.KEYCLOAK_DEFAULT_REALM || "Skyller";
+    } else {
+      tenantId = providerOverride.replace("keycloak-", "");
+    }
   } else if (isAdmin) {
     // Admin access - usar nexus-admin
     // SPEC-ORGS-001: Usar KEYCLOAK_DEFAULT_REALM (Skyller) em vez de "master"
