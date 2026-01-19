@@ -1,0 +1,43 @@
+import { CopilotRuntime, OpenAIAdapter, copilotRuntimeNextJSAppRouterEndpoint } from "@copilotkit/runtime"
+import OpenAI from "openai"
+import type { NextRequest } from "next/server"
+
+// C1 by Thesys as Gateway LLM
+const openai = new OpenAI({
+  baseURL: "https://api.thesys.dev/v1/embed",
+  apiKey: process.env.THESYS_API_KEY || "demo-key",
+})
+
+const serviceAdapter = new OpenAIAdapter({
+  openai,
+  model: "c1/anthropic/claude-sonnet-4/v-20250815",
+})
+
+const runtime = new CopilotRuntime()
+
+export const POST = async (req: NextRequest) => {
+  try {
+    const body = await req.json()
+    const agentId = body.agentId || 1
+
+    console.log(`[v0] Request for Agent ${agentId}`)
+
+    // For now, all agents use C1 Gateway (Generative UI)
+    // TODO: Implement framework-specific routing when backend agents are deployed
+    // See MULTI_AGENT_ARCHITECTURE.md for implementation guide
+
+    const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
+      runtime,
+      serviceAdapter,
+      endpoint: "/api/copilot",
+    })
+
+    return handleRequest(req)
+  } catch (error) {
+    console.error("[v0] API error:", error)
+    return new Response(JSON.stringify({ error: "Internal server error" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    })
+  }
+}

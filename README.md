@@ -1,126 +1,80 @@
-# Skyller - Frontend Agnóstico do Skills AI Nexus
+# Skyller - Multi-Agent Chat Platform
 
-Frontend moderno e agnóstico baseado no AG-UI Protocol com suporte a CopilotKit, NextAuth e integração multi-tenant.
+Interface de chat multi-agente conectada ao **Nexus Core** via **AG-UI Protocol**.
 
-## 🎯 Visão Geral
+## Features
 
-O **Skyller** é o frontend oficial do **Skills AI Nexus**, fornecendo uma interface conversacional para interação com agentes AI através do **AG-UI Protocol**. Principais características:
+- **AG-UI Protocol** - Streaming bidirecional com Nexus Core (Agno)
+- **CopilotKit Integration** - Real-time streaming e orquestração
+- **Dark Brutalist Design** - Interface moderna com tema escuro
+- **Multi-Tenant Ready** - Preparado para múltiplos tenants via Keycloak
+- **Collapsible Sidebar** - Gestão de projetos e configurações
 
-- ✅ **AG-UI Protocol** - Comunicação padronizada com backends de agentes
-- 🎨 **UI Moderna** - Interface limpa com suporte a tema dark/light
-- 🔐 **Autenticação** - NextAuth 5 + Keycloak para multi-tenancy
-- 💬 **CopilotKit** - Componentes de chat e HITL (Human-in-the-Loop)
-- 📱 **Responsivo** - Design mobile-first com Tailwind CSS
-- 🚀 **Next.js 16** - Server Components e App Router
+## Tech Stack
 
-## 📋 Origem do Projeto
+- **Next.js 16.1.2** (App Router, React 19.2.3)
+- **CopilotKit** - AG-UI Protocol implementation
+- **TypeScript 5.9** - Full type safety
+- **Tailwind CSS v4** - Styling with design tokens
+- **shadcn/ui** - UI component library
+- **Lucide Icons** - Icon system
 
-Este projeto foi extraído do [AG-UI Protocol Dojo](https://github.com/ag-ui-protocol/ag-ui) e adaptado para funcionar como aplicação standalone no ecossistema **Skills AI Nexus**.
+## Ferramentas de Desenvolvimento
 
-**Remote Upstream:** `https://github.com/ag-ui-protocol/ag-ui.git`
+- **pnpm** - Package manager
+- **Biome** - Linter + Formatter (substitui ESLint)
+- **Lefthook** - Git hooks
+- **Vitest** - Testes unitários
+- **Playwright** - Testes E2E
 
-## 🏗️ Stack Tecnológica
+## Getting Started
 
-| Tecnologia | Versão | Função |
-|------------|--------|--------|
-| **Next.js** | 16.0.7 | Framework React com SSR |
-| **React** | 19.2.1 | Biblioteca UI |
-| **TypeScript** | 5.x | Type Safety |
-| **Tailwind CSS** | 4.x | Estilização |
-| **CopilotKit** | 1.50.0 | Componentes de chat e agentes |
-| **NextAuth** | 5.0.0-beta.30 | Autenticação |
-| **Keycloak-JS** | 26.2.2 | Cliente Keycloak |
+### Prerequisites
 
-## 🚀 Setup de Desenvolvimento
+- Node.js 20+
+- pnpm instalado
+- Nexus Core rodando em localhost:8000
 
-### Pré-requisitos
+### Installation
 
-```bash
-# Instalar pnpm (se ainda não tiver)
-curl -fsSL https://get.pnpm.io/install.sh | sh -
-```
+1. Instalar dependências:
+   ```bash
+   pnpm install
+   ```
 
-### Instalação
+2. Copiar variáveis de ambiente:
+   ```bash
+   cp env.sample .env.local
+   ```
 
-```bash
-# Instalar dependências
-pnpm install
+3. Rodar servidor de desenvolvimento:
+   ```bash
+   pnpm dev
+   ```
 
-# Executar em modo desenvolvimento
-pnpm dev
+4. Acessar [http://localhost:3004](http://localhost:3004)
 
-# Build para produção
-pnpm build
+## Portas do Ambiente
 
-# Iniciar versão de produção
-pnpm start
-```
+| Serviço | Porta |
+|---------|-------|
+| **Skyller** | 3004 |
+| Nexus Core | 8000 |
+| MCPHub | 3000 |
+| Agent-UI (Agno Playground) | 3001 |
+| LibreChat | 3080 |
 
-O projeto estará disponível em [http://localhost:3000](http://localhost:3000).
-
-## 📁 Estrutura do Projeto
-
-```
-skyller/
-├── src/
-│   ├── app/              # Next.js App Router
-│   ├── components/
-│   │   ├── chat/         # Componentes de chat (Phase 2)
-│   │   ├── hitl/         # Human-in-the-Loop (Phase 2)
-│   │   ├── ui/           # Componentes UI base
-│   │   └── ...
-│   ├── hooks/            # React Hooks customizados
-│   ├── lib/
-│   │   ├── auth/         # Configuração NextAuth (Phase 2)
-│   │   └── utils.ts
-│   ├── types/            # TypeScript types
-│   └── utils/            # Funções utilitárias
-├── public/               # Assets estáticos
-└── package.json
-```
-
-## 🔧 Próximos Passos (Roadmap)
-
-### ✅ Phase 1: Setup (Concluída)
-- [x] Extrair AG-UI Dojo do monorepo
-- [x] Configurar como projeto standalone
-- [x] Instalar dependências (CopilotKit, NextAuth, Keycloak)
-- [x] Criar estrutura de diretórios
-
-### 🚧 Phase 2: Authentication (Próxima)
-- [ ] Configurar NextAuth com Keycloak
-- [ ] Implementar middleware de autenticação
-- [ ] Criar componentes de login/logout
-
-### 🔜 Phase 3: Chat Interface
-- [ ] Implementar componentes de chat com CopilotKit
-- [ ] Integrar AG-UI Protocol streaming
-- [ ] Adicionar suporte HITL
-
-### 🔜 Phase 4: Multi-Tenancy
-- [ ] Integrar tenant_id nos headers
-- [ ] Configurar roteamento por tenant
-- [ ] Implementar isolamento de dados
-
-## 🤝 Integração com Nexus Core
-
-O Skyller se conecta ao **Nexus Core** (backend) através do **AG-UI Protocol**:
+## Arquitetura
 
 ```
-Skyller (Frontend)  →  AG-UI Protocol  →  Nexus Core (Agno/LiteLLM)
+┌─────────────────┐     AG-UI Protocol     ┌─────────────────┐
+│   Skyller       │ ◄──────────────────────► │   Nexus Core    │
+│  (Next.js)      │      SSE Streaming      │    (Agno)       │
+│  Port: 3004     │                         │   Port: 8000    │
+└─────────────────┘                         └─────────────────┘
 ```
 
-## 📚 Documentação
+## Documentação
 
-- [AG-UI Protocol](https://github.com/ag-ui-protocol/ag-ui)
-- [CopilotKit](https://docs.copilotkit.ai/)
-- [NextAuth.js](https://authjs.dev/)
-- [Skills AI Nexus - CLAUDE.md](../CLAUDE.md)
-
-## 📝 Licença
-
-Este projeto mantém a licença original do AG-UI Protocol Dojo.
-
----
-
-**Skills IT Soluções em Tecnologia** | Skills AI Nexus | Dezembro 2025
+- [SPEC-SKYLLER-ADMIN-001.md](../_shared/docs/02-SKYLLER/SPEC-SKYLLER-ADMIN-001.md) - Especificação do Admin
+- [SKYLLER-FEATURES-SPEC.md](../_shared/docs/02-SKYLLER/SKYLLER-FEATURES-SPEC.md) - Features completas

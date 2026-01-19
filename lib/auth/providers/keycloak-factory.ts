@@ -323,6 +323,12 @@ export function createKeycloakProvider(clientKey: "skyller" | "nexus-admin") {
   const clientSecret = process.env.KEYCLOAK_ADMIN_CLIENT_SECRET || "";
   const issuer = `${KEYCLOAK_BASE_URL}/realms/${defaultRealm}`;
 
+  console.log(`[Keycloak Factory] nexus-admin config:`, {
+    defaultRealm,
+    issuer,
+    KEYCLOAK_DEFAULT_REALM_env: process.env.KEYCLOAK_DEFAULT_REALM,
+  });
+
   // Configuracao de authorization para admin
   // NOTA: NAO usamos authorization.url aqui - white-label no route handler
   const authorizationConfig = { params: { scope: "openid email profile" } };
