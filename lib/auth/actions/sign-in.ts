@@ -5,12 +5,11 @@ import { signIn } from "@/auth";
 /**
  * Tipos de cliente Keycloak suportados.
  *
- * Multi-tenant: keycloak-{tenant} (ex: keycloak-skills, keycloak-ramada)
- * Admin: nexus-admin
- *
- * O tipo string permite providers dinamicos baseados no tenant.
+ * SPEC-ORGS-001: Single realm com 2 providers estaticos
+ * - keycloak-skyller: Provider principal para usuarios
+ * - keycloak-admin: Provider para administradores
  */
-export type ClientKey = `keycloak-${string}` | "nexus-admin";
+export type ClientKey = "keycloak-skyller" | "keycloak-admin";
 
 /**
  * Server Action para sign-in via Keycloak com suporte a dual clients.
@@ -51,15 +50,15 @@ export async function signInWithKeycloak(
 }
 
 /**
- * Server Action pre-configurada para sign-in via tenant default (skills).
+ * Server Action pre-configurada para sign-in via Skyller.
  * Uso simplificado para desenvolvimento local.
  *
  * @example
- * <form action={signInDefault}>
+ * <form action={signInSkyller}>
  *   <button type="submit">Entrar</button>
  * </form>
  */
-export const signInDefault = signIn.bind(null, "keycloak-skills");
+export const signInSkyller = signIn.bind(null, "keycloak-skyller");
 
 /**
  * Server Action pre-configurada para sign-in via Admin client.
@@ -70,4 +69,4 @@ export const signInDefault = signIn.bind(null, "keycloak-skills");
  *   <button type="submit">Entrar como Admin</button>
  * </form>
  */
-export const signInAdmin = signIn.bind(null, "nexus-admin");
+export const signInAdmin = signIn.bind(null, "keycloak-admin");

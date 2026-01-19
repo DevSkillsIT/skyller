@@ -28,6 +28,7 @@ export const PUBLIC_ROUTES = [
  */
 export const PUBLIC_ROUTE_PREFIXES = [
   "/api/auth", // Todas as rotas de autenticacao do NextAuth
+  "/api/copilot", // CopilotKit runtime (precisa de /info publico para agent discovery)
   "/realms", // WHITE-LABEL: Proxy para Keycloak (nginx -> idp.servidor.one)
   "/resources", // WHITE-LABEL: Assets do Keycloak
   "/js", // WHITE-LABEL: JS adapter do Keycloak

@@ -40,17 +40,16 @@ const copilotRuntime = new CopilotRuntime({
   },
 });
 
-// Endpoint POST para CopilotKit
-// Recebe mensagens do chat e encaminha para o Nexus Core
-export const POST = async (req: Request) => {
-  const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
-    runtime: copilotRuntime,
-    serviceAdapter: nexusAgent,
-    endpoint: "/api/copilot",
-  });
+// Handler do CopilotKit - criado uma vez e reutilizado
+const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
+  runtime: copilotRuntime,
+  serviceAdapter: nexusAgent,
+  endpoint: "/api/copilot",
+});
 
-  return handleRequest(req);
-};
+// Exportar POST e GET - GET e necessario para /info (agent discovery)
+export const POST = handleRequest;
+export const GET = handleRequest;
 
 // Configuracao de runtime do Next.js
 // Node.js runtime (Edge nao suporta modulos nativos usados pelo @ag-ui/client)

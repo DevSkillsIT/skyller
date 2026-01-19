@@ -3,10 +3,14 @@
  *
  * @description This callback extracts custom claims from Keycloak tokens,
  * applies fallbacks for missing claims, and stores tokens for API calls.
+ *
+ * SPEC-ORGS-001: Handles organization as OBJECT (Keycloak 26)
  */
 
 import type { JWT } from "next-auth/jwt";
 import type { Account, Profile } from "next-auth";
+import { jwtDecode } from "jwt-decode";
+import type { OrganizationClaim } from "@/types/next-auth";
 import { extractClaim, extractRoles, extractGroups } from "@/lib/auth/helpers/extract-claims";
 
 interface JWTCallbackParams {
@@ -52,6 +56,30 @@ export async function jwtCallback({ token, account, profile }: JWTCallbackParams
     token.refreshToken = account.refresh_token;
     token.expiresAt = account.expires_at;
 
+    // SPEC-ORGS-001: Extrair organization como OBJETO do access_token
+    if (account.access_token) {
+      try {
+        const decoded = jwtDecode<{ organization?: OrganizationClaim }>(account.access_token);
+
+        // CRITICAL: organization é OBJETO com aliases como keys
+        const orgObject = decoded.organization || {};
+        const organizationAliases = Object.keys(orgObject);
+
+        token.organizations = organizationAliases;
+        token.organizationObject = orgObject;
+        token.activeOrganization = organizationAliases[0] || null;
+
+        // LEGACY: manter compatibilidade com codigo antigo
+        token.organization = organizationAliases;
+      } catch (error) {
+        console.error("[JWT Callback] Failed to decode organization from access_token:", error);
+        token.organizations = [];
+        token.organizationObject = {};
+        token.activeOrganization = null;
+        token.organization = [];
+      }
+    }
+
     // Debug em desenvolvimento
     if (process.env.NODE_ENV === "development") {
       console.log("[JWT Callback] Claims extracted:", {
@@ -59,6 +87,8 @@ export async function jwtCallback({ token, account, profile }: JWTCallbackParams
         roles: token.roles,
         groups: token.groups,
         clientId: token.clientId,
+        organizations: token.organizations,
+        activeOrganization: token.activeOrganization,
       });
     }
   }

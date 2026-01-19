@@ -1,38 +1,38 @@
 /**
- * Auth.js Edge-Compatible Configuration - Multi-Tenant
+ * Auth.js Edge-Compatible Configuration - Single Realm Multi-Organization
  *
- * @description Configuration that can be used in Edge Runtime (middleware).
- * Registers ALL tenant providers for multi-tenant authentication.
+ * @description Configuration for single-realm multi-organization architecture.
+ * Uses Keycloak 26 Organizations feature with only 2 static providers.
  *
- * Based on SPEC-SKYLLER-ADMIN-001 Section 6.6
- * @see KEYCLOAK-MULTI-TENANT-AD.md
+ * Based on SPEC-ORGS-001
  */
 
 import type { NextAuthConfig } from "next-auth";
-import {
-  createAllKeycloakProviders,
-  createKeycloakProvider,
-} from "@/lib/auth/providers/keycloak-factory";
+import KeycloakProvider from "next-auth/providers/keycloak";
 
 /**
  * Auth.js configuration for Edge runtime compatibility.
  *
- * Registers providers for ALL tenants:
- * - keycloak-skills
- * - keycloak-ramada
- * - keycloak-lindacor
- * - keycloak-wga
- * - keycloak-grupowink
- * - keycloak-gsantoexpedito
- * - keycloak-servcont
- * - nexus-admin (platform admin)
+ * Single realm "skyller" with Organizations:
+ * - keycloak-skyller: Provider principal para usuarios
+ * - keycloak-admin: Provider para administradores da plataforma
  */
 export const authConfig: NextAuthConfig = {
   providers: [
-    // Todos os providers de tenant (7 tenants)
-    ...createAllKeycloakProviders(),
-    // Client para administradores da plataforma
-    createKeycloakProvider("nexus-admin"),
+    KeycloakProvider({
+      id: "keycloak-skills",
+      name: "Skyller",
+      clientId: process.env.KEYCLOAK_CLIENT_ID!,
+      clientSecret: process.env.KEYCLOAK_CLIENT_SECRET!,
+      issuer: process.env.KEYCLOAK_ISSUER, // https://idp.servidor.one/realms/Skyller
+    }),
+    KeycloakProvider({
+      id: "keycloak-admin",
+      name: "Admin",
+      clientId: process.env.KEYCLOAK_ADMIN_CLIENT_ID!,
+      clientSecret: process.env.KEYCLOAK_ADMIN_CLIENT_SECRET!,
+      issuer: process.env.KEYCLOAK_ISSUER,
+    }),
   ],
 
   pages: {

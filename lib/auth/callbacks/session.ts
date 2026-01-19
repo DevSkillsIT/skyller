@@ -3,10 +3,13 @@
  *
  * @description Ensures all fields have safe values (not undefined)
  * and exposes necessary data to the client.
+ *
+ * SPEC-ORGS-001: Propagates organization fields from JWT
  */
 
 import type { Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
+import type { OrganizationClaim } from "@/types/next-auth";
 
 interface SessionCallbackParams {
   session: Session;
@@ -35,6 +38,11 @@ export async function sessionCallback({ session, token }: SessionCallbackParams)
     email: (token.email as string) || "",
     name: (token.name as string) || "Usuario",
     clientId: (token.clientId as string) || "skyller",
+    // SPEC-ORGS-001: Propagar campos de organization
+    organization: (token.organization as string[]) || [],
+    organizations: (token.organizations as string[]) || [],
+    organizationObject: (token.organizationObject as OrganizationClaim) || {},
+    activeOrganization: (token.activeOrganization as string | null) || null,
   };
 
   // Expor access token para API calls (BFF pattern)

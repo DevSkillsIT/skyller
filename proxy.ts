@@ -1,5 +1,8 @@
 /**
- * Next.js Middleware para protecao de rotas - NextAuth v5
+ * Next.js 16 Proxy para protecao de rotas - NextAuth v5
+ *
+ * IMPORTANTE: No Next.js 16, middleware.ts foi renomeado para proxy.ts
+ * e a funcao deve ser exportada como "proxy" (nao "middleware").
  *
  * WHITE-LABEL AUTHENTICATION:
  * Quando um usuario nao autenticado tenta acessar uma rota protegida,
@@ -8,26 +11,25 @@
  *
  * FLUXO:
  * 1. Usuario acessa skills.skyller.ai/chat
- * 2. Middleware detecta que nao esta autenticado
+ * 2. Proxy detecta que nao esta autenticado
  * 3. Redireciona para /api/auth/login?callbackUrl=/chat
- * 4. /api/auth/login detecta tenant e faz signIn("keycloak-skills")
- * 5. Usuario vai direto para skills.skyller.ai/auth/realms/skills/...
+ * 4. /api/auth/login detecta tenant e faz signIn("keycloak-skyller")
+ * 5. Usuario vai direto para idp.servidor.one/realms/Skyller/...
  * 6. Apos login, retorna para skills.skyller.ai/chat
  *
- * @see SPEC-SKYLLER-ADMIN-001 Secao 6.6
+ * @see SPEC-ORGS-001 Single Realm Multi-Organization
  */
 
+import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { NextResponse } from "next/server";
 import { isPublicRoute } from "@/lib/auth/constants";
 
 /**
- * Middleware usando NextAuth v5 auth wrapper.
+ * Proxy function para Next.js 16
  *
- * O auth() retorna um middleware que injeta req.auth com a sessao.
- * Isso permite verificar autenticacao no Edge Runtime.
+ * Usando auth() wrapper do NextAuth v5 que injeta req.auth com a sessao.
  */
-export default auth((req) => {
+export const proxy = auth((req) => {
   const { pathname } = req.nextUrl;
 
   // Rotas publicas - permitir sempre
@@ -35,20 +37,21 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
+  // SPEC-ORGS-001: Extrair tenant do hostname
+  const forwardedHost = req.headers.get("x-forwarded-host");
+  const forwardedProto = req.headers.get("x-forwarded-proto") || "https";
+  const hostname = forwardedHost || req.headers.get("host") || "";
+  const subdomain = hostname.split(".")[0];
+
+  // Construir base URL do tenant
+  const tenantBaseUrl = forwardedHost
+    ? `${forwardedProto}://${forwardedHost}`
+    : req.nextUrl.origin;
+
   // Verificar se usuario esta autenticado
   const isLoggedIn = !!req.auth?.user;
 
   if (!isLoggedIn) {
-    // MULTI-TENANT FIX: Usar X-Forwarded-Host para construir URL correta
-    // req.url pode ter o host interno do servidor, nao o host do cliente
-    const forwardedHost = req.headers.get("x-forwarded-host");
-    const forwardedProto = req.headers.get("x-forwarded-proto") || "https";
-
-    // Construir base URL do tenant
-    const tenantBaseUrl = forwardedHost
-      ? `${forwardedProto}://${forwardedHost}`
-      : req.nextUrl.origin;
-
     // Construir callback URL com o host correto
     const callbackUrl = `${tenantBaseUrl}${pathname}${req.nextUrl.search}`;
 
@@ -59,8 +62,27 @@ export default auth((req) => {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Usuario autenticado - continuar
-  return NextResponse.next();
+  // SPEC-ORGS-001: Validar se usuario pertence ao tenant
+  // Ignorar validacao para localhost e admin
+  const isLocalhost = hostname.includes("localhost");
+  const isAdmin = subdomain === "admin";
+
+  if (!isLocalhost && !isAdmin && req.auth?.user?.organizations) {
+    const userOrgs = req.auth.user.organizations;
+    if (!userOrgs.includes(subdomain)) {
+      // Redirecionar para org padrao do usuario
+      const defaultOrg = userOrgs[0];
+      if (defaultOrg) {
+        const redirectUrl = `https://${defaultOrg}.skyller.ai${pathname}${req.nextUrl.search}`;
+        return NextResponse.redirect(redirectUrl);
+      }
+    }
+  }
+
+  // Usuario autenticado - adicionar X-Tenant-ID header e continuar
+  const response = NextResponse.next();
+  response.headers.set("X-Tenant-ID", subdomain);
+  return response;
 });
 
 /**
