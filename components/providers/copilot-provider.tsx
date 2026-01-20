@@ -39,17 +39,18 @@ export function CopilotProvider({
   children,
   runtimeUrl = "/api/copilot",
 }: CopilotProviderProps) {
-  const { status } = useSession();
+  const { status, data: session } = useSession();
 
-  // Renderiza CopilotKit durante "loading" e "authenticated"
-  // Durante loading: servidor ja validou sessao, hidratacao em andamento
-  // Durante authenticated: sessao confirmada no cliente
-  // Apenas "unauthenticated" nao renderiza CopilotKit
-  if (status === "loading" || status === "authenticated") {
+  // Renderiza CopilotKit apenas quando temos sessao valida com accessToken
+  // IMPORTANTE: Durante loading inicial (redirect para login), session pode ser null
+  // Nao renderizamos CopilotKit sem accessToken para evitar erro 401 do backend
+  const hasValidSession = session?.accessToken != null;
+
+  if (status === "authenticated" && hasValidSession) {
     return <CopilotKit runtimeUrl={runtimeUrl}>{children}</CopilotKit>;
   }
 
-  // Somente unauthenticated - paginas publicas sem CopilotKit
+  // Loading sem sessao valida ou unauthenticated - nao renderiza CopilotKit
   return <>{children}</>;
 }
 
