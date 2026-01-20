@@ -264,9 +264,32 @@ export function createKeycloakProviderForTenant(tenantId: string) {
         roles = decoded.realm_access.roles;
       }
 
-      // SPEC-ORGS-001: Extrair organization[] do token
-      const organization = decoded?.organization || [];
-      const tenant_id = organization[0] || decoded?.tenant_id || tenantId;
+      // SPEC-ORGS-001: Extrair organization do token
+      // Keycloak 26 retorna organization como objeto { alias, id } ou array de strings
+      const rawOrg = decoded?.organization;
+      let organization: string[] = [];
+      let org_id: string | undefined;
+      let org_alias: string | undefined;
+
+      if (rawOrg) {
+        if (typeof rawOrg === "object" && !Array.isArray(rawOrg)) {
+          // Objeto: { "skills-it": true } ou { alias: "skills-it", id: "uuid" }
+          if ("alias" in rawOrg) {
+            org_alias = rawOrg.alias as string;
+            org_id = rawOrg.id as string;
+            organization = [org_alias];
+          } else {
+            // Formato { "skills-it": true, "ramada": false }
+            organization = Object.keys(rawOrg).filter((k) => rawOrg[k as keyof typeof rawOrg]);
+            org_alias = organization[0];
+          }
+        } else if (Array.isArray(rawOrg)) {
+          organization = rawOrg;
+          org_alias = rawOrg[0];
+        }
+      }
+
+      const tenant_id = org_alias || decoded?.tenant_id || tenantId;
 
       return {
         id: profile.sub,
@@ -276,7 +299,9 @@ export function createKeycloakProviderForTenant(tenantId: string) {
         tenant_id,
         tenant_slug: decoded?.tenant_slug || tenantId,
         tenant_name: decoded?.tenant_name || config.displayName,
-        organization, // Multi-org support
+        organization, // Multi-org support (array de aliases)
+        org_id, // UUID da organization ativa
+        org_alias, // Alias da organization ativa
         roles,
         groups: decoded?.groups || [],
         department: decoded?.department || "",
@@ -350,9 +375,30 @@ export function createKeycloakProvider(clientKey: "skyller" | "nexus-admin") {
         // Ignore
       }
 
-      // SPEC-ORGS-001: Extrair organization[] do token para admin multi-tenant
-      const organization = decoded?.organization || [];
-      const tenant_id = organization[0] || decoded?.tenant_id || "admin";
+      // SPEC-ORGS-001: Extrair organization do token para admin multi-tenant
+      // Keycloak 26 retorna organization como objeto { alias, id } ou array de strings
+      const rawOrg = decoded?.organization;
+      let organization: string[] = [];
+      let org_id: string | undefined;
+      let org_alias: string | undefined;
+
+      if (rawOrg) {
+        if (typeof rawOrg === "object" && !Array.isArray(rawOrg)) {
+          if ("alias" in rawOrg) {
+            org_alias = rawOrg.alias as string;
+            org_id = rawOrg.id as string;
+            organization = [org_alias];
+          } else {
+            organization = Object.keys(rawOrg).filter((k) => rawOrg[k as keyof typeof rawOrg]);
+            org_alias = organization[0];
+          }
+        } else if (Array.isArray(rawOrg)) {
+          organization = rawOrg;
+          org_alias = rawOrg[0];
+        }
+      }
+
+      const tenant_id = org_alias || decoded?.tenant_id || "admin";
 
       return {
         id: profile.sub,
@@ -362,7 +408,9 @@ export function createKeycloakProvider(clientKey: "skyller" | "nexus-admin") {
         tenant_id,
         tenant_slug: decoded?.tenant_slug || tenant_id,
         tenant_name: decoded?.tenant_name || "Platform Admin",
-        organization, // Multi-org support
+        organization, // Multi-org support (array de aliases)
+        org_id, // UUID da organization ativa
+        org_alias, // Alias da organization ativa
         roles: decoded?.realm_access?.roles || [],
         groups: decoded?.groups || [],
         department: decoded?.department || "",

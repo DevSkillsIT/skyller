@@ -103,8 +103,9 @@ export const config = {
      * - static/ (pasta de arquivos estaticos)
      * - public/ (pasta publica)
      * - api/auth (rotas de autenticacao NextAuth)
+     * - auth/ (proxy para Keycloak via nginx - WHITE-LABEL)
      * - Arquivos com extensoes de imagem/video/fonte
      */
-    "/((?!_next/static|_next/image|favicon.ico|static/|public/|api/auth|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|mp4|webm|woff|woff2|ttf|eot)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|static/|public/|api/auth|auth/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|mp4|webm|woff|woff2|ttf|eot)$).*)",
   ],
 };

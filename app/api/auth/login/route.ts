@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
   const isAdmin = isAdminHost(host);
 
   // SPEC-ORGS-001: Apenas 2 providers estaticos
-  const providerId = isAdmin ? "keycloak-admin" : "keycloak-skills";
+  const providerId = isAdmin ? "keycloak-admin" : "keycloak-skyller";
 
   // Construir base URL do tenant para white-label
   const forwardedProto = request.headers.get("x-forwarded-proto") || "https";

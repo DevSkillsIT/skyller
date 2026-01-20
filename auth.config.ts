@@ -20,7 +20,7 @@ import KeycloakProvider from "next-auth/providers/keycloak";
 export const authConfig: NextAuthConfig = {
   providers: [
     KeycloakProvider({
-      id: "keycloak-skills",
+      id: "keycloak-skyller",
       name: "Skyller",
       clientId: process.env.KEYCLOAK_CLIENT_ID!,
       clientSecret: process.env.KEYCLOAK_CLIENT_SECRET!,
