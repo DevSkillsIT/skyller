@@ -4,15 +4,15 @@ import { Loader2, LogIn } from "lucide-react";
 import { useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
-import { signInWithKeycloak, type ClientKey } from "@/lib/auth/actions/sign-in";
+import { type ClientKey, signInWithKeycloak } from "@/lib/auth/actions/sign-in";
 import { cn } from "@/lib/utils";
 
 /**
  * Props para o componente SignInButton
  */
 export interface SignInButtonProps {
-  /** Cliente Keycloak a ser usado para autenticacao (obrigatorio) */
-  clientKey: ClientKey;
+  /** Cliente Keycloak a ser usado para autenticacao (opcional, default: "skyller") */
+  clientKey?: ClientKey;
   /** URL de callback apos login bem-sucedido */
   callbackUrl?: string;
   /** Classes CSS adicionais */
@@ -53,7 +53,7 @@ export interface SignInButtonProps {
  * />
  */
 export function SignInButton({
-  clientKey,
+  clientKey = "keycloak-skyller",
   callbackUrl,
   className,
   children,

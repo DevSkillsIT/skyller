@@ -3,7 +3,7 @@
 import { Building2, ChevronDown, LogOut, Settings, Shield, User } from "lucide-react";
 import Link from "next/link";
 import { useTransition } from "react";
-
+import type { AuthUser } from "@/components/auth/auth-guard";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -16,7 +16,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { signOutFromKeycloak } from "@/lib/auth/actions/sign-out";
-import type { AuthUser } from "@/components/auth/auth-guard";
 import { cn } from "@/lib/utils";
 
 /**

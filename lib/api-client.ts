@@ -1,131 +1,204 @@
 /**
- * API Client - Browser-side API calls with X-Tenant-ID
+ * API Client para Skyller
  *
- * @description Cliente de API para uso em Client Components.
- * Baseado em SPEC-ORGS-001 - Single Realm Multi-Organization Architecture.
+ * @description Funcoes utilitarias para comunicacao com o backend e gerenciamento de estado.
+ * Inclui helpers para organizacao multi-tenant e cookies.
  *
- * Features:
- * - Adiciona Authorization header automaticamente
- * - Adiciona X-Tenant-ID header baseado em activeOrganization
- * - Cookie active-organization para persistir escolha do usuario
- * - Fallback para subdomain do hostname
- * - Single source of truth para chamadas de API no browser
- *
- * @example
- * ```typescript
- * import apiClient, { setActiveOrganization } from "@/lib/api-client"
- *
- * // Mudar organization ativa
- * setActiveOrganization("ramada")
- *
- * // Chamadas usarao a organization ativa
- * const response = await apiClient("/v1/agents")
- * const agents = await response.json()
- * ```
+ * @module lib/api-client
  */
 
-import { getSession } from "next-auth/react"
+import type { Session } from "next-auth";
 
-/** Nome do cookie para organization ativa */
-const ACTIVE_ORG_COOKIE = "active-organization"
+// ==============================================================================
+// Constantes
+// ==============================================================================
+
+const ACTIVE_ORG_COOKIE = "active-organization";
+
+// ==============================================================================
+// Organization Helpers
+// ==============================================================================
 
 /**
- * Le o cookie active-organization
+ * Obtem a organizacao ativa do usuario
  *
- * @returns Organization alias do cookie ou undefined
+ * Prioridade:
+ * 1. Session (activeOrganization)
+ * 2. Cookie (active-organization)
+ * 3. Hostname (subdomain)
+ * 4. Primeira org disponivel
+ *
+ * @param session - Sessao do NextAuth
+ * @returns Alias da organizacao ativa
  */
-export function getActiveOrganizationCookie(): string | undefined {
-  if (typeof document === "undefined") return undefined
-  const match = document.cookie.match(new RegExp(`(^| )${ACTIVE_ORG_COOKIE}=([^;]+)`))
-  return match ? decodeURIComponent(match[2]) : undefined
+export function getActiveOrganization(session: Session | null): string | undefined {
+  if (!session?.user) return undefined;
+
+  // Cast para acessar campos customizados
+  const user = session.user as {
+    activeOrganization?: string;
+    organizations?: string[];
+  };
+
+  // 1. Tentar da session
+  if (user.activeOrganization) {
+    return user.activeOrganization;
+  }
+
+  // 2. Tentar do cookie (client-side only)
+  if (typeof window !== "undefined") {
+    const cookieValue = getCookie(ACTIVE_ORG_COOKIE);
+    if (cookieValue && user.organizations?.includes(cookieValue)) {
+      return cookieValue;
+    }
+
+    // 3. Tentar do hostname
+    const hostname = window.location.hostname;
+    const subdomain = hostname.split(".")[0];
+    if (subdomain && subdomain !== "www" && subdomain !== "admin") {
+      if (user.organizations?.includes(subdomain)) {
+        return subdomain;
+      }
+    }
+  }
+
+  // 4. Primeira org disponivel
+  return user.organizations?.[0];
 }
 
 /**
- * Define o cookie active-organization
+ * Define a organizacao ativa no cookie
  *
- * @param orgAlias - Alias da organization (ex: "skills-it", "ramada")
- * @param maxAgeDays - Duracao do cookie em dias (default: 30)
+ * @param orgAlias - Alias da organizacao
  */
-export function setActiveOrganization(orgAlias: string, maxAgeDays = 30): void {
-  if (typeof document === "undefined") return
-  const maxAge = maxAgeDays * 24 * 60 * 60
-  document.cookie = `${ACTIVE_ORG_COOKIE}=${encodeURIComponent(orgAlias)}; path=/; max-age=${maxAge}; samesite=lax; secure`
+export function setActiveOrganization(orgAlias: string): void {
+  if (typeof window === "undefined") return;
+
+  // Cookie valido por 30 dias
+  const expires = new Date();
+  expires.setDate(expires.getDate() + 30);
+
+  document.cookie = `${ACTIVE_ORG_COOKIE}=${orgAlias}; path=/; expires=${expires.toUTCString()}; SameSite=Lax`;
 }
 
 /**
- * Remove o cookie active-organization
+ * Remove o cookie de organizacao ativa
  */
 export function clearActiveOrganization(): void {
-  if (typeof document === "undefined") return
-  document.cookie = `${ACTIVE_ORG_COOKIE}=; path=/; max-age=0`
+  if (typeof window === "undefined") return;
+
+  document.cookie = `${ACTIVE_ORG_COOKIE}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+}
+
+// ==============================================================================
+// Cookie Helpers
+// ==============================================================================
+
+/**
+ * Obtem o valor de um cookie
+ *
+ * @param name - Nome do cookie
+ * @returns Valor do cookie ou undefined
+ */
+export function getCookie(name: string): string | undefined {
+  if (typeof window === "undefined") return undefined;
+
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+
+  if (parts.length === 2) {
+    return parts.pop()?.split(";").shift();
+  }
+
+  return undefined;
 }
 
 /**
- * Obtem a organization ativa com prioridade:
- * 1) Session activeOrganization
- * 2) Cookie active-organization
- * 3) Hostname subdomain
+ * Define um cookie
  *
- * @param session - Sessao do usuario (opcional)
- * @returns Organization alias
+ * @param name - Nome do cookie
+ * @param value - Valor do cookie
+ * @param days - Dias ate expirar (default: 30)
  */
-export function getActiveOrganization(session?: { user?: { activeOrganization?: string } } | null): string {
-  // Priority 1: Session activeOrganization
-  if (session?.user?.activeOrganization) {
-    return session.user.activeOrganization
+export function setCookie(name: string, value: string, days = 30): void {
+  if (typeof window === "undefined") return;
+
+  const expires = new Date();
+  expires.setDate(expires.getDate() + days);
+
+  document.cookie = `${name}=${value}; path=/; expires=${expires.toUTCString()}; SameSite=Lax`;
+}
+
+// ==============================================================================
+// API Helpers
+// ==============================================================================
+
+/**
+ * Base URL para chamadas de API
+ */
+export function getApiBaseUrl(): string {
+  // Server-side: usar variavel de ambiente
+  if (typeof window === "undefined") {
+    return process.env.NEXUS_API_URL || "http://localhost:8000";
   }
 
-  // Priority 2: Cookie
-  const cookieOrg = getActiveOrganizationCookie()
-  if (cookieOrg) {
-    return cookieOrg
-  }
-
-  // Priority 3: Hostname subdomain
-  return getTenantFromHostname()
+  // Client-side: usar URL relativa ou configurada
+  return process.env.NEXT_PUBLIC_API_URL || "";
 }
 
 /**
- * API Client - Single source of X-Tenant-ID para fetch no browser
+ * Faz uma requisicao GET para a API
  *
- * @param endpoint - Endpoint da API (ex: "/v1/agents")
- * @param options - Opcoes do fetch (method, body, headers, etc)
- * @returns Promise com Response do fetch
+ * @param endpoint - Endpoint da API (ex: "/users")
+ * @param options - Opcoes adicionais do fetch
+ * @returns Response da API
  */
-export async function apiClient(endpoint: string, options: RequestInit = {}) {
-  const session = await getSession()
-
-  // Priority: 1) Session activeOrg, 2) Cookie, 3) Hostname subdomain
-  const activeOrg = getActiveOrganization(session)
-
-  const headers = new Headers(options.headers)
-
-  if (session?.accessToken) {
-    headers.set("Authorization", `Bearer ${session.accessToken}`)
-  }
-
-  if (activeOrg) {
-    headers.set("X-Tenant-ID", activeOrg)
-  }
-
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://api.skyller.ai"
-
-  return fetch(`${apiUrl}${endpoint}`, {
+export async function apiGet<T>(
+  endpoint: string,
+  options?: RequestInit
+): Promise<T> {
+  const response = await fetch(`${getApiBaseUrl()}${endpoint}`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      ...options?.headers,
+    },
     ...options,
-    headers,
-  })
+  });
+
+  if (!response.ok) {
+    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json();
 }
 
 /**
- * Extrai tenant do hostname (subdomain)
+ * Faz uma requisicao POST para a API
  *
- * @returns Tenant alias extraido do subdomain
+ * @param endpoint - Endpoint da API
+ * @param data - Dados a enviar
+ * @param options - Opcoes adicionais do fetch
+ * @returns Response da API
  */
-function getTenantFromHostname(): string {
-  if (typeof window === "undefined") return "skills"
-  const hostname = window.location.hostname
-  const subdomain = hostname.split(".")[0]
-  return subdomain === "admin" ? "skills" : subdomain
-}
+export async function apiPost<T, D = unknown>(
+  endpoint: string,
+  data?: D,
+  options?: RequestInit
+): Promise<T> {
+  const response = await fetch(`${getApiBaseUrl()}${endpoint}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...options?.headers,
+    },
+    body: data ? JSON.stringify(data) : undefined,
+    ...options,
+  });
 
-export default apiClient
+  if (!response.ok) {
+    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json();
+}

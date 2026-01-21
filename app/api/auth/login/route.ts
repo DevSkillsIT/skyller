@@ -20,9 +20,9 @@
  * @see SPEC-ORGS-001
  */
 
+import { type NextRequest, NextResponse } from "next/server";
 import { signIn } from "@/auth";
 import { isAdminHost } from "@/lib/auth/providers/keycloak-factory";
-import { NextRequest, NextResponse } from "next/server";
 
 /**
  * URL base do Keycloak real (para substituicao white-label)
@@ -64,12 +64,15 @@ export async function GET(request: NextRequest) {
 
   // Construir base URL do tenant para white-label
   const forwardedProto = request.headers.get("x-forwarded-proto") || "https";
-  const tenantBaseUrl = forwardedHost && !forwardedHost.includes("localhost")
-    ? `${forwardedProto}://${forwardedHost}`
-    : `${forwardedProto}://${request.headers.get("host") || "localhost:3004"}`;
+  const tenantBaseUrl =
+    forwardedHost && !forwardedHost.includes("localhost")
+      ? `${forwardedProto}://${forwardedHost}`
+      : `${forwardedProto}://${request.headers.get("host") || "localhost:3004"}`;
 
   // DEBUG: Log das URLs
-  console.log(`[Auth Login] Provider: ${providerId}, Realm: ${KEYCLOAK_REALM}, TenantBaseUrl: ${tenantBaseUrl}`);
+  console.log(
+    `[Auth Login] Provider: ${providerId}, Realm: ${KEYCLOAK_REALM}, TenantBaseUrl: ${tenantBaseUrl}`
+  );
 
   try {
     // MULTI-TENANT FIX: Setar AUTH_URL ANTES do signIn para garantir callback URL correta

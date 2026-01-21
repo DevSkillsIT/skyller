@@ -1,18 +1,21 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import { SessionProvider } from "next-auth/react";
-import { Geist, Geist_Mono } from "next/font/google";
 import type React from "react";
-
 import { CopilotProvider } from "@/components/providers/copilot-provider";
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
-const _geist = Geist({ subsets: ["latin"] });
-const _geistMono = Geist_Mono({ subsets: ["latin"] });
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+});
 
 export const metadata: Metadata = {
-  title: "Multi-Agent Management System",
-  description: "Dark futuristic brutalist multi-agent app with C1 + AG-UI",
-  generator: "v0.app",
+  title: "Skyller - Plataforma de IA Conversacional",
+  description:
+    "Plataforma corporativa de IA conversacional multi-tenant. Converse com agentes especializados, organize trabalho em projetos e analise documentos.",
+  generator: "Skyller",
   icons: {
     icon: [
       {
@@ -32,16 +35,28 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f172a" },
+  ],
+  width: "device-width",
+  initialScale: 1,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`font-sans antialiased`}>
+    <html lang="pt-BR" suppressHydrationWarning>
+      <body className={`${inter.variable} font-sans antialiased`}>
         <SessionProvider>
-          <CopilotProvider>{children}</CopilotProvider>
+          <CopilotProvider>
+            {children}
+            <Toaster position="top-right" />
+          </CopilotProvider>
         </SessionProvider>
       </body>
     </html>

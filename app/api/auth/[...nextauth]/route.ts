@@ -16,8 +16,8 @@
  * @see SPEC-SKYLLER-ADMIN-001 Secao 6.6
  */
 
+import type { NextRequest } from "next/server";
 import { handlers } from "@/auth";
-import { NextRequest } from "next/server";
 
 /**
  * Tipo para o contexto do App Router com catch-all route.
@@ -60,7 +60,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   console.log(`[NextAuth] GET /${action} - AUTH_URL: ${authUrl}`);
 
-  return handlers.GET(request, context);
+  // NextAuth v5 beta handlers aceitam request como primeiro argumento
+  // e context como segundo (tipagem pode estar desatualizada)
+  return (handlers.GET as (req: NextRequest, ctx: RouteContext) => Promise<Response>)(request, context);
 }
 
 /**
@@ -73,5 +75,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
   console.log(`[NextAuth] POST /${action} - AUTH_URL: ${authUrl}`);
 
-  return handlers.POST(request, context);
+  // NextAuth v5 beta handlers aceitam request como primeiro argumento
+  // e context como segundo (tipagem pode estar desatualizada)
+  return (handlers.POST as (req: NextRequest, ctx: RouteContext) => Promise<Response>)(request, context);
 }

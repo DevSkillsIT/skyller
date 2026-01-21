@@ -1,59 +1,41 @@
 // app/api/copilot/route.ts
-// ══════════════════════════════════════════════════════════════════════════════
-// INTEGRACAO SKYLLER <-> NEXUS CORE VIA AG-UI PROTOCOL
-// ══════════════════════════════════════════════════════════════════════════════
-//
-// Este arquivo conecta o frontend Skyller ao backend Nexus Core usando
-// o AG-UI Protocol (Agno + CopilotKit).
-//
-// Fluxo:
-// 1. Usuario envia mensagem no chat
-// 2. CopilotKit intercepta e envia para este endpoint
-// 3. HttpAgent encaminha para Nexus Core (/agui)
-// 4. Nexus Core processa com Agno e retorna via SSE
-// 5. CopilotKit renderiza a resposta no chat
-//
-// ══════════════════════════════════════════════════════════════════════════════
+// Integração Skyller ↔ Nexus Core via AG-UI Protocol (Agno)
 
+import {
+  CopilotRuntime,
+  ExperimentalEmptyAdapter,
+  copilotRuntimeNextJSAppRouterEndpoint,
+} from "@copilotkit/runtime";
 import { HttpAgent } from "@ag-ui/client";
-import { CopilotRuntime, copilotRuntimeNextJSAppRouterEndpoint } from "@copilotkit/runtime";
+import type { NextRequest } from "next/server";
 
-// URL do Nexus Core (backend)
-// Em desenvolvimento: http://localhost:8000
-// Em producao: URL do servidor Nexus Core
-const NEXUS_API_URL = process.env.NEXUS_API_URL || "http://localhost:8000";
-const NEXUS_AGUI_URL = `${NEXUS_API_URL}/agui`;
+// URL do backend Nexus Core (AG-UI Protocol)
+const NEXUS_AGUI_URL = process.env.NEXUS_API_URL
+  ? `${process.env.NEXUS_API_URL}/agui`
+  : "http://localhost:8000/agui";
 
-// Configuracao do agente Nexus Core
-const nexusAgent = new HttpAgent({
-  url: NEXUS_AGUI_URL,
-  // Headers adicionais podem ser configurados aqui
-  // Ex: headers: { "X-Custom-Header": "value" }
-});
+// Service adapter para single-agent
+const serviceAdapter = new ExperimentalEmptyAdapter();
 
-// Runtime do CopilotKit com agente configurado
-const copilotRuntime = new CopilotRuntime({
+// HttpAgent conectado ao Nexus Core (Agno)
+// O HttpAgent e compativel com a interface esperada pelo CopilotRuntime
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const nexusAgent = new HttpAgent({ url: NEXUS_AGUI_URL }) as any;
+
+// Runtime com HttpAgent conectado ao Nexus Core (Agno)
+const runtime = new CopilotRuntime({
   agents: {
-    // Agente padrao - CopilotKit procura por "default"
-    // Conectado ao Nexus Core via AG-UI Protocol
-    default: nexusAgent,
+    nexus_agent: nexusAgent,
   },
 });
 
-// Handler do CopilotKit - criado uma vez e reutilizado
-const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
-  runtime: copilotRuntime,
-  serviceAdapter: nexusAgent,
-  endpoint: "/api/copilot",
-});
+// Endpoint POST para CopilotKit
+export const POST = async (req: NextRequest) => {
+  const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
+    runtime,
+    serviceAdapter,
+    endpoint: "/api/copilot",
+  });
 
-// Exportar POST e GET - GET e necessario para /info (agent discovery)
-export const POST = handleRequest;
-export const GET = handleRequest;
-
-// Configuracao de runtime do Next.js
-// Node.js runtime (Edge nao suporta modulos nativos usados pelo @ag-ui/client)
-export const runtime = "nodejs";
-
-// Timeout maximo para respostas longas
-export const maxDuration = 60; // 60 segundos
+  return handleRequest(req);
+};

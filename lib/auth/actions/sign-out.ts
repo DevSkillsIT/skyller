@@ -1,7 +1,7 @@
 "use server";
 
 import { signOut } from "@/auth";
-import { getIssuer, getClientId } from "@/lib/auth/helpers/issuer";
+import { getClientId, getIssuer } from "@/lib/auth/helpers/issuer";
 
 /**
  * Gera a URL de logout do Keycloak (end_session_endpoint).

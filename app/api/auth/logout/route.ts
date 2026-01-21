@@ -7,8 +7,8 @@
  * @see SPEC-SKYLLER-ADMIN-001 Secao 6.6
  */
 
+import { type NextRequest, NextResponse } from "next/server";
 import { signOut } from "@/auth";
-import { NextRequest, NextResponse } from "next/server";
 
 /**
  * GET /api/auth/logout

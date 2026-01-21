@@ -72,11 +72,7 @@ function requireEnv(key: string, value: string | undefined): string {
 /**
  * Obtem uma variavel de ambiente opcional com valor padrao
  */
-function optionalEnv(
-  key: string,
-  value: string | undefined,
-  defaultValue: string
-): string {
+function optionalEnv(key: string, value: string | undefined, defaultValue: string): string {
   return value && value.trim() !== "" ? value : defaultValue;
 }
 
@@ -157,7 +153,16 @@ export function getKeycloakSecret(tenantId: TenantId): string {
     );
   }
 
-  return getEnv(envKey);
+  // getEnv garante que retorna string (lanca erro se nao existir)
+  // Keys de secrets de tenant sao sempre obrigatorias
+  const secret = getEnv(envKey);
+  if (!secret) {
+    throw new Error(
+      `[ENV ERROR] Secret para tenant "${tenantId}" nao configurado.\n` +
+        `Configure ${envKey} no arquivo .env.local`
+    );
+  }
+  return secret;
 }
 
 /**

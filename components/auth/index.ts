@@ -34,15 +34,12 @@
  * }
  */
 
+// Client component para protecao de conteudo
+export { AuthGuard, type AuthGuardProps } from "./auth-guard";
+// Server component para status de autenticacao
+export { AuthStatus, type AuthStatusProps } from "./auth-status";
 // Componentes de botao
 export { SignInButton, type SignInButtonProps } from "./sign-in-button";
 export { SignOutButton, type SignOutButtonProps } from "./sign-out-button";
-
 // Componente de menu do usuario
 export { UserMenu, type UserMenuProps } from "./user-menu";
-
-// Server component para status de autenticacao
-export { AuthStatus, type AuthStatusProps } from "./auth-status";
-
-// Client component para protecao de conteudo
-export { AuthGuard, type AuthGuardProps } from "./auth-guard";

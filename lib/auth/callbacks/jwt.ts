@@ -7,11 +7,11 @@
  * SPEC-ORGS-001: Handles organization as OBJECT (Keycloak 26)
  */
 
-import type { JWT } from "next-auth/jwt";
-import type { Account, Profile } from "next-auth";
 import { jwtDecode } from "jwt-decode";
+import type { Account, Profile } from "next-auth";
+import type { JWT } from "next-auth/jwt";
+import { extractClaim, extractGroups, extractRoles } from "@/lib/auth/helpers/extract-claims";
 import type { OrganizationClaim } from "@/types/next-auth";
-import { extractClaim, extractRoles, extractGroups } from "@/lib/auth/helpers/extract-claims";
 
 interface JWTCallbackParams {
   token: JWT;

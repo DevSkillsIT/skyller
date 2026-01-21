@@ -266,7 +266,11 @@ export function createKeycloakProviderForTenant(tenantId: string) {
 
       // SPEC-ORGS-001: Extrair organization do token
       // Keycloak 26 retorna organization como objeto { alias, id } ou array de strings
-      const rawOrg = decoded?.organization;
+      const rawOrg = decoded?.organization as
+        | { alias: string; id: string }
+        | Record<string, boolean>
+        | string[]
+        | undefined;
       let organization: string[] = [];
       let org_id: string | undefined;
       let org_alias: string | undefined;
@@ -274,13 +278,14 @@ export function createKeycloakProviderForTenant(tenantId: string) {
       if (rawOrg) {
         if (typeof rawOrg === "object" && !Array.isArray(rawOrg)) {
           // Objeto: { "skills-it": true } ou { alias: "skills-it", id: "uuid" }
-          if ("alias" in rawOrg) {
-            org_alias = rawOrg.alias as string;
-            org_id = rawOrg.id as string;
+          const orgObj = rawOrg as { alias?: string; id?: string } & Record<string, boolean>;
+          if (orgObj.alias) {
+            org_alias = orgObj.alias;
+            org_id = orgObj.id;
             organization = [org_alias];
           } else {
             // Formato { "skills-it": true, "ramada": false }
-            organization = Object.keys(rawOrg).filter((k) => rawOrg[k as keyof typeof rawOrg]);
+            organization = Object.keys(rawOrg).filter((k) => (rawOrg as Record<string, boolean>)[k]);
             org_alias = organization[0];
           }
         } else if (Array.isArray(rawOrg)) {
@@ -323,7 +328,9 @@ export function createKeycloakProviderForTenant(tenantId: string) {
  */
 export function createAllKeycloakProviders() {
   const tenants = getAvailableTenants();
-  console.log(`[Keycloak Factory] Creating providers for ${tenants.length} tenants: ${tenants.join(", ")}`);
+  console.log(
+    `[Keycloak Factory] Creating providers for ${tenants.length} tenants: ${tenants.join(", ")}`
+  );
   return tenants.map((tenantId) => createKeycloakProviderForTenant(tenantId));
 }
 
@@ -377,19 +384,24 @@ export function createKeycloakProvider(clientKey: "skyller" | "nexus-admin") {
 
       // SPEC-ORGS-001: Extrair organization do token para admin multi-tenant
       // Keycloak 26 retorna organization como objeto { alias, id } ou array de strings
-      const rawOrg = decoded?.organization;
+      const rawOrg = decoded?.organization as
+        | { alias: string; id: string }
+        | Record<string, boolean>
+        | string[]
+        | undefined;
       let organization: string[] = [];
       let org_id: string | undefined;
       let org_alias: string | undefined;
 
       if (rawOrg) {
         if (typeof rawOrg === "object" && !Array.isArray(rawOrg)) {
-          if ("alias" in rawOrg) {
-            org_alias = rawOrg.alias as string;
-            org_id = rawOrg.id as string;
+          const orgObj = rawOrg as { alias?: string; id?: string } & Record<string, boolean>;
+          if (orgObj.alias) {
+            org_alias = orgObj.alias;
+            org_id = orgObj.id;
             organization = [org_alias];
           } else {
-            organization = Object.keys(rawOrg).filter((k) => rawOrg[k as keyof typeof rawOrg]);
+            organization = Object.keys(rawOrg).filter((k) => (rawOrg as Record<string, boolean>)[k]);
             org_alias = organization[0];
           }
         } else if (Array.isArray(rawOrg)) {

@@ -1,7 +1,8 @@
 import { LogOut } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
 import { SignOutButton } from "@/components/auth";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,8 +13,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { auth } from "@/auth";
-import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
   title: "Sair | Skyller",

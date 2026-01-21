@@ -83,9 +83,7 @@ export const authConfig: NextAuthConfig = {
     },
     csrfToken: {
       name:
-        process.env.NODE_ENV === "production"
-          ? "__Host-authjs.csrf-token"
-          : "authjs.csrf-token",
+        process.env.NODE_ENV === "production" ? "__Host-authjs.csrf-token" : "authjs.csrf-token",
       options: {
         httpOnly: true,
         sameSite: "lax",
@@ -107,10 +105,7 @@ export const authConfig: NextAuthConfig = {
       },
     },
     state: {
-      name:
-        process.env.NODE_ENV === "production"
-          ? "__Secure-authjs.state"
-          : "authjs.state",
+      name: process.env.NODE_ENV === "production" ? "__Secure-authjs.state" : "authjs.state",
       options: {
         httpOnly: true,
         sameSite: "lax",
@@ -120,10 +115,7 @@ export const authConfig: NextAuthConfig = {
       },
     },
     nonce: {
-      name:
-        process.env.NODE_ENV === "production"
-          ? "__Secure-authjs.nonce"
-          : "authjs.nonce",
+      name: process.env.NODE_ENV === "production" ? "__Secure-authjs.nonce" : "authjs.nonce",
       options: {
         httpOnly: true,
         sameSite: "lax",

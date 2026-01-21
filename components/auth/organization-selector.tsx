@@ -15,8 +15,9 @@
  * - Visual feedback da organization ativa
  */
 
+import { Building2 } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   Select,
   SelectContent,
@@ -24,7 +25,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Building2 } from "lucide-react";
 
 interface OrganizationSelectorProps {
   /**

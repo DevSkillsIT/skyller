@@ -10,10 +10,10 @@
  */
 
 import { Loader2 } from "lucide-react";
-import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useSession } from "next-auth/react";
 import type React from "react";
+import { useEffect } from "react";
 
 interface ProtectedContentProps {
   children: React.ReactNode;

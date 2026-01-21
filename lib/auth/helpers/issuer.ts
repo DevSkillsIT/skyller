@@ -4,10 +4,7 @@
  * Este arquivo NAO importa next/headers e pode ser usado em Server Actions.
  */
 
-import {
-  getTenantConfig,
-  getIssuerForTenant,
-} from "@/lib/auth/providers/keycloak-factory";
+import { getIssuerForTenant, getTenantConfig } from "@/lib/auth/providers/keycloak-factory";
 
 /**
  * Constroi a URL do issuer do Keycloak baseado no tenant atual.

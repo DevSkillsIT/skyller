@@ -1,8 +1,5 @@
 /**
- * Next.js 16 Proxy para protecao de rotas - NextAuth v5
- *
- * IMPORTANTE: No Next.js 16, middleware.ts foi renomeado para proxy.ts
- * e a funcao deve ser exportada como "proxy" (nao "middleware").
+ * Next.js Middleware para protecao de rotas - NextAuth v5
  *
  * WHITE-LABEL AUTHENTICATION:
  * Quando um usuario nao autenticado tenta acessar uma rota protegida,
@@ -20,7 +17,7 @@
  * @see SPEC-ORGS-001 Single Realm Multi-Organization
  */
 
-import { NextResponse, type NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { isPublicRoute } from "@/lib/auth/constants";
 
@@ -28,6 +25,7 @@ import { isPublicRoute } from "@/lib/auth/constants";
  * Proxy function para Next.js 16
  *
  * Usando auth() wrapper do NextAuth v5 que injeta req.auth com a sessao.
+ * IMPORTANTE: Next.js 16 requer export nomeado "proxy", nao "default" ou "middleware"
  */
 export const proxy = auth((req) => {
   const { pathname } = req.nextUrl;
@@ -44,9 +42,7 @@ export const proxy = auth((req) => {
   const subdomain = hostname.split(".")[0];
 
   // Construir base URL do tenant
-  const tenantBaseUrl = forwardedHost
-    ? `${forwardedProto}://${forwardedHost}`
-    : req.nextUrl.origin;
+  const tenantBaseUrl = forwardedHost ? `${forwardedProto}://${forwardedHost}` : req.nextUrl.origin;
 
   // Verificar se usuario esta autenticado
   const isLoggedIn = !!req.auth?.user;

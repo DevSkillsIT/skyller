@@ -25,6 +25,7 @@ export interface AuthUser {
  * Roles disponiveis no sistema
  */
 export type UserRole = "admin" | "manager" | "user" | "viewer" | "tenant-admin" | "super-admin";
+
 import { cn } from "@/lib/utils";
 
 /**

@@ -1,57 +1,33 @@
 "use client";
 
-/**
- * CopilotKit Provider com verificacao de autenticacao
- *
- * Este provider carrega o CopilotKit apenas quando o usuario esta autenticado.
- * Paginas que usam CopilotKit devem ser protegidas com ProtectedContent.
- *
- * @see SPEC-SKYLLER-ADMIN-001 Secao 6.6
- */
-
 import { CopilotKit } from "@copilotkit/react-core";
-import { useSession } from "next-auth/react";
+import { CopilotSidebar } from "@copilotkit/react-ui";
 import type React from "react";
-
-interface CopilotProviderProps {
-  children: React.ReactNode;
-  runtimeUrl?: string;
-}
+import "@copilotkit/react-ui/styles.css";
 
 /**
- * Provider que carrega CopilotKit para usuarios autenticados
+ * CopilotProvider - Wrapper para CopilotKit com AG-UI Protocol
  *
- * NOTA: Durante a hidratacao do cliente, useSession() pode estar em estado
- * "loading" brevemente. Como as paginas protegidas ja validam autenticacao
- * no servidor (via auth() em page.tsx), renderizamos CopilotKit para
- * "loading" e "authenticated" para evitar erro de hooks CopilotKit sendo
- * chamados fora do provider durante a hidratacao.
- *
- * @example
- * // No layout.tsx
- * <SessionProvider>
- *   <CopilotProvider>
- *     {children}
- *   </CopilotProvider>
- * </SessionProvider>
+ * Conecta o frontend Skyller ao backend Nexus Core via /api/copilot
+ * que implementa HttpAgent para comunicação AG-UI.
  */
-export function CopilotProvider({
-  children,
-  runtimeUrl = "/api/copilot",
-}: CopilotProviderProps) {
-  const { status, data: session } = useSession();
-
-  // Renderiza CopilotKit apenas quando temos sessao valida com accessToken
-  // IMPORTANTE: Durante loading inicial (redirect para login), session pode ser null
-  // Nao renderizamos CopilotKit sem accessToken para evitar erro 401 do backend
-  const hasValidSession = session?.accessToken != null;
-
-  if (status === "authenticated" && hasValidSession) {
-    return <CopilotKit runtimeUrl={runtimeUrl}>{children}</CopilotKit>;
-  }
-
-  // Loading sem sessao valida ou unauthenticated - nao renderiza CopilotKit
-  return <>{children}</>;
+export function CopilotProvider({ children }: { children: React.ReactNode }) {
+  return (
+    <CopilotKit
+      runtimeUrl="/api/copilot"
+      agent="nexus_agent"
+      showDevConsole={process.env.NODE_ENV === "development"}
+    >
+      <CopilotSidebar
+        defaultOpen={false}
+        clickOutsideToClose={true}
+        labels={{
+          title: "Skyller AI Assistant",
+          initial: "Como posso ajudar você hoje?",
+        }}
+      >
+        {children}
+      </CopilotSidebar>
+    </CopilotKit>
+  );
 }
-
-export default CopilotProvider;

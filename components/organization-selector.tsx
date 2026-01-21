@@ -12,68 +12,68 @@
  * - Esconde automaticamente se usuario tem apenas 1 org
  */
 
-"use client"
+"use client";
 
-import { useSession } from "next-auth/react"
-import { useEffect, useState } from "react"
+import { useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
 import {
   getActiveOrganization,
   setActiveOrganization as setActiveOrgCookie,
-} from "@/lib/api-client"
+} from "@/lib/api-client";
 
 export function OrganizationSelector() {
-  const { data: session, update } = useSession()
-  const [activeOrg, setActiveOrg] = useState<string | undefined>()
-  const [isChanging, setIsChanging] = useState(false)
+  const { data: session, update } = useSession();
+  const [activeOrg, setActiveOrg] = useState<string | undefined>();
+  const [isChanging, setIsChanging] = useState(false);
 
-  const organizations = session?.user?.organizations || []
-  const orgObject = session?.user?.organizationObject || {}
+  const organizations = session?.user?.organizations || [];
+  const orgObject = session?.user?.organizationObject || {};
 
   // Inicializar activeOrg com prioridade: session > cookie > hostname
   useEffect(() => {
     if (session) {
-      setActiveOrg(getActiveOrganization(session))
+      setActiveOrg(getActiveOrganization(session));
     }
-  }, [session])
+  }, [session]);
 
   // Esconder se usuario tem apenas 1 organization
   if (organizations.length <= 1) {
-    return null
+    return null;
   }
 
   const handleChange = async (orgAlias: string) => {
-    if (isChanging) return
-    setIsChanging(true)
-    setActiveOrg(orgAlias)
+    if (isChanging) return;
+    setIsChanging(true);
+    setActiveOrg(orgAlias);
 
     try {
       // 1. Persistir no cookie
-      setActiveOrgCookie(orgAlias)
+      setActiveOrgCookie(orgAlias);
 
       // 2. Atualizar session
-      await update({ activeOrganization: orgAlias })
+      await update({ activeOrganization: orgAlias });
 
       // 3. Redirecionar para subdomain correto (host/org coherence)
-      const currentHost = window.location.host
-      const currentSubdomain = currentHost.split(".")[0]
+      const currentHost = window.location.host;
+      const currentSubdomain = currentHost.split(".")[0];
 
       // Nao redirecionar se for admin.skyller.ai (admin ve todas orgs)
       if (currentSubdomain === "admin") {
-        window.location.reload()
-        return
+        window.location.reload();
+        return;
       }
 
       if (currentSubdomain !== orgAlias && !currentHost.includes("localhost")) {
-        const newHost = currentHost.replace(currentSubdomain, orgAlias)
-        window.location.href = `${window.location.protocol}//${newHost}${window.location.pathname}`
+        const newHost = currentHost.replace(currentSubdomain, orgAlias);
+        window.location.href = `${window.location.protocol}//${newHost}${window.location.pathname}`;
       } else {
         // Reload para aplicar mudancas em localhost
-        window.location.reload()
+        window.location.reload();
       }
     } finally {
-      setIsChanging(false)
+      setIsChanging(false);
     }
-  }
+  };
 
   return (
     <select
@@ -89,5 +89,5 @@ export function OrganizationSelector() {
         </option>
       ))}
     </select>
-  )
+  );
 }

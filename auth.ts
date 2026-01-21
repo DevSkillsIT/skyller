@@ -8,8 +8,8 @@
  */
 
 import NextAuth from "next-auth";
-import { authConfig } from "./auth.config";
 import { jwtCallback, sessionCallback } from "@/lib/auth/callbacks";
+import { authConfig } from "./auth.config";
 
 /**
  * NextAuth.js configuration with all callbacks and events.
