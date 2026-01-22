@@ -61,8 +61,8 @@ interface ChatContextType {
   isLoading: boolean;
   /** Se o assistente esta pensando (THINKING event) */
   isThinking: boolean;
-  /** Carrega uma conversa existente */
-  loadConversation: (conversationId: string) => void;
+  /** Carrega uma conversa existente (AC-008: busca historico do backend) */
+  loadConversation: (conversationId: string) => Promise<void>;
   /** Inicia nova conversa */
   startNewConversation: () => void;
   /** Envia mensagem (integrado com CopilotKit) */
@@ -136,9 +136,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
           setMessagesState((prev) => {
             // Evita duplicatas
-            const exists = prev.some(
-              (m) => m.role === "assistant" && m.content === content
-            );
+            const exists = prev.some((m) => m.role === "assistant" && m.content === content);
             if (exists) return prev;
             return [...prev, assistantMessage];
           });
@@ -150,12 +148,48 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [visibleMessages]);
 
-  // Carrega conversa existente
-  const loadConversation = useCallback((conversationId: string) => {
+  /**
+   * Carrega conversa existente do backend
+   * @acceptance AC-008: Carregar historico de mensagens
+   * @acceptance CC-03: Hidratacao de historico com setMessages
+   */
+  const loadConversation = useCallback(async (conversationId: string) => {
     setCurrentConversationId(conversationId);
-    // TODO: Implementar carregamento de historico do backend
-    setMessagesState([]);
-    lastMessageCountRef.current = 0;
+
+    try {
+      // Buscar historico de mensagens do backend via API proxy
+      const response = await fetch(`/api/conversations/${conversationId}/messages`);
+
+      if (!response.ok) {
+        console.error("[ChatContext] Erro ao carregar historico:", response.status);
+        setMessagesState([]);
+        lastMessageCountRef.current = 0;
+        return;
+      }
+
+      const historyMessages = await response.json();
+
+      // Converter mensagens do backend para o formato do contexto
+      const formattedMessages: Message[] = historyMessages.map(
+        (msg: { id: string; role: string; content: string; created_at?: string }) => ({
+          id: msg.id,
+          role: msg.role as "user" | "assistant" | "system",
+          content: msg.content,
+          timestamp: msg.created_at ? new Date(msg.created_at) : new Date(),
+          status: "sent" as const,
+        })
+      );
+
+      // Hidratar o contexto com o historico
+      setMessagesState(formattedMessages);
+      lastMessageCountRef.current = formattedMessages.length;
+
+      console.log(`[ChatContext] Historico carregado: ${formattedMessages.length} mensagens`);
+    } catch (error) {
+      console.error("[ChatContext] Erro ao carregar historico:", error);
+      setMessagesState([]);
+      lastMessageCountRef.current = 0;
+    }
   }, []);
 
   // Inicia nova conversa
@@ -200,9 +234,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
         // AC-032: Atualiza status para "sent" apos sucesso
         setMessagesState((prev) =>
-          prev.map((msg) =>
-            msg.id === messageId ? { ...msg, status: "sent" as const } : msg
-          )
+          prev.map((msg) => (msg.id === messageId ? { ...msg, status: "sent" as const } : msg))
         );
       } catch (error) {
         console.error("[ChatContext] Erro ao enviar mensagem:", error);
