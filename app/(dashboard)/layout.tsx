@@ -12,6 +12,7 @@ import { ArtifactPanel } from "@/components/layout/artifact-panel";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { Button } from "@/components/ui/button";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
+import { CopilotProvider } from "@/components/providers/copilot-provider";
 import { ChatProvider, useChat } from "@/lib/contexts/chat-context";
 import { PanelProvider, usePanel } from "@/lib/contexts/panel-context";
 import { mockProjects, mockWorkspaces } from "@/lib/mock/data";
@@ -149,16 +150,29 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * DashboardLayout - Layout principal do dashboard
+ * @spec SPEC-COPILOT-INTEGRATION-001
+ * @acceptance AC-001: CopilotProvider Configurado
+ *
+ * Providers na ordem correta:
+ * 1. CopilotProvider - CopilotKit para integracao com agentes
+ * 2. ChatProvider - Gerenciamento de estado do chat
+ * 3. PanelProvider - Gerenciamento de paineis laterais
+ * 4. SidebarProvider - Controle da sidebar
+ */
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <ChatProvider>
-      <PanelProvider>
-        <SidebarProvider defaultOpen={true}>
-          <Suspense fallback={<div>Loading Dashboard...</div>}>
-            <DashboardInner>{children}</DashboardInner>
-          </Suspense>
-        </SidebarProvider>
-      </PanelProvider>
-    </ChatProvider>
+    <CopilotProvider>
+      <ChatProvider>
+        <PanelProvider>
+          <SidebarProvider defaultOpen={true}>
+            <Suspense fallback={<div>Loading Dashboard...</div>}>
+              <DashboardInner>{children}</DashboardInner>
+            </Suspense>
+          </SidebarProvider>
+        </PanelProvider>
+      </ChatProvider>
+    </CopilotProvider>
   );
 }
