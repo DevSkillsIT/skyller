@@ -5,9 +5,10 @@
  *
  * @phase PRESERVE - DDD Characterization Tests
  */
+
+import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ChatErrorBoundary } from "@/components/chat/chat-error-boundary";
 
 // Componente que lanca erro no render
@@ -81,9 +82,7 @@ describe("ChatErrorBoundary - Error Boundary do Chat", () => {
         </ChatErrorBoundary>
       );
 
-      expect(
-        screen.getByText(/Algo deu errado ao carregar o chat/i)
-      ).toBeInTheDocument();
+      expect(screen.getByText(/Algo deu errado ao carregar o chat/i)).toBeInTheDocument();
     });
 
     it("deve exibir botao de tentar novamente", () => {
@@ -136,38 +135,55 @@ describe("ChatErrorBoundary - Error Boundary do Chat", () => {
     });
 
     it("deve recuperar de erro com botao retry", () => {
-      const { rerender } = render(
+      let shouldThrow = true;
+
+      const TestComponent = () => {
+        if (shouldThrow) {
+          throw new Error("Erro temporario");
+        }
+        return <div>Conteudo recuperado</div>;
+      };
+
+      render(
         <ChatErrorBoundary>
-          <ConditionalErrorComponent shouldThrow={true} />
+          <TestComponent />
         </ChatErrorBoundary>
       );
 
       expect(screen.getByText("Ocorreu um erro no chat")).toBeInTheDocument();
 
-      // Re-render com shouldThrow=false
-      rerender(
-        <ChatErrorBoundary>
-          <ConditionalErrorComponent shouldThrow={false} />
-        </ChatErrorBoundary>
-      );
+      // Corrigir a condicao antes de clicar retry
+      shouldThrow = false;
+
+      // Clicar no botao "Tentar Novamente" para resetar o error boundary
+      const retryButton = screen.getByRole("button", { name: /Tentar Novamente/i });
+      fireEvent.click(retryButton);
 
       // Deve recuperar e renderizar o conteudo normal
-      expect(screen.getByText("Conteudo normal")).toBeInTheDocument();
+      expect(screen.getByText("Conteudo recuperado")).toBeInTheDocument();
       expect(screen.queryByText("Ocorreu um erro no chat")).not.toBeInTheDocument();
     });
 
     it("deve exibir detalhes do erro em desenvolvimento", () => {
-      const { container } = render(
-        <ChatErrorBoundary>
-          <BrokenComponent />
-        </ChatErrorBoundary>
-      );
+      // Simular ambiente de desenvolvimento usando vi.stubEnv
+      vi.stubEnv("NODE_ENV", "development");
 
-      // Em desenvolvimento, deve mostrar a mensagem do erro em um elemento mono
-      const errorDetail = container.querySelector("p[class*='font-mono']");
-      expect(errorDetail).toBeInTheDocument();
-      if (errorDetail) {
-        expect(errorDetail.textContent).toContain("Componente quebrado!");
+      try {
+        const { container } = render(
+          <ChatErrorBoundary>
+            <BrokenComponent />
+          </ChatErrorBoundary>
+        );
+
+        // Em desenvolvimento, deve mostrar a mensagem do erro em um elemento mono
+        const errorDetail = container.querySelector("p[class*='font-mono']");
+        expect(errorDetail).toBeInTheDocument();
+        if (errorDetail) {
+          expect(errorDetail.textContent).toContain("Componente quebrado!");
+        }
+      } finally {
+        // Restaurar NODE_ENV
+        vi.unstubAllEnvs();
       }
     });
 
@@ -250,7 +266,7 @@ describe("ChatErrorBoundary - Error Boundary do Chat", () => {
         return <div>Conteudo recuperado</div>;
       };
 
-      const { rerender } = render(
+      render(
         <ChatErrorBoundary>
           <TestComponent />
         </ChatErrorBoundary>
@@ -258,13 +274,14 @@ describe("ChatErrorBoundary - Error Boundary do Chat", () => {
 
       expect(screen.getByText("Ocorreu um erro no chat")).toBeInTheDocument();
 
+      // Corrigir a condicao antes de clicar retry
       shouldThrow = false;
-      rerender(
-        <ChatErrorBoundary>
-          <TestComponent />
-        </ChatErrorBoundary>
-      );
 
+      // Clicar no botao "Tentar Novamente" para resetar o error boundary
+      const retryButton = screen.getByRole("button", { name: /Tentar Novamente/i });
+      fireEvent.click(retryButton);
+
+      // Deve recuperar e renderizar o conteudo normal
       expect(screen.getByText("Conteudo recuperado")).toBeInTheDocument();
     });
   });

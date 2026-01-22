@@ -65,6 +65,50 @@ vi.mock("@ag-ui/client", () => ({
   HttpAgent: MockHttpAgent,
 }));
 
+// Mock do auth - sessao valida por padrao
+const mockAuth = vi.fn().mockResolvedValue({
+  user: {
+    id: "user-123",
+    email: "test@skyller.ai",
+    tenant_id: "tenant-456",
+  },
+  accessToken: "mock-access-token",
+});
+
+vi.mock("@/auth", () => ({
+  auth: () => mockAuth(),
+}));
+
+// Mock das funcoes de error handling
+vi.mock("@/lib/error-handling", () => ({
+  unauthorized: vi.fn(
+    (message: string) =>
+      new Response(JSON.stringify({ success: false, error: "UNAUTHORIZED", message }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      })
+  ),
+  forbidden: vi.fn(
+    (message: string) =>
+      new Response(JSON.stringify({ success: false, error: "FORBIDDEN", message }), {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      })
+  ),
+  handleApiError: vi.fn(
+    (error: unknown) =>
+      new Response(JSON.stringify({ success: false, error: "INTERNAL_ERROR" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      })
+  ),
+}));
+
+// Mock do env-validation
+vi.mock("@/lib/env-validation", () => ({
+  getAgnoAgentUrl: vi.fn(() => "http://localhost:8000/agui"),
+}));
+
 describe("API Copilot Route - Testes de Caracterizacao", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -73,6 +117,15 @@ describe("API Copilot Route - Testes de Caracterizacao", () => {
     MockHttpAgent.reset();
     mockHandleRequest.mockClear();
     mockCopilotRuntimeNextJSAppRouterEndpoint.mockClear();
+    // Reset auth para sessao valida
+    mockAuth.mockResolvedValue({
+      user: {
+        id: "user-123",
+        email: "test@skyller.ai",
+        tenant_id: "tenant-456",
+      },
+      accessToken: "mock-access-token",
+    });
   });
 
   describe("Configuracao do HttpAgent", () => {
@@ -94,14 +147,14 @@ describe("API Copilot Route - Testes de Caracterizacao", () => {
   });
 
   describe("CopilotRuntime Configuration", () => {
-    it("deve registrar agente como nexus_agent", async () => {
+    it("deve registrar agente como skyller", async () => {
       vi.resetModules();
       await import("@/app/api/copilot/route");
 
-      // CopilotRuntime deve ser configurado com agents contendo nexus_agent
+      // CopilotRuntime deve ser configurado com agents contendo skyller
       expect(MockCopilotRuntime.calls.length).toBeGreaterThan(0);
       const lastCall = MockCopilotRuntime.calls[MockCopilotRuntime.calls.length - 1];
-      expect(lastCall.agents).toHaveProperty("nexus_agent");
+      expect(lastCall.agents).toHaveProperty("skyller");
     });
   });
 
@@ -120,6 +173,9 @@ describe("API Copilot Route - Testes de Caracterizacao", () => {
       // Chamar POST para trigger a configuracao do endpoint
       const mockRequest = new Request("http://localhost:3004/api/copilot", {
         method: "POST",
+        headers: {
+          origin: "https://skyller.ai",
+        },
         body: JSON.stringify({ message: "test" }),
       });
 
@@ -143,18 +199,67 @@ describe("API Copilot Route - Testes de Caracterizacao", () => {
       expect(typeof module.POST).toBe("function");
     });
 
-    it("deve chamar handleRequest com a requisicao", async () => {
+    it("deve chamar handleRequest com requisicao enriquecida", async () => {
       vi.resetModules();
       const { POST } = await import("@/app/api/copilot/route");
 
       const mockRequest = new Request("http://localhost:3004/api/copilot", {
         method: "POST",
+        headers: {
+          origin: "https://skyller.ai",
+        },
         body: JSON.stringify({ message: "test" }),
       });
 
       await POST(mockRequest as any);
 
-      expect(mockHandleRequest).toHaveBeenCalledWith(mockRequest);
+      // handleRequest deve ser chamado com uma requisicao (possivelmente enriquecida)
+      expect(mockHandleRequest).toHaveBeenCalled();
+    });
+  });
+
+  describe("Session Validation - CC-07", () => {
+    it("deve retornar 401 quando nao ha sessao", async () => {
+      vi.resetModules();
+      mockAuth.mockResolvedValueOnce(null);
+      const { POST } = await import("@/app/api/copilot/route");
+
+      const mockRequest = new Request("http://localhost:3004/api/copilot", {
+        method: "POST",
+        headers: {
+          origin: "https://skyller.ai",
+        },
+        body: JSON.stringify({ message: "test" }),
+      });
+
+      const response = await POST(mockRequest as any);
+
+      expect(response.status).toBe(401);
+    });
+
+    it("deve retornar 403 quando sessao nao tem tenant_id", async () => {
+      vi.resetModules();
+      mockAuth.mockResolvedValueOnce({
+        user: {
+          id: "user-123",
+          email: "test@skyller.ai",
+          tenant_id: null, // Sem tenant
+        },
+        accessToken: "mock-token",
+      });
+      const { POST } = await import("@/app/api/copilot/route");
+
+      const mockRequest = new Request("http://localhost:3004/api/copilot", {
+        method: "POST",
+        headers: {
+          origin: "https://skyller.ai",
+        },
+        body: JSON.stringify({ message: "test" }),
+      });
+
+      const response = await POST(mockRequest as any);
+
+      expect(response.status).toBe(403);
     });
   });
 });
@@ -167,6 +272,15 @@ describe("CORS Headers - AC-029", () => {
     MockHttpAgent.reset();
     mockHandleRequest.mockClear();
     mockCopilotRuntimeNextJSAppRouterEndpoint.mockClear();
+    // Reset auth para sessao valida
+    mockAuth.mockResolvedValue({
+      user: {
+        id: "user-123",
+        email: "test@skyller.ai",
+        tenant_id: "tenant-456",
+      },
+      accessToken: "mock-access-token",
+    });
   });
 
   it("deve incluir headers CORS para *.skyller.ai", async () => {

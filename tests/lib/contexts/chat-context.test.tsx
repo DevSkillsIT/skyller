@@ -5,15 +5,32 @@
  * @spec SPEC-COPILOT-INTEGRATION-001
  * @phase PRESERVE - DDD Characterization Tests
  */
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ChatProvider, useChat } from "@/lib/contexts/chat-context";
+
+// Mock do fetch global
+const mockFetch = vi.fn();
+global.fetch = mockFetch;
 
 // Wrapper para prover contexto aos hooks
 const wrapper = ({ children }: { children: ReactNode }) => <ChatProvider>{children}</ChatProvider>;
 
 describe("ChatContext - Testes de Caracterizacao", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Setup default fetch mock para retornar array vazio
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve([]),
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   describe("Estado Inicial", () => {
     it("deve inicializar com array de mensagens vazio", () => {
       const { result } = renderHook(() => useChat(), { wrapper });
@@ -27,21 +44,60 @@ describe("ChatContext - Testes de Caracterizacao", () => {
   });
 
   describe("loadConversation", () => {
-    it("deve definir currentConversationId quando conversa e carregada", () => {
+    it("deve definir currentConversationId quando conversa e carregada", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve([]),
+      });
+
       const { result } = renderHook(() => useChat(), { wrapper });
 
-      act(() => {
+      await act(async () => {
         result.current.loadConversation("conv-123");
       });
 
-      expect(result.current.currentConversationId).toBe("conv-123");
+      await waitFor(() => {
+        expect(result.current.currentConversationId).toBe("conv-123");
+      });
     });
 
-    it("deve limpar mensagens quando conversa e carregada", () => {
+    it("deve carregar mensagens do backend quando conversa e carregada", async () => {
+      const mockMessages = [
+        {
+          id: "msg-1",
+          role: "user",
+          content: "Ola",
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: "msg-2",
+          role: "assistant",
+          content: "Oi! Como posso ajudar?",
+          createdAt: new Date().toISOString(),
+        },
+      ];
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockMessages),
+      });
+
+      const { result } = renderHook(() => useChat(), { wrapper });
+
+      await act(async () => {
+        result.current.loadConversation("conv-456");
+      });
+
+      await waitFor(() => {
+        expect(result.current.messages.length).toBe(2);
+      });
+    });
+
+    it("deve limpar mensagens quando erro ao carregar conversa", async () => {
       const { result } = renderHook(() => useChat(), { wrapper });
 
       // Adiciona uma mensagem primeiro
-      act(() => {
+      await act(async () => {
         result.current.addMessage({
           id: "msg-temp",
           role: "user",
@@ -50,43 +106,61 @@ describe("ChatContext - Testes de Caracterizacao", () => {
         });
       });
 
-      // Carrega nova conversa
-      act(() => {
-        result.current.loadConversation("conv-456");
+      // Mock fetch com erro
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
       });
 
-      // Comportamento atual: limpa mensagens para carregar do backend (TODO)
-      expect(result.current.messages).toEqual([]);
+      // Carrega nova conversa que vai falhar
+      await act(async () => {
+        result.current.loadConversation("conv-error");
+      });
+
+      await waitFor(() => {
+        // Comportamento atual: limpa mensagens em caso de erro
+        expect(result.current.messages).toEqual([]);
+      });
     });
   });
 
   describe("startNewConversation", () => {
-    it("deve resetar currentConversationId para null", () => {
+    it("deve resetar currentConversationId para null", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve([]),
+      });
+
       const { result } = renderHook(() => useChat(), { wrapper });
 
       // Primeiro carrega uma conversa
-      act(() => {
+      await act(async () => {
         result.current.loadConversation("conv-789");
       });
 
       // Depois inicia nova conversa
-      act(() => {
+      await act(async () => {
         result.current.startNewConversation();
       });
 
       expect(result.current.currentConversationId).toBeNull();
     });
 
-    it("deve limpar array de mensagens", () => {
+    it("deve limpar array de mensagens", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve([]),
+      });
+
       const { result } = renderHook(() => useChat(), { wrapper });
 
       // Carrega conversa com mensagens
-      act(() => {
+      await act(async () => {
         result.current.loadConversation("conv-abc");
       });
 
       // Inicia nova conversa
-      act(() => {
+      await act(async () => {
         result.current.startNewConversation();
       });
 
@@ -95,7 +169,7 @@ describe("ChatContext - Testes de Caracterizacao", () => {
   });
 
   describe("addMessage", () => {
-    it("deve adicionar mensagem ao array existente", () => {
+    it("deve adicionar mensagem ao array existente", async () => {
       const { result } = renderHook(() => useChat(), { wrapper });
 
       const novaMensagem = {
@@ -105,14 +179,14 @@ describe("ChatContext - Testes de Caracterizacao", () => {
         timestamp: new Date(),
       };
 
-      act(() => {
+      await act(async () => {
         result.current.addMessage(novaMensagem);
       });
 
       expect(result.current.messages).toContainEqual(novaMensagem);
     });
 
-    it("deve preservar mensagens existentes ao adicionar nova", () => {
+    it("deve preservar mensagens existentes ao adicionar nova", async () => {
       const { result } = renderHook(() => useChat(), { wrapper });
 
       const msg1 = {
@@ -129,11 +203,11 @@ describe("ChatContext - Testes de Caracterizacao", () => {
         timestamp: new Date(),
       };
 
-      act(() => {
+      await act(async () => {
         result.current.addMessage(msg1);
       });
 
-      act(() => {
+      await act(async () => {
         result.current.addMessage(msg2);
       });
 
@@ -144,7 +218,7 @@ describe("ChatContext - Testes de Caracterizacao", () => {
   });
 
   describe("setMessages", () => {
-    it("deve substituir todas as mensagens", () => {
+    it("deve substituir todas as mensagens", async () => {
       const { result } = renderHook(() => useChat(), { wrapper });
 
       const novasMensagens = [
@@ -162,7 +236,7 @@ describe("ChatContext - Testes de Caracterizacao", () => {
         },
       ];
 
-      act(() => {
+      await act(async () => {
         result.current.setMessages(novasMensagens);
       });
 
