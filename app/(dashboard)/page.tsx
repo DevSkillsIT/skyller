@@ -33,7 +33,7 @@ import {
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { AgentsGalleryDialog } from "@/components/dialogs/api/v1/agents-gallery-dialog";
+import { AgentsGalleryDialog } from "@/components/dialogs/agents-gallery-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
