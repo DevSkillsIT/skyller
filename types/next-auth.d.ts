@@ -14,6 +14,21 @@ import type { DefaultSession, DefaultUser } from "next-auth";
 import type { JWT as DefaultJWT } from "next-auth/jwt";
 
 /**
+ * Metadados de uma Organization do Keycloak 26
+ */
+interface OrganizationMeta {
+  id: string;
+  name: string;
+  tenant_id: string[];
+}
+
+/**
+ * Estrutura do claim organization no JWT do Keycloak 26
+ * IMPORTANTE: E um OBJETO, nao array!
+ */
+type OrganizationClaim = Record<string, OrganizationMeta>;
+
+/**
  * Claims customizados do Keycloak presentes no token JWT
  */
 interface KeycloakClaims {
@@ -57,6 +72,12 @@ declare module "next-auth" {
       tenant_name: string;
       /** Organizations (Keycloak Organizations) - array de aliases */
       organization: string[];
+      /** Organizations - Array de aliases derivado de Object.keys (Keycloak 26) */
+      organizations: string[];
+      /** Organizations - Objeto original com metadados (Keycloak 26) */
+      organizationObject: OrganizationClaim;
+      /** Organization ativa selecionada pelo usuario */
+      activeOrganization: string | null;
       /** Grupos do Keycloak */
       groups: string[];
       /** Roles combinadas (realm + client) */
@@ -120,6 +141,12 @@ declare module "next-auth/jwt" {
     tenant_name?: string;
     /** Organizations (Keycloak Organizations) - array de aliases */
     organization?: string[];
+    /** Organizations - Array de aliases derivado de Object.keys (Keycloak 26) */
+    organizations?: string[];
+    /** Organizations - Objeto original com metadados (Keycloak 26) */
+    organizationObject?: OrganizationClaim;
+    /** Organization ativa selecionada pelo usuario */
+    activeOrganization?: string | null;
     /** Grupos do Keycloak */
     groups?: string[];
     /** Roles do usuario */
@@ -160,8 +187,10 @@ export interface KeycloakToken {
   tenant_slug?: string;
   /** Nome do tenant */
   tenant_name?: string;
-  /** Organizations (Keycloak Organizations) - array de aliases */
+  /** Organizations (Keycloak Organizations) - array de aliases (LEGACY) */
   organization?: string[];
+  /** Organizations (Keycloak 26) - OBJETO com metadados */
+  organizationObject?: OrganizationClaim;
   /** Grupos do usuario */
   groups?: string[];
   /** Departamento */
@@ -183,3 +212,8 @@ export interface KeycloakToken {
   /** Timestamp de emissao */
   iat?: number;
 }
+
+/**
+ * Exports dos novos tipos
+ */
+export type { OrganizationMeta, OrganizationClaim };
