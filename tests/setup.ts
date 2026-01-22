@@ -7,6 +7,34 @@
 import { afterEach, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
+// Mock para arquivos CSS (necessario para bibliotecas como katex e streamdown)
+vi.mock("katex/dist/katex.min.css", () => ({ default: {} }));
+vi.mock("katex/dist/katex.css", () => ({ default: {} }));
+vi.mock("katex", () => ({
+  default: {
+    renderToString: vi.fn(() => ""),
+  },
+  renderToString: vi.fn(() => ""),
+}));
+
+// Mock para streamdown e seus plugins
+vi.mock("streamdown", () => ({
+  Streamdown: ({ children }: { children: string }) => children,
+}));
+vi.mock("@streamdown/math", () => ({ default: {} }));
+vi.mock("@streamdown/code", () => ({ default: {} }));
+
+// Mock para @copilotkit/react-core (evita imports transitivos de CSS)
+vi.mock("@copilotkit/react-core", () => ({
+  useCopilotChat: () => ({
+    visibleMessages: [],
+    appendMessage: vi.fn().mockResolvedValue(undefined),
+    isLoading: false,
+    stopGeneration: vi.fn(),
+  }),
+  CopilotKit: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 // Mock para fetch global (necessario para testes de API)
 global.fetch = vi.fn();
 

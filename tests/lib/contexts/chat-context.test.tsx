@@ -37,15 +37,26 @@ describe("ChatContext - Testes de Caracterizacao", () => {
       expect(result.current.currentConversationId).toBe("conv-123");
     });
 
-    it("deve carregar mensagens mock quando conversa e carregada", () => {
+    it("deve limpar mensagens quando conversa e carregada", () => {
       const { result } = renderHook(() => useChat(), { wrapper });
 
+      // Adiciona uma mensagem primeiro
+      act(() => {
+        result.current.addMessage({
+          id: "msg-temp",
+          role: "user",
+          content: "Mensagem temporaria",
+          timestamp: new Date(),
+        });
+      });
+
+      // Carrega nova conversa
       act(() => {
         result.current.loadConversation("conv-456");
       });
 
-      // Comportamento atual: carrega mockMessages
-      expect(result.current.messages.length).toBeGreaterThan(0);
+      // Comportamento atual: limpa mensagens para carregar do backend (TODO)
+      expect(result.current.messages).toEqual([]);
     });
   });
 

@@ -15,6 +15,7 @@ export default defineConfig({
       reporter: ["text", "json", "html"],
       exclude: ["node_modules", ".next", "**/*.d.ts", "**/*.config.*", "**/types/**"],
     },
+    css: false, // Ignora CSS em testes
   },
   resolve: {
     alias: {
