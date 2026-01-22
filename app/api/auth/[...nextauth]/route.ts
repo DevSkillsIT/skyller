@@ -62,7 +62,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   // NextAuth v5 beta handlers aceitam request como primeiro argumento
   // e context como segundo (tipagem pode estar desatualizada)
-  return (handlers.GET as (req: NextRequest, ctx: RouteContext) => Promise<Response>)(request, context);
+  return (handlers.GET as (req: NextRequest, ctx: RouteContext) => Promise<Response>)(
+    request,
+    context
+  );
 }
 
 /**
@@ -77,5 +80,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
   // NextAuth v5 beta handlers aceitam request como primeiro argumento
   // e context como segundo (tipagem pode estar desatualizada)
-  return (handlers.POST as (req: NextRequest, ctx: RouteContext) => Promise<Response>)(request, context);
+  return (handlers.POST as (req: NextRequest, ctx: RouteContext) => Promise<Response>)(
+    request,
+    context
+  );
 }
