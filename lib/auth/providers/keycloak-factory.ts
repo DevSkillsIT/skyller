@@ -285,7 +285,9 @@ export function createKeycloakProviderForTenant(tenantId: string) {
             organization = [org_alias];
           } else {
             // Formato { "skills-it": true, "ramada": false }
-            organization = Object.keys(rawOrg).filter((k) => (rawOrg as Record<string, boolean>)[k]);
+            organization = Object.keys(rawOrg).filter(
+              (k) => (rawOrg as Record<string, boolean>)[k]
+            );
             org_alias = organization[0];
           }
         } else if (Array.isArray(rawOrg)) {
@@ -401,7 +403,9 @@ export function createKeycloakProvider(clientKey: "skyller" | "nexus-admin") {
             org_id = orgObj.id;
             organization = [org_alias];
           } else {
-            organization = Object.keys(rawOrg).filter((k) => (rawOrg as Record<string, boolean>)[k]);
+            organization = Object.keys(rawOrg).filter(
+              (k) => (rawOrg as Record<string, boolean>)[k]
+            );
             org_alias = organization[0];
           }
         } else if (Array.isArray(rawOrg)) {

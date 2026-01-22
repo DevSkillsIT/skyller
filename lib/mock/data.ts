@@ -137,8 +137,7 @@ export const mockWorkspaces: Workspace[] = [
     docsCount: 28,
     chatsCount: 14,
     description: "Campanhas, estrategias de marketing e comunicacao",
-    customInstructions:
-      "Foque em criatividade, engajamento e metricas de performance.",
+    customInstructions: "Foque em criatividade, engajamento e metricas de performance.",
   },
   {
     id: "ws5",

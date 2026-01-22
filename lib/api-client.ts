@@ -153,10 +153,7 @@ export function getApiBaseUrl(): string {
  * @param options - Opcoes adicionais do fetch
  * @returns Response da API
  */
-export async function apiGet<T>(
-  endpoint: string,
-  options?: RequestInit
-): Promise<T> {
+export async function apiGet<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${getApiBaseUrl()}${endpoint}`, {
     method: "GET",
     headers: {

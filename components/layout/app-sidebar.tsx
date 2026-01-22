@@ -319,7 +319,10 @@ export function AppSidebar({
                   <SidebarMenu>
                     {/* Link para detalhe do workspace */}
                     <SidebarMenuItem>
-                      <SidebarMenuButton asChild isActive={pathname === `/workspaces/${currentWorkspace.id}`}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={pathname === `/workspaces/${currentWorkspace.id}`}
+                      >
                         <Link href={`/workspaces/${currentWorkspace.id}`}>
                           <Building2 className="h-4 w-4" />
                           <span>Visao Geral</span>
@@ -328,7 +331,10 @@ export function AppSidebar({
                     </SidebarMenuItem>
                     {/* Link para projetos do workspace */}
                     <SidebarMenuItem>
-                      <SidebarMenuButton asChild isActive={pathname === "/projects" || pathname.startsWith("/projects/")}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={pathname === "/projects" || pathname.startsWith("/projects/")}
+                      >
                         <Link href={`/projects?workspace=${currentWorkspace.id}`}>
                           <FolderOpen className="h-4 w-4" />
                           <span>Projetos</span>
