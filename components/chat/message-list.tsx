@@ -1,208 +1,173 @@
 /**
- * MessageList - Lista de mensagens com auto-scroll
- * @spec SPEC-COPILOT-INTEGRATION-001
- * @acceptance AC-036: Componente MessageList Extraido
- * @acceptance AC-015: Scroll Automatico
- * @acceptance AC-009: Indicador "Digitando" Durante Streaming
+ * Componente MessageList - Lista de mensagens com indicadores AG-UI
  *
- * Renderiza lista de mensagens com:
- * - Auto-scroll para ultima mensagem
- * - Sugestoes de conversa quando vazio
- * - Indicador de loading durante processamento
- */
-"use client";
-
-import { Bot, Code2, FileSearch, FileText, Loader2, TrendingUp } from "lucide-react";
-import type React from "react";
-import { useCallback, useEffect, useRef } from "react";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { type Agent, type Artifact, Message, type MessageData } from "./message";
-
-// Tipos
-export interface ConversationSuggestion {
-  id: string;
-  title: string;
-  icon: string;
-  agentId: string;
-}
-
-export interface MessageListProps {
-  /** Lista de mensagens */
-  messages: MessageData[];
-  /** Lista de agentes disponiveis */
-  agents?: Agent[];
-  /** Se o assistente esta processando */
-  isLoading?: boolean;
-  /** Se o assistente esta pensando (THINKING event) */
-  isThinking?: boolean;
-  /** Sugestoes de conversa para exibir quando vazio */
-  suggestions?: ConversationSuggestion[];
-  /** Callback quando sugestao e clicada */
-  onSuggestionClick?: (suggestion: ConversationSuggestion) => void;
-  /** Callback para feedback positivo */
-  onFeedbackPositive?: (messageId: string) => void;
-  /** Callback para feedback negativo */
-  onFeedbackNegative?: (messageId: string) => void;
-  /** Callback para regenerar resposta */
-  onRegenerate?: (messageId: string) => void;
-  /** Callback para abrir artifact */
-  onOpenArtifact?: (artifact: Artifact) => void;
-  /** AC-018: Callback para retentar envio de mensagem com erro */
-  onRetry?: (messageId: string, content: string) => void;
-}
-
-// Mapa de icones para sugestoes
-const suggestionIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-  TrendingUp,
-  FileSearch,
-  Code2,
-  FileText,
-};
-
-/**
- * Componente de boas-vindas exibido quando nao ha mensagens
- */
-function WelcomeMessage({
-  suggestions,
-  onSuggestionClick,
-}: {
-  suggestions?: ConversationSuggestion[];
-  onSuggestionClick?: (suggestion: ConversationSuggestion) => void;
-}) {
-  return (
-    <div className="text-center py-8">
-      <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-accent/10 mb-3">
-        <Bot className="w-7 h-7 text-accent" />
-      </div>
-      <h2 className="text-xl font-semibold mb-1">Como posso ajudar?</h2>
-      <p className="text-muted-foreground text-sm max-w-md mx-auto mb-6">
-        Pergunte qualquer coisa. Posso ajudar com pesquisa, escrita, codigo, analise de dados e
-        mais.
-      </p>
-
-      {/* Sugestoes de conversa */}
-      {suggestions && suggestions.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-xl mx-auto">
-          {suggestions.map((suggestion) => {
-            const SuggestionIcon = suggestionIconMap[suggestion.icon] || FileText;
-            return (
-              <button
-                key={suggestion.id}
-                onClick={() => onSuggestionClick?.(suggestion)}
-                className="flex items-center gap-3 p-3 rounded-lg border border-border bg-background hover:bg-muted/50 hover:border-accent/30 transition-colors text-left"
-              >
-                <SuggestionIcon className="h-4 w-4 text-accent flex-shrink-0" />
-                <span className="text-sm">{suggestion.title}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
- * Indicador de loading/thinking durante processamento
- * AC-009: Indicador "Digitando" Durante Streaming
- */
-function LoadingIndicator({ isThinking = false }: { isThinking?: boolean }) {
-  return (
-    <div className="flex gap-4 justify-start">
-      <div className="h-8 w-8 flex-shrink-0 rounded-full bg-gradient-to-br from-[#0A2463] to-[#6366f1] flex items-center justify-center">
-        <Bot className="h-4 w-4 text-white" />
-      </div>
-      <div className="flex items-center gap-2 bg-muted rounded-2xl px-4 py-3">
-        <Loader2 className="h-4 w-4 animate-spin text-accent" />
-        <span className="text-sm text-muted-foreground">
-          {isThinking ? "Analisando..." : "Skyller esta pensando..."}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-/**
- * MessageList - Componente principal da lista de mensagens
+ * Implementa GAP-CRIT-03:
+ * - AC-023: Exibe tool calls em execução
+ * - AC-024: Exibe thinking state
+ * - AC-027: Exibe erros de execução
  *
  * Features:
- * - Auto-scroll suave para ultima mensagem
- * - Mensagem de boas-vindas quando vazio
- * - Sugestoes de conversa clicaveis
- * - Indicador de loading durante processamento
+ * - Renderização de mensagens com Streamdown
+ * - Indicadores visuais de thinking state
+ * - Indicadores visuais de tool calls
+ * - Auto-scroll para última mensagem
+ */
+
+"use client";
+
+import { Brain, Loader2, Wrench } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { Message } from "@/components/chat/message";
+import { useToolCallMessage } from "@/lib/hooks/use-agent-events";
+import type { Message as MessageType } from "@/lib/mock/data";
+
+interface MessageListProps {
+  /** Lista de mensagens a serem exibidas */
+  messages: MessageType[];
+
+  /** Indica se o agente está em estado de thinking */
+  isThinking?: boolean;
+
+  /** Mensagem de thinking personalizada */
+  thinkingMessage?: string;
+
+  /** Nome da ferramenta em execução */
+  currentTool?: string;
+
+  /** Indica se há streaming em andamento */
+  isStreaming?: boolean;
+
+  /** Classe CSS adicional */
+  className?: string;
+}
+
+/**
+ * Componente de lista de mensagens com suporte a eventos AG-UI
+ *
+ * @example
+ * ```tsx
+ * <MessageList
+ *   messages={messages}
+ *   isThinking={agentState.isThinking}
+ *   thinkingMessage={agentState.thinkingMessage}
+ *   currentTool={agentState.currentTool}
+ * />
+ * ```
  */
 export function MessageList({
   messages,
-  agents = [],
-  isLoading = false,
   isThinking = false,
-  suggestions = [],
-  onSuggestionClick,
-  onFeedbackPositive,
-  onFeedbackNegative,
-  onRegenerate,
-  onOpenArtifact,
-  onRetry,
+  thinkingMessage,
+  currentTool,
+  isStreaming = false,
+  className = "",
 }: MessageListProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const toolMessage = useToolCallMessage(currentTool);
 
   /**
-   * Scroll para ultima mensagem com animacao suave
-   * AC-015: Scroll Automatico
+   * Auto-scroll para a última mensagem quando nova mensagem chega
    */
-  const scrollToBottom = useCallback(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, []);
-
-  // Auto-scroll quando mensagens mudam ou loading muda
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, isLoading, scrollToBottom]);
-
-  // Encontra agente por ID
-  const getAgent = useCallback(
-    (agentId?: string): Agent | null => {
-      if (!agentId) return null;
-      return agents.find((a) => a.id === agentId) || null;
-    },
-    [agents]
-  );
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length, isThinking, currentTool]);
 
   return (
-    <ScrollArea className="flex-1 px-4" ref={scrollRef}>
-      <div className="max-w-3xl mx-auto py-6 space-y-6">
-        {/* Mensagem de boas-vindas quando vazio */}
-        {messages.length === 0 && (
-          <WelcomeMessage suggestions={suggestions} onSuggestionClick={onSuggestionClick} />
-        )}
+    <div className={`flex flex-col gap-4 ${className}`}>
+      {/* Renderizar todas as mensagens */}
+      {messages.map((message) => (
+        <Message
+          key={message.id}
+          message={message}
+          isStreaming={isStreaming && message.id === messages[messages.length - 1]?.id}
+          currentTool={currentTool}
+          thinkingState={isThinking ? thinkingMessage : undefined}
+        />
+      ))}
 
-        {/* Lista de mensagens */}
-        {messages.map((message, index) => (
-          <Message
-            key={message.id}
-            message={message}
-            agent={getAgent(message.agentId)}
-            isLastMessage={index === messages.length - 1}
-            isAgentRunning={isLoading}
-            onFeedbackPositive={onFeedbackPositive}
-            onFeedbackNegative={onFeedbackNegative}
-            onRegenerate={onRegenerate}
-            onOpenArtifact={onOpenArtifact}
-            onRetry={onRetry}
+      {/* AC-024: Indicador de Thinking State (GAP-CRIT-03) */}
+      {isThinking && (
+        <div
+          className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 border border-border animate-pulse"
+          role="status"
+          aria-live="polite"
+          aria-label="Agente pensando"
+        >
+          <Brain className="h-4 w-4 text-muted-foreground animate-pulse" aria-hidden="true" />
+          <span className="text-sm text-muted-foreground italic">
+            {thinkingMessage || "🧠 Analisando sua solicitação..."}
+          </span>
+        </div>
+      )}
+
+      {/* AC-023: Indicador de Tool Call (GAP-CRIT-03) */}
+      {currentTool && !isThinking && (
+        <div
+          className="flex items-center gap-2 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800"
+          role="status"
+          aria-live="polite"
+          aria-label={`Executando ferramenta: ${currentTool}`}
+        >
+          <Wrench
+            className="h-4 w-4 text-blue-600 dark:text-blue-400 animate-pulse"
+            aria-hidden="true"
           />
-        ))}
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
+              🔧 Ferramenta: {currentTool}
+            </span>
+            <span className="text-xs text-blue-700 dark:text-blue-300">{toolMessage}</span>
+          </div>
+          <Loader2
+            className="h-3 w-3 ml-auto text-blue-600 dark:text-blue-400 animate-spin"
+            aria-hidden="true"
+          />
+        </div>
+      )}
 
-        {/* Indicador de loading */}
-        {isLoading && <LoadingIndicator isThinking={isThinking} />}
-
-        {/* Elemento de referencia para scroll */}
-        <div ref={messagesEndRef} />
-      </div>
-    </ScrollArea>
+      {/* Elemento para scroll automático */}
+      <div ref={messagesEndRef} />
+    </div>
   );
 }
 
-export default MessageList;
+/**
+ * Componente de lista vazia - exibido quando não há mensagens
+ */
+export function EmptyMessageList() {
+  return (
+    <div className="flex flex-col items-center justify-center h-full text-center p-8">
+      <div className="text-6xl mb-4" aria-hidden="true">
+        💬
+      </div>
+      <h3 className="text-xl font-semibold text-foreground mb-2">Nenhuma mensagem ainda</h3>
+      <p className="text-sm text-muted-foreground max-w-md">
+        Comece uma conversa enviando uma mensagem para o agente.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Componente de loading - exibido durante carregamento inicial
+ */
+export function MessageListSkeleton() {
+  return (
+    <div className="flex flex-col gap-4">
+      {[1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className="flex gap-3 p-4 rounded-lg bg-muted/50 animate-pulse"
+          role="status"
+          aria-label="Carregando mensagens"
+        >
+          <div className="h-10 w-10 rounded-full bg-muted" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 bg-muted rounded w-3/4" />
+            <div className="h-4 bg-muted rounded w-1/2" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}

@@ -1,528 +1,311 @@
 /**
- * Hook para processar eventos AG-UI do agente
- * @spec SPEC-COPILOT-INTEGRATION-001
- * @acceptance AC-023: TOOL_CALL Events - Display tool execution in UI
- * @acceptance AC-024: THINKING Events - Show "thinking" indicator
- * @acceptance AC-025: Lifecycle Events - Conversation start/end
- * @acceptance AC-026: State Snapshot - State management
- * @acceptance AC-027: RUN_ERROR Events - Error handling in chat
+ * ⚠️ LEGACY HOOK - DESCONTINUADO NO CAMINHO PRINCIPAL
  *
- * Processa eventos do @ag-ui/client para exibicao na UI:
- * - TOOL_CALL: Exibe execucao de ferramenta
- * - THINKING: Indica que o agente esta pensando
- * - RUN_ERROR: Tratamento de erros
- * - Lifecycle: Inicio/fim de conversa
- * - State Snapshot: Gerenciamento de estado
+ * Este hook foi descontinuado no caminho principal da aplicação em favor do
+ * gerenciamento nativo de eventos fornecido pelo CopilotKit useAgent v2.
+ *
+ * **Status**: MANTIDO PARA BACKWARD COMPATIBILITY
+ *
+ * **Motivação da Descontinuação**:
+ * - CopilotKit useAgent v2 fornece subscription nativa a eventos AG-UI
+ * - Eventos são processados via agent.subscribe() com interface tipada
+ * - Reduz camada de abstração desnecessária e mantém consistência com framework
+ *
+ * **Caminho Principal Atual**:
+ * - `lib/contexts/chat-context.tsx` processa eventos diretamente via agent.subscribe()
+ * - Eventos suportados: THINKING_START/END, TOOL_CALL_START/END, RUN_ERROR
+ * - Estado gerenciado localmente no ChatContext via useState
+ *
+ * **Quando Usar Este Hook**:
+ * - Integração com sistemas legados que precisam de interface simplificada
+ * - Componentes isolados que não têm acesso ao ChatContext
+ * - Testes e desenvolvimento de features experimentais
+ *
+ * **Migração Recomendada**:
+ * ```tsx
+ * // ANTES (useAgentEvents)
+ * const agent = useAgent({ ... });
+ * const { isThinking, currentTool, lastError } = useAgentEvents(agent);
+ *
+ * // DEPOIS (agent.subscribe direto)
+ * const [currentTool, setCurrentTool] = useState<string>();
+ * const [thinkingState, setThinkingState] = useState<string>();
+ *
+ * useEffect(() => {
+ *   const { unsubscribe } = agent.subscribe({
+ *     onCustomEvent: ({ event }) => {
+ *       if (event.name === 'TOOL_CALL_START') {
+ *         setCurrentTool(event.value?.toolName);
+ *       }
+ *       if (event.name === 'THINKING_START') {
+ *         setThinkingState('Analisando...');
+ *       }
+ *     }
+ *   });
+ *   return unsubscribe;
+ * }, [agent]);
+ * ```
+ *
+ * **Requisitos SPEC Atendidos pelo Caminho Principal**:
+ * - AC-023: Exibir tool calls em execução ✅ (via agent.subscribe onCustomEvent)
+ * - AC-024: Exibir thinking state ✅ (via agent.subscribe onCustomEvent)
+ * - AC-027: Exibir erros de execução ✅ (via agent.subscribe onCustomEvent)
+ *
+ * **Referências**:
+ * - SPEC-COPILOT-INTEGRATION-001 v1.2.1 (GAP-CRIT-03: Subscription a eventos AG-UI)
+ * - Consolidação de Reauditorias Multi-IA (OBS-02)
+ * - _shared/docs/04-REFERENCE/agno-copilotkit/02-hooks-reference.md (agent.subscribe interface)
+ *
+ * @deprecated Use agent.subscribe() diretamente conforme documentação CopilotKit
+ *
+ * ---
+ *
+ * Hook para processar eventos AG-UI (GAP-CRIT-03)
+ *
+ * Processa eventos do agente:
+ * - THINKING_START/END: Estado de pensamento do agente
+ * - TOOL_CALL_START/END: Execução de ferramentas
+ * - RUN_ERROR: Erros durante execução
+ *
+ * Requisitos SPEC:
+ * - AC-023: Exibir tool calls em execução
+ * - AC-024: Exibir thinking state
+ * - AC-027: Exibir erros de execução
  */
-"use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-// Tipos de eventos AG-UI
+/**
+ * Estados possíveis de um tool call
+ */
+export type ToolCallStatus = "running" | "success" | "error";
+
+/**
+ * Informações sobre tool call em execução
+ */
+export interface CurrentTool {
+  name: string;
+  status: ToolCallStatus;
+  startedAt: Date;
+}
+
+/**
+ * Informações sobre erro de execução
+ */
+export interface LastError {
+  message: string;
+  code: string;
+  timestamp: Date;
+}
+
+/**
+ * Estado completo dos eventos do agente
+ */
+export interface AgentEventsState {
+  isThinking: boolean;
+  thinkingMessage: string;
+  currentTool?: CurrentTool;
+  lastError?: LastError;
+}
+
+/**
+ * Tipo de eventos AG-UI suportados
+ */
 export type AgentEventType =
-  | "TOOL_CALL"
-  | "TOOL_CALL_START"
-  | "TOOL_CALL_END"
-  | "THINKING"
   | "THINKING_START"
   | "THINKING_END"
-  | "RUN_START"
-  | "RUN_END"
-  | "RUN_ERROR"
-  | "STATE_SNAPSHOT"
-  | "MESSAGE_START"
-  | "MESSAGE_END"
-  | "TEXT_DELTA"
-  | "STEP_START"
-  | "STEP_END";
+  | "TOOL_CALL_START"
+  | "TOOL_CALL_END"
+  | "RUN_ERROR";
 
-// Interface para chamada de ferramenta
-export interface ToolCall {
-  /** ID unico da chamada */
-  id: string;
-  /** Nome da ferramenta */
-  name: string;
-  /** Argumentos passados */
-  arguments: Record<string, unknown>;
-  /** Resultado da execucao (quando disponivel) */
-  result?: unknown;
-  /** Status da execucao */
-  status: "pending" | "running" | "completed" | "error";
-  /** Timestamp de inicio */
-  startedAt: Date;
-  /** Timestamp de conclusao */
-  completedAt?: Date;
-  /** Mensagem de erro (se houver) */
-  error?: string;
-}
-
-// Interface para evento de erro
-export interface RunError {
-  /** Codigo do erro */
-  code: string;
-  /** Mensagem do erro */
-  message: string;
-  /** Detalhes adicionais */
-  details?: Record<string, unknown>;
-  /** Timestamp do erro */
-  timestamp: Date;
-  /** Se e recuperavel (pode tentar retry) */
-  recoverable: boolean;
-}
-
-// Interface para snapshot de estado
-export interface StateSnapshot {
-  /** ID do snapshot */
-  id: string;
-  /** Estado serializado */
-  state: Record<string, unknown>;
-  /** Timestamp do snapshot */
-  timestamp: Date;
-  /** Metadados adicionais */
-  metadata?: Record<string, unknown>;
-}
-
-// Interface para evento do agente
+/**
+ * Interface de evento do agente
+ */
 export interface AgentEvent {
-  /** Tipo do evento */
   type: AgentEventType;
-  /** Dados do evento */
-  data?: unknown;
-  /** Timestamp do evento */
-  timestamp: Date;
-  /** ID de correlacao */
-  correlationId?: string;
+  toolName?: string;
+  error?: {
+    message: string;
+    code?: string;
+  };
 }
 
-// Estado do processador de eventos
-export interface AgentEventsState {
-  /** Se o agente esta pensando */
-  isThinking: boolean;
-  /** Se o agente esta executando */
-  isRunning: boolean;
-  /** Chamadas de ferramentas ativas */
-  activeToolCalls: ToolCall[];
-  /** Historico de chamadas de ferramentas */
-  toolCallHistory: ToolCall[];
-  /** Ultimo erro ocorrido */
-  lastError: RunError | null;
-  /** Ultimo snapshot de estado */
-  lastStateSnapshot: StateSnapshot | null;
-  /** ID da execucao atual */
-  currentRunId: string | null;
-  /** Contagem de eventos processados */
-  eventCount: number;
+/**
+ * Interface mínima esperada do agente
+ */
+export interface Agent {
+  subscribe?: (callback: (event: AgentEvent) => void) => () => void;
 }
-
-// Opcoes do hook
-export interface UseAgentEventsOptions {
-  /** Callback quando ferramenta inicia */
-  onToolCallStart?: (toolCall: ToolCall) => void;
-  /** Callback quando ferramenta termina */
-  onToolCallEnd?: (toolCall: ToolCall) => void;
-  /** Callback quando comeca a pensar */
-  onThinkingStart?: () => void;
-  /** Callback quando para de pensar */
-  onThinkingEnd?: () => void;
-  /** Callback quando erro ocorre */
-  onError?: (error: RunError) => void;
-  /** Callback quando execucao inicia */
-  onRunStart?: (runId: string) => void;
-  /** Callback quando execucao termina */
-  onRunEnd?: (runId: string) => void;
-  /** Callback quando snapshot e recebido */
-  onStateSnapshot?: (snapshot: StateSnapshot) => void;
-  /** Maximo de tool calls no historico */
-  maxToolCallHistory?: number;
-}
-
-// Retorno do hook
-export interface UseAgentEventsReturn extends AgentEventsState {
-  /** Processa um evento do agente */
-  processEvent: (event: AgentEvent) => void;
-  /** Processa multiplos eventos */
-  processEvents: (events: AgentEvent[]) => void;
-  /** Limpa o estado */
-  reset: () => void;
-  /** Obtem tool call por ID */
-  getToolCall: (id: string) => ToolCall | undefined;
-  /** Verifica se ha tool calls ativas */
-  hasActiveToolCalls: boolean;
-  /** Verifica se tem erro recuperavel */
-  hasRecoverableError: boolean;
-}
-
-const DEFAULT_MAX_HISTORY = 50;
-
-const initialState: AgentEventsState = {
-  isThinking: false,
-  isRunning: false,
-  activeToolCalls: [],
-  toolCallHistory: [],
-  lastError: null,
-  lastStateSnapshot: null,
-  currentRunId: null,
-  eventCount: 0,
-};
 
 /**
  * Hook para processar eventos AG-UI do agente
  *
+ * @param agent - Instância do agente (opcional)
+ * @returns Estado dos eventos processados
+ *
  * @example
  * ```tsx
- * const {
- *   isThinking,
- *   isRunning,
- *   activeToolCalls,
- *   lastError,
- *   processEvent,
- * } = useAgentEvents({
- *   onToolCallStart: (tc) => console.log('Tool started:', tc.name),
- *   onError: (err) => toast.error(err.message),
- * });
+ * const agent = useAgent({ ... });
+ * const events = useAgentEvents(agent);
  *
- * // Processar evento recebido do SSE
- * processEvent({
- *   type: 'TOOL_CALL_START',
- *   data: { id: '1', name: 'search', arguments: { query: 'test' } },
- *   timestamp: new Date(),
- * });
+ * if (events.isThinking) {
+ *   return <div>{events.thinkingMessage}</div>;
+ * }
  * ```
  */
-export function useAgentEvents(
-  options: UseAgentEventsOptions = {}
-): UseAgentEventsReturn {
-  const {
-    onToolCallStart,
-    onToolCallEnd,
-    onThinkingStart,
-    onThinkingEnd,
-    onError,
-    onRunStart,
-    onRunEnd,
-    onStateSnapshot,
-    maxToolCallHistory = DEFAULT_MAX_HISTORY,
-  } = options;
-
-  const [state, setState] = useState<AgentEventsState>(initialState);
-
-  // Refs para callbacks (evita re-renders desnecessarios)
-  const callbacksRef = useRef({
-    onToolCallStart,
-    onToolCallEnd,
-    onThinkingStart,
-    onThinkingEnd,
-    onError,
-    onRunStart,
-    onRunEnd,
-    onStateSnapshot,
+export function useAgentEvents(agent?: Agent | null): AgentEventsState {
+  const [state, setState] = useState<AgentEventsState>({
+    isThinking: false,
+    thinkingMessage: "",
   });
-  callbacksRef.current = {
-    onToolCallStart,
-    onToolCallEnd,
-    onThinkingStart,
-    onThinkingEnd,
-    onError,
-    onRunStart,
-    onRunEnd,
-    onStateSnapshot,
-  };
-
-  /**
-   * Processa evento TOOL_CALL_START
-   * AC-023: Display tool execution in UI
-   */
-  const handleToolCallStart = useCallback(
-    (data: unknown) => {
-      const toolData = data as {
-        id?: string;
-        name?: string;
-        arguments?: Record<string, unknown>;
-      };
-
-      const toolCall: ToolCall = {
-        id: toolData.id || `tc-${Date.now()}`,
-        name: toolData.name || "unknown",
-        arguments: toolData.arguments || {},
-        status: "running",
-        startedAt: new Date(),
-      };
-
-      setState((prev) => ({
-        ...prev,
-        activeToolCalls: [...prev.activeToolCalls, toolCall],
-      }));
-
-      callbacksRef.current.onToolCallStart?.(toolCall);
-    },
-    []
-  );
-
-  /**
-   * Processa evento TOOL_CALL_END
-   * AC-023: Display tool execution in UI
-   */
-  const handleToolCallEnd = useCallback(
-    (data: unknown) => {
-      const toolData = data as {
-        id?: string;
-        result?: unknown;
-        error?: string;
-      };
-
-      setState((prev) => {
-        const toolCallIndex = prev.activeToolCalls.findIndex(
-          (tc) => tc.id === toolData.id
-        );
-
-        if (toolCallIndex === -1) return prev;
-
-        const toolCall = prev.activeToolCalls[toolCallIndex];
-        const completedToolCall: ToolCall = {
-          ...toolCall,
-          result: toolData.result,
-          error: toolData.error,
-          status: toolData.error ? "error" : "completed",
-          completedAt: new Date(),
-        };
-
-        // Remove da lista ativa e adiciona ao historico
-        const newActiveToolCalls = prev.activeToolCalls.filter(
-          (tc) => tc.id !== toolData.id
-        );
-        const newHistory = [completedToolCall, ...prev.toolCallHistory].slice(
-          0,
-          maxToolCallHistory
-        );
-
-        callbacksRef.current.onToolCallEnd?.(completedToolCall);
-
-        return {
-          ...prev,
-          activeToolCalls: newActiveToolCalls,
-          toolCallHistory: newHistory,
-        };
-      });
-    },
-    [maxToolCallHistory]
-  );
 
   /**
    * Processa evento THINKING_START
-   * AC-024: Show "thinking" indicator
    */
   const handleThinkingStart = useCallback(() => {
-    setState((prev) => ({ ...prev, isThinking: true }));
-    callbacksRef.current.onThinkingStart?.();
+    setState((prev) => ({
+      ...prev,
+      isThinking: true,
+      thinkingMessage: "🧠 Analisando sua solicitação...",
+    }));
   }, []);
 
   /**
    * Processa evento THINKING_END
-   * AC-024: Show "thinking" indicator
    */
   const handleThinkingEnd = useCallback(() => {
-    setState((prev) => ({ ...prev, isThinking: false }));
-    callbacksRef.current.onThinkingEnd?.();
-  }, []);
-
-  /**
-   * Processa evento RUN_START
-   * AC-025: Lifecycle events - Conversation start/end
-   */
-  const handleRunStart = useCallback((data: unknown) => {
-    const runData = data as { runId?: string; id?: string };
-    const runId = runData.runId || runData.id || `run-${Date.now()}`;
-
     setState((prev) => ({
       ...prev,
-      isRunning: true,
-      currentRunId: runId,
-      lastError: null,
+      isThinking: false,
+      thinkingMessage: "",
     }));
-
-    callbacksRef.current.onRunStart?.(runId);
   }, []);
 
   /**
-   * Processa evento RUN_END
-   * AC-025: Lifecycle events - Conversation start/end
+   * Processa evento TOOL_CALL_START
    */
-  const handleRunEnd = useCallback(() => {
-    setState((prev) => {
-      const runId = prev.currentRunId;
-      if (runId) {
-        callbacksRef.current.onRunEnd?.(runId);
-      }
-      return {
-        ...prev,
-        isRunning: false,
-        isThinking: false,
-        currentRunId: null,
-      };
-    });
+  const handleToolCallStart = useCallback((toolName: string) => {
+    setState((prev) => ({
+      ...prev,
+      currentTool: {
+        name: toolName,
+        status: "running",
+        startedAt: new Date(),
+      },
+    }));
+  }, []);
+
+  /**
+   * Processa evento TOOL_CALL_END
+   */
+  const handleToolCallEnd = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      currentTool: undefined,
+    }));
   }, []);
 
   /**
    * Processa evento RUN_ERROR
-   * AC-027: Error handling in chat
    */
-  const handleRunError = useCallback((data: unknown) => {
-    const errorData = data as {
-      code?: string;
-      message?: string;
-      details?: Record<string, unknown>;
-      recoverable?: boolean;
-    };
-
-    const error: RunError = {
-      code: errorData.code || "UNKNOWN_ERROR",
-      message: errorData.message || "Ocorreu um erro durante a execucao",
-      details: errorData.details,
-      timestamp: new Date(),
-      recoverable: errorData.recoverable ?? false,
-    };
-
+  const handleRunError = useCallback((errorData: { message: string; code?: string }) => {
     setState((prev) => ({
       ...prev,
-      lastError: error,
-      isRunning: false,
       isThinking: false,
+      currentTool: undefined,
+      lastError: {
+        message: errorData.message,
+        code: errorData.code || "UNKNOWN",
+        timestamp: new Date(),
+      },
     }));
-
-    callbacksRef.current.onError?.(error);
   }, []);
 
   /**
-   * Processa evento STATE_SNAPSHOT
-   * AC-026: State management
+   * Handler principal de eventos
    */
-  const handleStateSnapshot = useCallback((data: unknown) => {
-    const snapshotData = data as {
-      id?: string;
-      state?: Record<string, unknown>;
-      metadata?: Record<string, unknown>;
-    };
-
-    const snapshot: StateSnapshot = {
-      id: snapshotData.id || `snap-${Date.now()}`,
-      state: snapshotData.state || {},
-      timestamp: new Date(),
-      metadata: snapshotData.metadata,
-    };
-
-    setState((prev) => ({
-      ...prev,
-      lastStateSnapshot: snapshot,
-    }));
-
-    callbacksRef.current.onStateSnapshot?.(snapshot);
-  }, []);
-
-  /**
-   * Processa um evento do agente
-   */
-  const processEvent = useCallback(
+  const handleEvent = useCallback(
     (event: AgentEvent) => {
-      setState((prev) => ({ ...prev, eventCount: prev.eventCount + 1 }));
-
       switch (event.type) {
-        case "TOOL_CALL_START":
-        case "TOOL_CALL":
-          handleToolCallStart(event.data);
-          break;
-        case "TOOL_CALL_END":
-          handleToolCallEnd(event.data);
-          break;
         case "THINKING_START":
-        case "THINKING":
           handleThinkingStart();
           break;
+
         case "THINKING_END":
           handleThinkingEnd();
           break;
-        case "RUN_START":
-          handleRunStart(event.data);
-          break;
-        case "RUN_END":
-          handleRunEnd();
-          break;
-        case "RUN_ERROR":
-          handleRunError(event.data);
-          break;
-        case "STATE_SNAPSHOT":
-          handleStateSnapshot(event.data);
-          break;
-        case "MESSAGE_START":
-          // Inicia mensagem - pode ser usado para streaming
-          break;
-        case "MESSAGE_END":
-          // Fim de mensagem
-          break;
-        case "TEXT_DELTA":
-          // Delta de texto para streaming
-          break;
-        case "STEP_START":
-        case "STEP_END":
-          // Eventos de passo (workflow)
-          break;
-        default:
-          // Evento desconhecido - log em desenvolvimento
-          if (process.env.NODE_ENV === "development") {
-            console.warn("[useAgentEvents] Evento desconhecido:", event.type);
+
+        case "TOOL_CALL_START":
+          if (event.toolName) {
+            handleToolCallStart(event.toolName);
           }
+          break;
+
+        case "TOOL_CALL_END":
+          handleToolCallEnd();
+          break;
+
+        case "RUN_ERROR":
+          if (event.error) {
+            handleRunError(event.error);
+          }
+          break;
+
+        default:
+          console.warn(`[useAgentEvents] Evento desconhecido: ${event.type}`);
       }
     },
-    [
-      handleToolCallStart,
-      handleToolCallEnd,
-      handleThinkingStart,
-      handleThinkingEnd,
-      handleRunStart,
-      handleRunEnd,
-      handleRunError,
-      handleStateSnapshot,
-    ]
+    [handleThinkingStart, handleThinkingEnd, handleToolCallStart, handleToolCallEnd, handleRunError]
   );
 
   /**
-   * Processa multiplos eventos em sequencia
+   * Subscrição a eventos do agente
    */
-  const processEvents = useCallback(
-    (events: AgentEvent[]) => {
-      events.forEach(processEvent);
-    },
-    [processEvent]
-  );
+  useEffect(() => {
+    if (!agent || !agent.subscribe) {
+      // Se o agente não está disponível ou não suporta eventos, não fazer nada
+      return;
+    }
 
-  /**
-   * Reseta o estado para inicial
-   */
-  const reset = useCallback(() => {
-    setState(initialState);
-  }, []);
+    // Subscrever a eventos do agente
+    const unsubscribe = agent.subscribe(handleEvent);
 
-  /**
-   * Obtem tool call por ID
-   */
-  const getToolCall = useCallback(
-    (id: string): ToolCall | undefined => {
-      return (
-        state.activeToolCalls.find((tc) => tc.id === id) ||
-        state.toolCallHistory.find((tc) => tc.id === id)
-      );
-    },
-    [state.activeToolCalls, state.toolCallHistory]
-  );
+    // Cleanup: desinscrever ao desmontar
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [agent, handleEvent]);
 
-  return {
-    ...state,
-    processEvent,
-    processEvents,
-    reset,
-    getToolCall,
-    hasActiveToolCalls: state.activeToolCalls.length > 0,
-    hasRecoverableError: state.lastError?.recoverable ?? false,
-  };
+  return state;
 }
 
-export default useAgentEvents;
+/**
+ * Hook para obter mensagem contextual de tool call
+ *
+ * Converte nome técnico de ferramentas em mensagens amigáveis
+ *
+ * @param toolName - Nome técnico da ferramenta
+ * @returns Mensagem amigável
+ *
+ * @example
+ * ```tsx
+ * const message = useToolCallMessage("search_docs");
+ * // Retorna: "Consultando documentação..."
+ * ```
+ */
+export function useToolCallMessage(toolName?: string): string {
+  if (!toolName) return "";
+
+  // Mapeamento de ferramentas para mensagens amigáveis
+  const toolMessages: Record<string, string> = {
+    search_docs: "Consultando documentação...",
+    search_database: "Pesquisando no banco de dados...",
+    analyze_data: "Analisando dados...",
+    generate_code: "Gerando código...",
+    execute_query: "Executando consulta...",
+  };
+
+  return toolMessages[toolName] || `Executando ${toolName}...`;
+}

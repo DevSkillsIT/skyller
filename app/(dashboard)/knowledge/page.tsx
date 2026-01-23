@@ -1,5 +1,8 @@
 "use client";
 
+// Forçar renderização dinâmica (não pré-renderizar durante build)
+export const dynamic = "force-dynamic";
+
 import {
   type ColumnDef,
   type ColumnFiltersState,

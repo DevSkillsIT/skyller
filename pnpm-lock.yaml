@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@ag-ui/agno':
+        specifier: latest
+        version: 0.0.3(@ag-ui/client@0.0.43)(@ag-ui/core@0.0.43)(rxjs@7.8.1)
       '@ag-ui/client':
         specifier: latest
         version: 0.0.43
@@ -129,10 +132,10 @@ importers:
         specifier: ^1.2.8
         version: 1.2.8(@types/react-dom@19.2.3(@types/react@19.2.9))(@types/react@19.2.9)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@streamdown/code':
-        specifier: ^1.0.1
+        specifier: latest
         version: 1.0.1(react@19.2.3)
       '@streamdown/math':
-        specifier: ^1.0.1
+        specifier: latest
         version: 1.0.1(react@19.2.3)
       '@tanstack/react-table':
         specifier: ^8.21.3
@@ -159,7 +162,7 @@ importers:
         specifier: ^4.0.0
         version: 4.0.0
       katex:
-        specifier: ^0.16.27
+        specifier: latest
         version: 0.16.27
       lucide-react:
         specifier: ^0.562.0
@@ -195,7 +198,7 @@ importers:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       streamdown:
-        specifier: ^2.1.0
+        specifier: latest
         version: 2.1.0(react@19.2.3)
       swr:
         specifier: ^2.3.8
@@ -289,6 +292,13 @@ packages:
 
   '@adobe/css-tools@4.4.4':
     resolution: {integrity: sha512-Elp+iwUx5rN5+Y8xLt5/GRoG20WGoDCQ/1Fb+1LiGtvwbDavuSk0jhD/eZdckHAuzcDzccnkv+rEjyWfRx18gg==}
+
+  '@ag-ui/agno@0.0.3':
+    resolution: {integrity: sha512-LjuEJIfc+PGBpPxCxwK+hhMoSiqdhOcOkDusApuysglxhadlXmfIl+ycIs2io5sndeZevV3L9xHFkEgmnjE39Q==}
+    peerDependencies:
+      '@ag-ui/client': '>=0.0.37'
+      '@ag-ui/core': '>=0.0.37'
+      rxjs: 7.8.1
 
   '@ag-ui/client@0.0.42':
     resolution: {integrity: sha512-zAbP+sZJImR5bUpR2ni7RtuuNZMuesaxviynyIgzKlr1k2VCM49mFpbDUKU4TH4Cneu+Xe7OEnO8qCOCIzBAww==}
@@ -5280,6 +5290,12 @@ snapshots:
   '@acemir/cssom@0.9.31': {}
 
   '@adobe/css-tools@4.4.4': {}
+
+  '@ag-ui/agno@0.0.3(@ag-ui/client@0.0.43)(@ag-ui/core@0.0.43)(rxjs@7.8.1)':
+    dependencies:
+      '@ag-ui/client': 0.0.43
+      '@ag-ui/core': 0.0.43
+      rxjs: 7.8.1
 
   '@ag-ui/client@0.0.42':
     dependencies:

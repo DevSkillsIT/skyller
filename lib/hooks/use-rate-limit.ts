@@ -1,200 +1,160 @@
+import { useEffect, useState } from "react";
+
 /**
- * Hook para gerenciar estado de Rate Limiting com countdown UI
- * @spec SPEC-COPILOT-INTEGRATION-001
- * AC-012: Retornar 429 com retry_after header quando limite excedido
+ * Interface do estado de rate limiting
+ * Sincronizada com headers do backend (X-RateLimit-*)
  */
-"use client";
-
-import { useCallback, useEffect, useRef, useState } from "react";
-
-export interface RateLimitState {
-  /** Limite de requests por minuto */
-  limit: number;
-  /** Requests restantes */
-  remaining: number;
-  /** Segundos ate reset */
-  resetSeconds: number;
-  /** Indica se rate limit foi excedido (429) */
+interface RateLimitState {
+  /** Se o usuário está atualmente limitado */
   isLimited: boolean;
-  /** Timestamp do ultimo update */
-  lastUpdated: number;
-}
-
-export interface UseRateLimitOptions {
-  /** Limite padrao de RPM (padrao: 30) */
-  defaultLimit?: number;
-  /** Callback quando rate limit e excedido */
-  onLimitExceeded?: (resetSeconds: number) => void;
-  /** Callback quando rate limit e restaurado */
-  onLimitRestored?: () => void;
-}
-
-export interface UseRateLimitReturn extends RateLimitState {
-  /** Atualiza estado de rate limit a partir de headers de resposta */
-  updateFromHeaders: (headers: Headers) => void;
-  /** Atualiza estado de rate limit manualmente */
-  updateRateLimit: (state: Partial<RateLimitState>) => void;
-  /** Reseta o estado de rate limit */
-  reset: () => void;
-  /** Formata tempo restante para exibicao (ex: "0:45") */
+  /** Número de requisições restantes nesta janela */
+  remaining: number;
+  /** Limite total de requisições por minuto */
+  limit: number;
+  /** Data/hora quando o rate limit será resetado */
+  resetAt: Date | null;
+  /** Tempo formatado até o reset (ex: "59s" ou "1m 30s") */
   formattedTime: string;
 }
 
-const DEFAULT_LIMIT = 30;
-
 /**
- * Hook para gerenciar estado de rate limiting com countdown automatico
+ * Hook para gerenciar rate limiting conectado ao backend
+ *
+ * Intercepta respostas fetch para extrair headers X-RateLimit-*
+ * conforme especificação AC-012/RU-005 (30 RPM)
+ *
+ * @returns Estado atual do rate limiting
  *
  * @example
  * ```tsx
- * const { isLimited, remaining, formattedTime, updateFromHeaders } = useRateLimit({
- *   onLimitExceeded: (seconds) => toast.error(`Limite excedido. Tente em ${seconds}s`),
- * });
+ * function ChatInput() {
+ *   const { isLimited, remaining, formattedTime } = useRateLimit();
  *
- * // Apos uma requisicao:
- * const response = await fetch('/api/copilot');
- * updateFromHeaders(response.headers);
- *
- * // No JSX:
- * {isLimited && <div>Aguarde {formattedTime} para continuar</div>}
+ *   return (
+ *     <div>
+ *       {isLimited && <p>Aguarde {formattedTime}</p>}
+ *       <button disabled={isLimited || remaining === 0}>
+ *         Enviar ({remaining} restantes)
+ *       </button>
+ *     </div>
+ *   );
+ * }
  * ```
  */
-export function useRateLimit(options: UseRateLimitOptions = {}): UseRateLimitReturn {
-  const { defaultLimit = DEFAULT_LIMIT, onLimitExceeded, onLimitRestored } = options;
-
+export function useRateLimit(): RateLimitState {
   const [state, setState] = useState<RateLimitState>({
-    limit: defaultLimit,
-    remaining: defaultLimit,
-    resetSeconds: 0,
     isLimited: false,
-    lastUpdated: Date.now(),
+    remaining: 30, // Valor inicial conforme SPEC (30 RPM)
+    limit: 30,     // Limite padrão conforme SPEC
+    resetAt: null,
+    formattedTime: "",
   });
 
-  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const wasLimitedRef = useRef(false);
+  useEffect(() => {
+    const originalFetch = window.fetch;
+    let countdownInterval: NodeJS.Timeout | null = null;
 
-  // Limpa interval do countdown
-  const clearCountdown = useCallback(() => {
-    if (countdownIntervalRef.current) {
-      clearInterval(countdownIntervalRef.current);
-      countdownIntervalRef.current = null;
-    }
-  }, []);
+    // Interceptar todas as chamadas fetch
+    window.fetch = async (...args: Parameters<typeof fetch>) => {
+      const response = await originalFetch(...args);
 
-  // Inicia countdown automatico
-  const startCountdown = useCallback(
-    (seconds: number) => {
-      clearCountdown();
+      // Extrair headers de rate limit (presentes em 200 e 429)
+      const limitHeader = response.headers.get("X-RateLimit-Limit");
+      const remainingHeader = response.headers.get("X-RateLimit-Remaining");
+      const resetHeader = response.headers.get("X-RateLimit-Reset");
+      const retryAfterHeader = response.headers.get("Retry-After");
 
-      if (seconds <= 0) return;
+      // Se resposta 429 (rate limit excedido)
+      if (response.status === 429) {
+        const limit = parseInt(limitHeader || "30", 10);
+        const remaining = parseInt(remainingHeader || "0", 10);
+        const resetTimestamp = parseInt(resetHeader || "0", 10);
+        const retryAfter = parseInt(retryAfterHeader || "60", 10);
 
-      countdownIntervalRef.current = setInterval(() => {
-        setState((prev) => {
-          const newSeconds = Math.max(0, prev.resetSeconds - 1);
-          const newIsLimited = newSeconds > 0;
+        // Calcular data de reset
+        const resetAt = resetTimestamp
+          ? new Date(resetTimestamp * 1000)
+          : new Date(Date.now() + retryAfter * 1000);
 
-          // Notifica quando rate limit e restaurado
-          if (!newIsLimited && wasLimitedRef.current) {
-            wasLimitedRef.current = false;
-            onLimitRestored?.();
-          }
-
-          return {
-            ...prev,
-            resetSeconds: newSeconds,
-            isLimited: newIsLimited,
-            remaining: newIsLimited ? 0 : prev.limit,
-          };
+        setState({
+          isLimited: true,
+          remaining,
+          limit,
+          resetAt,
+          formattedTime: formatSecondsToTime(
+            Math.floor((resetAt.getTime() - Date.now()) / 1000)
+          ),
         });
-      }, 1000);
-    },
-    [clearCountdown, onLimitRestored]
-  );
 
-  // Atualiza estado a partir de headers de resposta
-  const updateFromHeaders = useCallback(
-    (headers: Headers) => {
-      const limit = parseInt(headers.get("X-RateLimit-Limit") || String(defaultLimit), 10);
-      const remaining = parseInt(headers.get("X-RateLimit-Remaining") || String(limit), 10);
-      const resetSeconds = parseInt(
-        headers.get("Retry-After") || headers.get("X-RateLimit-Reset") || "0",
-        10
-      );
-
-      const isLimited = remaining === 0 || resetSeconds > 0;
-
-      setState({
-        limit,
-        remaining,
-        resetSeconds,
-        isLimited,
-        lastUpdated: Date.now(),
-      });
-
-      if (isLimited && !wasLimitedRef.current) {
-        wasLimitedRef.current = true;
-        onLimitExceeded?.(resetSeconds);
-        startCountdown(resetSeconds);
-      } else if (!isLimited) {
-        clearCountdown();
-        wasLimitedRef.current = false;
-      }
-    },
-    [defaultLimit, onLimitExceeded, startCountdown, clearCountdown]
-  );
-
-  // Atualiza estado manualmente
-  const updateRateLimit = useCallback(
-    (newState: Partial<RateLimitState>) => {
-      setState((prev) => {
-        const updated = { ...prev, ...newState, lastUpdated: Date.now() };
-
-        if (updated.isLimited && !prev.isLimited) {
-          wasLimitedRef.current = true;
-          onLimitExceeded?.(updated.resetSeconds);
-          startCountdown(updated.resetSeconds);
+        // Limpar intervalo anterior se existir
+        if (countdownInterval) {
+          clearInterval(countdownInterval);
         }
 
-        return updated;
-      });
-    },
-    [onLimitExceeded, startCountdown]
-  );
+        // Iniciar countdown até reset
+        countdownInterval = setInterval(() => {
+          const secondsLeft = Math.floor((resetAt.getTime() - Date.now()) / 1000);
 
-  // Reseta o estado
-  const reset = useCallback(() => {
-    clearCountdown();
-    wasLimitedRef.current = false;
-    setState({
-      limit: defaultLimit,
-      remaining: defaultLimit,
-      resetSeconds: 0,
-      isLimited: false,
-      lastUpdated: Date.now(),
-    });
-  }, [clearCountdown, defaultLimit]);
+          if (secondsLeft <= 0) {
+            if (countdownInterval) {
+              clearInterval(countdownInterval);
+              countdownInterval = null;
+            }
+            setState((prev) => ({
+              ...prev,
+              isLimited: false,
+              remaining: limit,
+              resetAt: null,
+              formattedTime: "",
+            }));
+          } else {
+            setState((prev) => ({
+              ...prev,
+              formattedTime: formatSecondsToTime(secondsLeft),
+            }));
+          }
+        }, 1000);
+      }
 
-  // Formata tempo restante para exibicao
-  const formattedTime = useCallback(() => {
-    const minutes = Math.floor(state.resetSeconds / 60);
-    const seconds = state.resetSeconds % 60;
-    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-  }, [state.resetSeconds])();
+      // Atualizar remaining em respostas bem-sucedidas
+      if (response.ok && remainingHeader) {
+        const remaining = parseInt(remainingHeader, 10);
+        const limit = parseInt(limitHeader || "30", 10);
 
-  // Cleanup ao desmontar
-  useEffect(() => {
-    return () => {
-      clearCountdown();
+        setState((prev) => ({
+          ...prev,
+          remaining,
+          limit,
+        }));
+      }
+
+      return response;
     };
-  }, [clearCountdown]);
 
-  return {
-    ...state,
-    updateFromHeaders,
-    updateRateLimit,
-    reset,
-    formattedTime,
-  };
+    // Cleanup: restaurar fetch original e limpar intervalo
+    return () => {
+      window.fetch = originalFetch;
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+      }
+    };
+  }, []);
+
+  return state;
 }
 
-export default useRateLimit;
+/**
+ * Formata segundos em string legível (ex: "59s" ou "1m 30s")
+ *
+ * @param seconds - Número de segundos
+ * @returns String formatada
+ */
+function formatSecondsToTime(seconds: number): string {
+  if (seconds < 0) return "0s";
+  if (seconds < 60) return `${seconds}s`;
+
+  const minutes = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+
+  return `${minutes}m ${secs}s`;
+}

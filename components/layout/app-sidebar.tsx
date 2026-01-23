@@ -65,7 +65,7 @@ const navigation = [
   { name: "Canvas", href: "/canvas", icon: LayoutGrid },
   { name: "Documentos", href: "/knowledge", icon: FileText },
   { name: "Analise", href: "/analysis", icon: FileSearch },
-  { name: "Agentes", href: "/api/v1/agents", icon: Bot },
+  { name: "Agentes", href: "/agents", icon: Bot },
   { name: "Apresentacoes", href: "/presentations", icon: Presentation },
   { name: "Pesquisa", href: "/research", icon: Search },
 ];

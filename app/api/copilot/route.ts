@@ -1,9 +1,7 @@
 // app/api/copilot/route.ts
-// Integracao Skyller <-> Nexus Core via AG-UI Protocol (Agno)
-// @spec SPEC-COPILOT-INTEGRATION-001
-// @acceptance AC-001: Route handler POST /api/copilot funcional
-// @acceptance FE-001 + BE-001: Headers Multi-Tenant
-// @acceptance CC-07: Separacao de Autenticacao (401) vs Autorizacao (403)
+// Integração Skyller ↔ Nexus Core via AG-UI Protocol (Agno)
+// MIGRADO: HttpAgent → AgnoAgent (Stack "Agentic v2")
+// FIX: Headers dinâmicos com token JWT do usuário autenticado
 
 import { HttpAgent } from "@ag-ui/client";
 import {
@@ -11,35 +9,85 @@ import {
   copilotRuntimeNextJSAppRouterEndpoint,
   ExperimentalEmptyAdapter,
 } from "@copilotkit/runtime";
-import { NextRequest } from "next/server";
-import { auth } from "@/auth";
-import { getAgnoAgentUrl } from "@/lib/env-validation";
-import { forbidden, handleApiError, unauthorized } from "@/lib/error-handling";
+import { AgnoAgent } from "@ag-ui/agno";
+import type { NextRequest } from "next/server";
+import { auth } from "../../../auth";
 
 // Service adapter para single-agent (ExperimentalEmptyAdapter e o padrao oficial para agentes remotos)
 const serviceAdapter = new ExperimentalEmptyAdapter();
 
-// HttpAgent conectado ao Nexus Core (Agno)
-// O HttpAgent e compativel com AgnoAgent e implementa o protocolo AG-UI
-// biome-ignore lint/suspicious/noExplicitAny: HttpAgent type compatibility with AgnoAgent protocol
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const nexusAgent = new HttpAgent({ url: getAgnoAgentUrl() }) as any;
-
-// Runtime com HttpAgent conectado ao Nexus Core (Agno)
-const runtime = new CopilotRuntime({
-  agents: {
-    skyller: nexusAgent, // Renomeado para 'skyller' conforme SPEC
-  },
-});
-
 /**
- * Headers CORS para multi-tenant *.skyller.ai
- * AC-029: Access-Control-Allow-Origin: wildcard ou origin especifica
+ * Cria AgnoAgent dinamicamente com headers de autenticação.
+ *
+ * O backend Nexus Core (/agui) exige autenticação via:
+ * - Authorization: Bearer <jwt_token>
+ * - X-Tenant-ID: tenant slug
+ * - X-User-ID: user id
+ *
+ * Essa função cria o AgnoAgent com os headers corretos extraídos
+ * da sessão do usuário autenticado via NextAuth.
  */
-function getCorsHeaders(origin: string | null): Record<string, string> {
-  // Padrao de origem permitida: *.skyller.ai ou localhost para dev
-  const allowedOriginPattern = /^https?:\/\/([\w-]+\.)?skyller\.ai$/;
-  const isLocalhost = origin?.includes("localhost") || origin?.includes("127.0.0.1");
+function createAuthenticatedAgent(
+  accessToken: string | undefined,
+  tenantId: string,
+  userId: string
+) {
+  const headers: Record<string, string> = {
+    "X-Tenant-ID": tenantId,
+    "X-User-ID": userId,
+  };
+
+  // Adicionar token JWT se disponível
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  }
+
+  return new AgnoAgent({
+    url: NEXUS_AGUI_URL,
+    headers,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  }) as any;
+}
+
+// Endpoint POST para CopilotKit
+export const POST = async (req: NextRequest) => {
+  // Obter sessão do usuário autenticado via NextAuth
+  const session = await auth();
+
+  // Extrair dados de autenticação da sessão
+  const accessToken = session?.accessToken;
+  const tenantId = session?.user?.tenant_id || "default";
+  const userId = session?.user?.id || "anonymous";
+
+  // Log para debug (remover em produção)
+  if (process.env.NODE_ENV === "development") {
+    console.log("[Copilot Route] Auth context:", {
+      hasSession: !!session,
+      hasToken: !!accessToken,
+      tenantId,
+      userId,
+    });
+  }
+
+  // Criar AgnoAgent com headers de autenticação dinâmicos
+  const authenticatedAgent = createAuthenticatedAgent(
+    accessToken,
+    tenantId,
+    userId
+  );
+
+  // Criar runtime com o agente autenticado
+  const runtime = new CopilotRuntime({
+    agents: {
+      skyller: authenticatedAgent,
+    },
+  });
+
+  const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
+    runtime,
+    serviceAdapter,
+    endpoint: "/api/copilot",
+  });
 
   const isAllowed = origin && (allowedOriginPattern.test(origin) || isLocalhost);
 

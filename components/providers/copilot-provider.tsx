@@ -47,8 +47,8 @@ export function CopilotProvider({
 }: CopilotProviderProps) {
   return (
     <CopilotKit
-      runtimeUrl={runtimeUrl}
-      agent={agent}
+      runtimeUrl="/api/copilot"
+      agent="skyller"
       showDevConsole={process.env.NODE_ENV === "development"}
     >
       {children}

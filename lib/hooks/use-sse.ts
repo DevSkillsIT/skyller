@@ -1,292 +1,302 @@
-/**
- * Hook para SSE (Server-Sent Events) com auto-reconnection
- * @spec SPEC-COPILOT-INTEGRATION-001
- *
- * Configuracao padrao:
- * - Max retries: 3
- * - Retry delay: 2000ms
- * - Exponential backoff: 1.5x
- */
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export interface SSEConfig {
-  /** URL do endpoint SSE */
-  url: string;
-  /** Numero maximo de tentativas de reconexao (padrao: 3) */
-  maxRetries?: number;
-  /** Delay inicial entre tentativas em ms (padrao: 2000) */
-  retryDelay?: number;
-  /** Fator de backoff exponencial (padrao: 1.5) */
-  backoffMultiplier?: number;
-  /** Headers adicionais para a requisicao */
-  headers?: Record<string, string>;
-  /** Callback quando a conexao e estabelecida */
-  onConnect?: () => void;
-  /** Callback quando a conexao e fechada */
-  onDisconnect?: () => void;
-  /** Callback quando ocorre erro */
-  onError?: (error: Error) => void;
-  /** Callback quando recebe mensagem */
-  onMessage?: (event: MessageEvent) => void;
-}
-
-export interface SSEState {
-  /** Indica se esta conectado */
-  isConnected: boolean;
-  /** Indica se esta tentando reconectar */
-  isReconnecting: boolean;
-  /** Numero de tentativas de reconexao */
-  retryCount: number;
-  /** Ultimo erro ocorrido */
-  error: Error | null;
-  /** Segundos restantes ate proxima tentativa (para countdown UI) */
-  retryCountdown: number;
-}
-
-export interface SSERateLimitInfo {
-  /** Limite de requests por minuto */
-  limit: number;
-  /** Requests restantes */
-  remaining: number;
-  /** Segundos ate reset */
-  resetSeconds: number;
-  /** Indica se rate limit foi excedido (429) */
-  isLimited: boolean;
-}
-
-export interface UseSSEReturn extends SSEState {
-  /** Conecta ao servidor SSE */
-  connect: () => void;
-  /** Desconecta do servidor SSE */
-  disconnect: () => void;
-  /** Informacoes de rate limit */
-  rateLimit: SSERateLimitInfo | null;
-}
-
-const DEFAULT_MAX_RETRIES = 3;
-const DEFAULT_RETRY_DELAY = 2000;
-const DEFAULT_BACKOFF_MULTIPLIER = 1.5;
+/**
+ * ⚠️ LEGACY HOOK - DESCONTINUADO NO CAMINHO PRINCIPAL
+ *
+ * Este hook foi descontinuado no caminho principal da aplicação em favor do
+ * gerenciamento nativo de SSE fornecido pelo CopilotKit useAgent v2.
+ *
+ * **Status**: MANTIDO PARA BACKWARD COMPATIBILITY
+ *
+ * **Motivação da Descontinuação**:
+ * - CopilotKit useAgent v2 gerencia SSE connection nativamente com backoff exponencial
+ * - Reconexão automática é tratada internamente pelo framework
+ * - Reduz duplicação de código e mantém consistência com padrões CopilotKit
+ *
+ * **Caminho Principal Atual**:
+ * - `lib/contexts/chat-context.tsx` usa `useAgent` com subscription a eventos SSE
+ * - Eventos: SSE_RECONNECTING, SSE_RECONNECTED, SSE_MAX_RETRIES_EXCEEDED
+ *
+ * **Quando Usar Este Hook**:
+ * - Integração com sistemas legados que não usam CopilotKit
+ * - Conexões SSE customizadas fora do fluxo de chat principal
+ * - Testes e desenvolvimento de features experimentais
+ *
+ * **Migração Recomendada**:
+ * ```tsx
+ * // ANTES (use-sse.ts)
+ * const { isConnected, reconnectAttempt } = useSse({
+ *   url: "/api/copilot",
+ *   maxRetries: 5,
+ *   onReconnecting: (attempt) => toast.info(`Reconectando... ${attempt}/5`)
+ * });
+ *
+ * // DEPOIS (useAgent v2 com subscription)
+ * const { agent } = useAgent({ agentId: 'skyller' });
+ * useEffect(() => {
+ *   const { unsubscribe } = agent.subscribe({
+ *     onCustomEvent: ({ event }) => {
+ *       if (event.name === 'SSE_RECONNECTING') {
+ *         toast.info(`Reconectando... ${event.value.attempt}/5`);
+ *       }
+ *     }
+ *   });
+ *   return unsubscribe;
+ * }, [agent]);
+ * ```
+ *
+ * **Referências**:
+ * - SPEC-COPILOT-INTEGRATION-001 v1.2.1 (Migração para useAgent v2)
+ * - Consolidação de Reauditorias Multi-IA (OBS-02)
+ *
+ * @deprecated Use CopilotKit useAgent v2 com subscription a eventos SSE
+ */
 
 /**
- * Hook para gerenciar conexoes SSE com auto-reconnection
+ * Opções de configuração para o hook useSse
+ */
+export interface UseSseOptions {
+  /** URL do endpoint SSE */
+  url: string;
+
+  /** Número máximo de tentativas de reconexão (padrão: 5) */
+  maxRetries?: number;
+
+  /** Delay inicial para reconexão em ms (padrão: 1000ms)
+   * Usa backoff exponencial: 1s → 2s → 4s → 8s → 16s
+   */
+  initialRetryDelay?: number;
+
+  /** Callback quando iniciar reconexão */
+  onReconnecting?: (attempt: number, maxRetries: number) => void;
+
+  /** Callback quando reconectar com sucesso */
+  onReconnected?: () => void;
+
+  /** Callback quando exceder máximo de tentativas */
+  onMaxRetriesExceeded?: () => void;
+
+  /** Callback quando receber mensagem */
+  onMessage?: (event: MessageEvent) => void;
+
+  /** Callback quando ocorrer erro */
+  onError?: (error: Event) => void;
+
+  /** Callback quando a conexão abrir */
+  onOpen?: (event: Event) => void;
+
+  /** Headers customizados para a requisição */
+  headers?: Record<string, string>;
+
+  /** Desabilitar reconexão automática (padrão: false) */
+  disableReconnect?: boolean;
+}
+
+/**
+ * Estado de retorno do hook useSse
+ */
+export interface UseSseState {
+  /** Se está conectado ao SSE */
+  isConnected: boolean;
+
+  /** Tentativa atual de reconexão (0 se conectado) */
+  reconnectAttempt: number;
+
+  /** Conectar ao endpoint SSE */
+  connect: () => void;
+
+  /** Desconectar do endpoint SSE */
+  disconnect: () => void;
+
+  /** EventSource atual (null se desconectado) */
+  eventSource: EventSource | null;
+}
+
+/**
+ * Hook para gerenciar conexão SSE (Server-Sent Events) com reconexão automática
+ *
+ * Implementa backoff exponencial: 1s → 2s → 4s → 8s → 16s
  *
  * @example
  * ```tsx
- * const { isConnected, isReconnecting, retryCountdown, connect, disconnect } = useSSE({
- *   url: '/api/copilot',
- *   onMessage: (event) => console.log(event.data),
- *   onError: (error) => console.error(error),
+ * const { isConnected, reconnectAttempt, connect, disconnect } = useSse({
+ *   url: "/api/copilot",
+ *   maxRetries: 5,
+ *   onReconnecting: (attempt) => {
+ *     toast.info(`Reconectando... (tentativa ${attempt}/5)`);
+ *   },
+ *   onReconnected: () => {
+ *     toast.success("Conexão restabelecida");
+ *   },
+ *   onMaxRetriesExceeded: () => {
+ *     toast.error("Conexão perdida. Recarregue a página.");
+ *   },
+ *   onMessage: (event) => {
+ *     console.log("Mensagem recebida:", event.data);
+ *   },
  * });
  * ```
  */
-export function useSSE(config: SSEConfig): UseSSEReturn {
+export function useSse(options: UseSseOptions): UseSseState {
   const {
     url,
-    maxRetries = DEFAULT_MAX_RETRIES,
-    retryDelay = DEFAULT_RETRY_DELAY,
-    backoffMultiplier = DEFAULT_BACKOFF_MULTIPLIER,
-    headers,
-    onConnect,
-    onDisconnect,
-    onError,
+    maxRetries = 5,
+    initialRetryDelay = 1000,
+    onReconnecting,
+    onReconnected,
+    onMaxRetriesExceeded,
     onMessage,
-  } = config;
+    onError,
+    onOpen,
+    headers,
+    disableReconnect = false,
+  } = options;
 
-  const [state, setState] = useState<SSEState>({
-    isConnected: false,
-    isReconnecting: false,
-    retryCount: 0,
-    error: null,
-    retryCountdown: 0,
-  });
-
-  const [rateLimit, setRateLimit] = useState<SSERateLimitInfo | null>(null);
-
+  const [isConnected, setIsConnected] = useState(false);
+  const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const eventSourceRef = useRef<EventSource | null>(null);
-  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const shouldReconnectRef = useRef(true);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isManualDisconnectRef = useRef(false);
 
-  // Limpa timeouts e intervals
-  const clearTimers = useCallback(() => {
-    if (retryTimeoutRef.current) {
-      clearTimeout(retryTimeoutRef.current);
-      retryTimeoutRef.current = null;
-    }
-    if (countdownIntervalRef.current) {
-      clearInterval(countdownIntervalRef.current);
-      countdownIntervalRef.current = null;
-    }
-  }, []);
+  /**
+   * Calcula o delay de reconexão usando backoff exponencial
+   * 1s → 2s → 4s → 8s → 16s
+   */
+  const getReconnectDelay = useCallback((attempt: number): number => {
+    return initialRetryDelay * Math.pow(2, attempt - 1);
+  }, [initialRetryDelay]);
 
-  // Inicia countdown para proxima tentativa
-  const startRetryCountdown = useCallback((seconds: number) => {
-    setState((prev) => ({ ...prev, retryCountdown: seconds }));
-
-    countdownIntervalRef.current = setInterval(() => {
-      setState((prev) => {
-        const newCountdown = Math.max(0, prev.retryCountdown - 1);
-        return { ...prev, retryCountdown: newCountdown };
-      });
-    }, 1000);
-  }, []);
-
-  // Fecha a conexao atual
+  /**
+   * Fecha a conexão SSE atual
+   */
   const closeConnection = useCallback(() => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
     }
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    setIsConnected(false);
   }, []);
 
-  // Calcula delay com backoff exponencial
-  const getRetryDelay = useCallback(
-    (attemptNumber: number) => {
-      return Math.round(retryDelay * backoffMultiplier ** attemptNumber);
-    },
-    [retryDelay, backoffMultiplier]
-  );
+  /**
+   * Tenta reconectar ao SSE
+   */
+  const attemptReconnect = useCallback(() => {
+    if (disableReconnect || isManualDisconnectRef.current) {
+      return;
+    }
 
-  // Tenta reconectar
-  const attemptReconnect = useCallback(
-    (currentRetryCount: number) => {
-      if (currentRetryCount >= maxRetries) {
-        setState((prev) => ({
-          ...prev,
-          isReconnecting: false,
-          error: new Error(`Falha ao reconectar apos ${maxRetries} tentativas`),
-        }));
-        onError?.(new Error(`Falha ao reconectar apos ${maxRetries} tentativas`));
-        return;
-      }
+    const nextAttempt = reconnectAttempt + 1;
 
-      const delay = getRetryDelay(currentRetryCount);
-      const delaySeconds = Math.ceil(delay / 1000);
+    if (nextAttempt > maxRetries) {
+      setReconnectAttempt(maxRetries);
+      onMaxRetriesExceeded?.();
+      return;
+    }
 
-      setState((prev) => ({
-        ...prev,
-        isReconnecting: true,
-        retryCount: currentRetryCount + 1,
-      }));
+    const delay = getReconnectDelay(nextAttempt);
+    setReconnectAttempt(nextAttempt);
+    onReconnecting?.(nextAttempt, maxRetries);
 
-      startRetryCountdown(delaySeconds);
+    reconnectTimeoutRef.current = setTimeout(() => {
+      connect();
+    }, delay);
+  }, [
+    disableReconnect,
+    reconnectAttempt,
+    maxRetries,
+    onMaxRetriesExceeded,
+    onReconnecting,
+    getReconnectDelay,
+  ]);
 
-      retryTimeoutRef.current = setTimeout(() => {
-        clearTimers();
-        // A reconexao sera tratada pelo connect()
-        // que sera chamado apos o timeout
-      }, delay);
-    },
-    [maxRetries, getRetryDelay, startRetryCountdown, clearTimers, onError]
-  );
-
-  // Conecta ao servidor SSE
+  /**
+   * Conecta ao endpoint SSE
+   */
   const connect = useCallback(() => {
-    // Fecha conexao existente
+    // Fecha conexão existente
     closeConnection();
-    clearTimers();
-    shouldReconnectRef.current = true;
+    isManualDisconnectRef.current = false;
 
-    // Cria URL com headers como query params (EventSource nao suporta headers customizados)
-    // Para headers customizados, seria necessario usar fetch com ReadableStream
-    const eventSource = new EventSource(url);
-    eventSourceRef.current = eventSource;
-
-    eventSource.onopen = () => {
-      setState({
-        isConnected: true,
-        isReconnecting: false,
-        retryCount: 0,
-        error: null,
-        retryCountdown: 0,
+    try {
+      // Cria nova conexão EventSource
+      const eventSource = new EventSource(url, {
+        withCredentials: true,
       });
-      onConnect?.();
-    };
 
-    eventSource.onmessage = (event) => {
-      onMessage?.(event);
-    };
+      // Handler para abertura da conexão
+      eventSource.onopen = (event) => {
+        setIsConnected(true);
+        setReconnectAttempt(0);
 
-    eventSource.onerror = () => {
-      const wasConnected = eventSourceRef.current?.readyState === EventSource.OPEN;
+        // Se estava reconectando, notifica sucesso
+        if (reconnectAttempt > 0) {
+          onReconnected?.();
+        }
 
-      closeConnection();
+        onOpen?.(event);
+      };
 
-      setState((prev) => ({
-        ...prev,
-        isConnected: false,
-        error: new Error("Conexao SSE perdida"),
-      }));
+      // Handler para mensagens
+      eventSource.onmessage = (event) => {
+        onMessage?.(event);
+      };
 
-      onDisconnect?.();
+      // Handler para erros
+      eventSource.onerror = (error) => {
+        console.error("[use-sse] EventSource error:", error);
+        setIsConnected(false);
+        onError?.(error);
 
-      // Tenta reconectar se estava conectado e devemos reconectar
-      if (shouldReconnectRef.current) {
-        attemptReconnect(wasConnected ? 0 : state.retryCount);
-      }
-    };
+        // Fecha conexão e tenta reconectar
+        closeConnection();
+        attemptReconnect();
+      };
 
-    // Listener para eventos de rate limit
-    eventSource.addEventListener("rate_limit", (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        setRateLimit({
-          limit: data.limit || 30,
-          remaining: data.remaining || 0,
-          resetSeconds: data.reset_seconds || 60,
-          isLimited: true,
-        });
-      } catch {
-        // Ignora erro de parse
-      }
-    });
-
-    return eventSource;
+      eventSourceRef.current = eventSource;
+    } catch (error) {
+      console.error("[use-sse] Failed to create EventSource:", error);
+      setIsConnected(false);
+      attemptReconnect();
+    }
   }, [
     url,
     closeConnection,
-    clearTimers,
-    onConnect,
+    reconnectAttempt,
+    onReconnected,
+    onOpen,
     onMessage,
-    onDisconnect,
+    onError,
     attemptReconnect,
-    state.retryCount,
   ]);
 
-  // Desconecta do servidor SSE
+  /**
+   * Desconecta do endpoint SSE (manual)
+   */
   const disconnect = useCallback(() => {
-    shouldReconnectRef.current = false;
-    clearTimers();
+    isManualDisconnectRef.current = true;
+    setReconnectAttempt(0);
     closeConnection();
-
-    setState({
-      isConnected: false,
-      isReconnecting: false,
-      retryCount: 0,
-      error: null,
-      retryCountdown: 0,
-    });
-
-    onDisconnect?.();
-  }, [closeConnection, clearTimers, onDisconnect]);
+  }, [closeConnection]);
 
   // Cleanup ao desmontar
   useEffect(() => {
     return () => {
-      shouldReconnectRef.current = false;
-      clearTimers();
+      isManualDisconnectRef.current = true;
       closeConnection();
     };
-  }, [clearTimers, closeConnection]);
+  }, [closeConnection]);
 
   return {
-    ...state,
+    isConnected,
+    reconnectAttempt,
     connect,
     disconnect,
-    rateLimit,
+    eventSource: eventSourceRef.current,
   };
 }
-
-export default useSSE;
