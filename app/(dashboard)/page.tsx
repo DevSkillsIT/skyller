@@ -1,5 +1,8 @@
 "use client";
 
+// Forçar renderização dinâmica (não pré-renderizar durante build)
+export const dynamic = "force-dynamic";
+
 import {
   BarChart3,
   Bot,
@@ -33,7 +36,8 @@ import {
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { AgentsGalleryDialog } from "@/components/dialogs/api/v1/agents-gallery-dialog";
+import { AgentsGalleryDialog } from "@/components/dialogs/agents-gallery-dialog";
+import { RateLimitIndicator } from "@/components/chat/rate-limit-indicator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,24 +58,25 @@ import {
   type Artifact,
   conversationSuggestions,
   type Message,
-  mockAgents,
-  mockMessages,
 } from "@/lib/mock/data";
-
-const agentIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-  general: Bot,
-  "data-analyst": BarChart3,
-  "doc-analyst": FileText,
-  "code-assistant": Code2,
-};
+import { useAgents, type Agent } from "@/lib/hooks/use-agents";
 
 export default function ChatPage() {
-  const { messages, addMessage, setMessages } = useChat();
+  // GAP-CRIT-01: selectedAgentId sincronizado com chat-context para useAgent dinâmico
+  const { messages, addMessage, setMessages, rateLimit, runAgent, isRunning, selectedAgentId, setSelectedAgentId } = useChat();
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [selectedAgent, setSelectedAgent] = useState<string>("general");
+  const { openPanel } = usePanel();
+
+  // Hook para buscar agentes da API (substitui mockAgents)
+  const { agents, globalAgents, companyAgents, isLoading: agentsLoading } = useAgents();
+
   const [isAgentsGalleryOpen, setIsAgentsGalleryOpen] = useState(false);
+
+  // Encontrar agente selecionado nos dados da API (usa selectedAgentId do contexto)
+  const currentAgent = agents.find((a) => a.id === selectedAgentId);
+  const CurrentAgentIcon = currentAgent?.icon || Bot;
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -90,32 +95,28 @@ export default function ChatPage() {
   }, [input]);
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isRunning) return;
 
-    const userMessage: Message = {
-      id: `m${Date.now()}`,
-      role: "user",
-      content: input.trim(),
-      timestamp: new Date(),
-    };
+    // GAP-CRIT-07: Validar limite de 10.000 caracteres (AC-010/RC-003)
+    const MAX_MESSAGE_LENGTH = 10000;
+    if (input.trim().length > MAX_MESSAGE_LENGTH) {
+      toast.error(`Mensagem muito longa! Máximo ${MAX_MESSAGE_LENGTH.toLocaleString()} caracteres.`);
+      return;
+    }
 
-    addMessage(userMessage);
+    const message = input.trim();
     setInput("");
     setIsLoading(true);
 
-    // Simulate AI response with streaming effect
-    setTimeout(() => {
-      const aiMessage: Message = {
-        id: `m${Date.now() + 1}`,
-        role: "assistant",
-        content:
-          "Entendi sua solicitação. Estou analisando os dados disponíveis e processando sua requisição...\n\nCom base nas informações do projeto, posso fornecer uma análise detalhada. Aguarde enquanto gero o relatório completo.",
-        timestamp: new Date(),
-        agentId: "general",
-      };
-      addMessage(aiMessage);
+    try {
+      // GAP-CRIT-01: Usar runAgent do ChatContext (useAgent v2)
+      await runAgent(message);
+    } catch (error) {
+      console.error("Erro ao enviar mensagem:", error);
+      toast.error("Erro ao enviar mensagem. Tente novamente.");
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -169,7 +170,7 @@ export default function ChatPage() {
                       key={suggestion.id}
                       onClick={() => {
                         setInput(suggestion.title);
-                        setSelectedAgent(suggestion.agentId);
+                        setSelectedAgentId(suggestion.agentId);
                       }}
                       className="flex items-center gap-3 p-3 rounded-lg border border-border bg-background hover:bg-muted/50 hover:border-accent/30 transition-colors text-left"
                     >
@@ -184,8 +185,8 @@ export default function ChatPage() {
 
           {/* Messages */}
           {messages.map((message) => {
-            const agent = message.agentId ? mockAgents.find((a) => a.id === message.agentId) : null;
-            const AgentIcon = message.agentId ? agentIconMap[message.agentId] || Bot : Bot;
+            const agent = message.agentId ? agents.find((a) => a.id === message.agentId) : currentAgent;
+            const AgentIcon = agent?.icon || Bot;
 
             return (
               <div
@@ -304,34 +305,48 @@ export default function ChatPage() {
       {/* Input Area - Gemini Style */}
       <div className="border-t border-border bg-background p-4">
         <div className="max-w-3xl mx-auto">
+          {/* Rate Limit Indicator (GAP-CRIT-06) */}
+          <RateLimitIndicator />
+
           {/* Input Box */}
           <div className="relative border border-border rounded-3xl bg-background shadow-sm hover:shadow-md transition-shadow">
             {/* Input area with textarea */}
-            <div className="flex items-end gap-2 p-3">
-              <div className="relative flex-1">
-                <Textarea
-                  ref={textareaRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Digite sua mensagem..."
-                  className="min-h-[52px] max-h-[200px] resize-none border-0 bg-transparent focus-visible:ring-0 shadow-none py-2 px-2"
-                  disabled={isLoading}
-                />
+            <div className="flex flex-col gap-1">
+              <div className="flex items-end gap-2 p-3 pb-1">
+                <div className="relative flex-1">
+                  <Textarea
+                    ref={textareaRef}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Digite sua mensagem..."
+                    className="min-h-[52px] max-h-[200px] resize-none border-0 bg-transparent focus-visible:ring-0 shadow-none py-2 px-2"
+                    disabled={isLoading || rateLimit.isLimited}
+                    data-testid="chat-input"
+                  />
+                </div>
+
+                <Button
+                  size="icon"
+                  className="h-10 w-10 rounded-full flex-shrink-0"
+                  onClick={handleSend}
+                  disabled={!input.trim() || isLoading || rateLimit.isLimited || rateLimit.remaining === 0 || input.trim().length > 10000}
+                  data-testid="send-button"
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                </Button>
               </div>
 
-              <Button
-                size="icon"
-                className="h-10 w-10 rounded-full flex-shrink-0"
-                onClick={handleSend}
-                disabled={!input.trim() || isLoading}
-              >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-              </Button>
+              {/* GAP-CRIT-07: Contador de caracteres (AC-010/RC-003) */}
+              <div className="text-xs px-5 pb-2">
+                <span className={input.length > 10000 ? "text-destructive font-medium" : "text-muted-foreground"}>
+                  {input.length.toLocaleString()}/10.000 caracteres
+                </span>
+              </div>
             </div>
 
             {/* Bottom bar with buttons - Gemini style */}
@@ -397,42 +412,98 @@ export default function ChatPage() {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="sm" className="h-8 gap-1.5">
-                      <Bot className="h-4 w-4" />
+                      <CurrentAgentIcon className="h-4 w-4" />
                       <span className="text-xs">
-                        {mockAgents.find((a) => a.id === selectedAgent)?.name || "Agentes"}
+                        {currentAgent?.name || "Agentes"}
                       </span>
+                      {currentAgent && (
+                        <div className={`h-1.5 w-1.5 rounded-full ${currentAgent.isActive ? "bg-green-500" : "bg-gray-400"}`} />
+                      )}
                       <ChevronDown className="h-3 w-3 opacity-50" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-64">
-                    <DropdownMenuLabel>Selecionar Agente</DropdownMenuLabel>
+                  <DropdownMenuContent align="start" className="w-72">
+                    <DropdownMenuLabel className="flex items-center justify-between">
+                      <span>Selecionar Agente</span>
+                      {agentsLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+                    </DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    {mockAgents.map((agent) => {
-                      const AgentIcon = agentIconMap[agent.id] || Bot;
-                      const isSelected = selectedAgent === agent.id;
-                      return (
-                        <DropdownMenuItem
-                          key={agent.id}
-                          onClick={() => setSelectedAgent(agent.id)}
-                          className="flex items-center justify-between"
-                        >
-                          <div className="flex items-center gap-2">
-                            <AgentIcon className="h-4 w-4" />
-                            <div>
-                              <div className="font-medium">{agent.name}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {agent.description}
+
+                    {/* Agentes Globais */}
+                    {globalAgents.length > 0 && (
+                      <>
+                        <DropdownMenuLabel className="text-xs text-muted-foreground font-normal py-1">
+                          Globais
+                        </DropdownMenuLabel>
+                        {globalAgents.slice(0, 3).map((agent) => {
+                          const AgentIcon = agent.icon;
+                          const isSelected = selectedAgentId === agent.id;
+                          return (
+                            <DropdownMenuItem
+                              key={agent.id}
+                              onClick={() => setSelectedAgentId(agent.id)}
+                              className="flex items-center justify-between"
+                              disabled={!agent.isActive}
+                            >
+                              <div className="flex items-center gap-2">
+                                <AgentIcon className="h-4 w-4" />
+                                <div>
+                                  <div className="font-medium flex items-center gap-1.5">
+                                    {agent.name}
+                                    <div className={`h-1.5 w-1.5 rounded-full ${agent.isActive ? "bg-green-500" : "bg-gray-400"}`} />
+                                  </div>
+                                  <div className="text-xs text-muted-foreground line-clamp-1">
+                                    {agent.description}
+                                  </div>
+                                </div>
                               </div>
-                            </div>
-                          </div>
-                          {isSelected && <Check className="h-4 w-4 text-accent" />}
-                        </DropdownMenuItem>
-                      );
-                    })}
+                              {isSelected && <Check className="h-4 w-4 text-accent" />}
+                            </DropdownMenuItem>
+                          );
+                        })}
+                      </>
+                    )}
+
+                    {/* Agentes da Empresa */}
+                    {companyAgents.length > 0 && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel className="text-xs text-muted-foreground font-normal py-1">
+                          Empresa
+                        </DropdownMenuLabel>
+                        {companyAgents.slice(0, 3).map((agent) => {
+                          const AgentIcon = agent.icon;
+                          const isSelected = selectedAgentId === agent.id;
+                          return (
+                            <DropdownMenuItem
+                              key={agent.id}
+                              onClick={() => setSelectedAgentId(agent.id)}
+                              className="flex items-center justify-between"
+                              disabled={!agent.isActive}
+                            >
+                              <div className="flex items-center gap-2">
+                                <AgentIcon className="h-4 w-4" />
+                                <div>
+                                  <div className="font-medium flex items-center gap-1.5">
+                                    {agent.name}
+                                    <div className={`h-1.5 w-1.5 rounded-full ${agent.isActive ? "bg-green-500" : "bg-gray-400"}`} />
+                                  </div>
+                                  <div className="text-xs text-muted-foreground line-clamp-1">
+                                    {agent.description}
+                                  </div>
+                                </div>
+                              </div>
+                              {isSelected && <Check className="h-4 w-4 text-accent" />}
+                            </DropdownMenuItem>
+                          );
+                        })}
+                      </>
+                    )}
+
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => setIsAgentsGalleryOpen(true)}>
                       <Search className="h-4 w-4 mr-2" />
-                      Ver todos os agentes
+                      Ver todos os agentes ({agents.length})
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -457,8 +528,8 @@ export default function ChatPage() {
       <AgentsGalleryDialog
         open={isAgentsGalleryOpen}
         onOpenChange={setIsAgentsGalleryOpen}
-        selectedAgent={selectedAgent}
-        onSelectAgent={setSelectedAgent}
+        selectedAgent={selectedAgentId}
+        onSelectAgent={setSelectedAgentId}
       />
     </div>
   );

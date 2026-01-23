@@ -94,9 +94,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // GAP-CRIT-01: Hook useAgent v2 com acesso completo a eventos AG-UI
   // Conforme documentação: https://docs.copilotkit.ai/reference/hooks/useAgent
-  // agentId agora e dinamico baseado na selecao do usuario ou effective agent
+  // SPEC-AGENT-MANAGEMENT-001: CopilotKit Runtime usa "skyller" como proxy fixo
+  // O agente real (selectedAgentId) e passado via forwardedProps para o backend
   const { agent } = useAgent({
-    agentId: selectedAgentId || FALLBACK_AGENT_ID,  // Agente selecionado ou fallback
+    agentId: FALLBACK_AGENT_ID,  // Proxy fixo - agente real via forwardedProps
     // Configurar updates para re-render apenas quando necessário
     updates: [
       UseAgentUpdate.OnMessagesChanged,
@@ -270,11 +271,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
         // Executar agente (dispara processamento backend)
-        // O agente correto ja esta selecionado via useAgent({ agentId: selectedAgentId })
+        // SPEC-AGENT-MANAGEMENT-001: Passar agente real via forwardedProps
+        // CopilotKit usa "skyller" como proxy, backend usa agentId real
         await agent.runAgent({
           forwardedProps: {
             message,
             conversationId: currentConversationId,
+            agent_id: selectedAgentId || FALLBACK_AGENT_ID,  // Agente real para backend (snake_case)
           },
         });
 

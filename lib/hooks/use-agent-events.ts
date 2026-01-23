@@ -1,4 +1,65 @@
 /**
+ * ⚠️ LEGACY HOOK - DESCONTINUADO NO CAMINHO PRINCIPAL
+ *
+ * Este hook foi descontinuado no caminho principal da aplicação em favor do
+ * gerenciamento nativo de eventos fornecido pelo CopilotKit useAgent v2.
+ *
+ * **Status**: MANTIDO PARA BACKWARD COMPATIBILITY
+ *
+ * **Motivação da Descontinuação**:
+ * - CopilotKit useAgent v2 fornece subscription nativa a eventos AG-UI
+ * - Eventos são processados via agent.subscribe() com interface tipada
+ * - Reduz camada de abstração desnecessária e mantém consistência com framework
+ *
+ * **Caminho Principal Atual**:
+ * - `lib/contexts/chat-context.tsx` processa eventos diretamente via agent.subscribe()
+ * - Eventos suportados: THINKING_START/END, TOOL_CALL_START/END, RUN_ERROR
+ * - Estado gerenciado localmente no ChatContext via useState
+ *
+ * **Quando Usar Este Hook**:
+ * - Integração com sistemas legados que precisam de interface simplificada
+ * - Componentes isolados que não têm acesso ao ChatContext
+ * - Testes e desenvolvimento de features experimentais
+ *
+ * **Migração Recomendada**:
+ * ```tsx
+ * // ANTES (useAgentEvents)
+ * const agent = useAgent({ ... });
+ * const { isThinking, currentTool, lastError } = useAgentEvents(agent);
+ *
+ * // DEPOIS (agent.subscribe direto)
+ * const [currentTool, setCurrentTool] = useState<string>();
+ * const [thinkingState, setThinkingState] = useState<string>();
+ *
+ * useEffect(() => {
+ *   const { unsubscribe } = agent.subscribe({
+ *     onCustomEvent: ({ event }) => {
+ *       if (event.name === 'TOOL_CALL_START') {
+ *         setCurrentTool(event.value?.toolName);
+ *       }
+ *       if (event.name === 'THINKING_START') {
+ *         setThinkingState('Analisando...');
+ *       }
+ *     }
+ *   });
+ *   return unsubscribe;
+ * }, [agent]);
+ * ```
+ *
+ * **Requisitos SPEC Atendidos pelo Caminho Principal**:
+ * - AC-023: Exibir tool calls em execução ✅ (via agent.subscribe onCustomEvent)
+ * - AC-024: Exibir thinking state ✅ (via agent.subscribe onCustomEvent)
+ * - AC-027: Exibir erros de execução ✅ (via agent.subscribe onCustomEvent)
+ *
+ * **Referências**:
+ * - SPEC-COPILOT-INTEGRATION-001 v1.2.1 (GAP-CRIT-03: Subscription a eventos AG-UI)
+ * - Consolidação de Reauditorias Multi-IA (OBS-02)
+ * - _shared/docs/04-REFERENCE/agno-copilotkit/02-hooks-reference.md (agent.subscribe interface)
+ *
+ * @deprecated Use agent.subscribe() diretamente conforme documentação CopilotKit
+ *
+ * ---
+ *
  * Hook para processar eventos AG-UI (GAP-CRIT-03)
  *
  * Processa eventos do agente:

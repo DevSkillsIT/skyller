@@ -15,7 +15,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   return (
     <CopilotKit
       runtimeUrl="/api/copilot"
-      agent="nexus_agent"
+      agent="skyller"
       showDevConsole={process.env.NODE_ENV === "development"}
     >
       <CopilotSidebar

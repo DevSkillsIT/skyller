@@ -45,7 +45,7 @@ export function AppHeader({ onOpenPanel }: AppHeaderProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-8 w-8 rounded-full p-0 ml-1">
               <Avatar className="h-8 w-8">
-                <AvatarImage src="/placeholder-avatar.jpg" alt="User" />
+                <AvatarImage src="/placeholder-user.jpg" alt="User" />
                 <AvatarFallback className="bg-accent text-accent-foreground text-sm">
                   JD
                 </AvatarFallback>
