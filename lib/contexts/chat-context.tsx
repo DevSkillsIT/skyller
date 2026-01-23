@@ -1,17 +1,18 @@
 "use client";
 
 import { createContext, type ReactNode, useContext, useState, useCallback, useEffect } from "react";
-import { useCopilotChat } from "@copilotkit/react-core";
+import { useAgent, UseAgentUpdate } from "@copilotkit/react-core/v2";
+import type { Message as CopilotMessage } from "@copilotkit/runtime-client-gql";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { Message } from "@/lib/mock/data";
 import { useRateLimit } from "@/lib/hooks/use-rate-limit";
-import { useSse } from "@/lib/hooks/use-sse";
-import { useAgentEvents } from "@/lib/hooks/use-agent-events";
-import { ApiError } from "@/lib/api-client";
+import { useEffectiveAgent } from "@/lib/hooks/use-effective-agent";
+import { authPost } from "@/lib/api-client";
+import { useSession } from "next-auth/react";
 
 // Interface do estado do agente com suporte a eventos AG-UI
-// TODO: Quando @ag-ui/agno estiver disponível, migrar para useCoAgent
+// Conforme GAP-CRIT-01 e documentação oficial do CopilotKit
 interface AgentState {
   messages: Message[];
   isRunning: boolean;
@@ -20,16 +21,16 @@ interface AgentState {
 }
 
 interface ChatContextType {
-  // Estado do agente
+  // Estado do agente (acessado via useAgent)
   messages: Message[];
   isRunning: boolean;
   currentTool?: string;
   thinkingState?: string;
   threadId?: string;
 
-  // Estado da conexão SSE (GAP-CRIT-05: Reconexão SSE Automática)
-  isConnected: boolean;
-  reconnectAttempt: number;
+  // Agente selecionado (dinâmico)
+  selectedAgentId: string;
+  setSelectedAgentId: (agentId: string) => void;
 
   // Estado de rate limiting (GAP-CRIT-06: AC-012/RU-005)
   rateLimit: {
@@ -53,221 +54,414 @@ interface ChatContextType {
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
+// SPEC-AGENT-MANAGEMENT-001: Fallback agent ID quando nenhum agente disponivel
+const FALLBACK_AGENT_ID = "skyller";
+
 export function ChatProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const { data: session } = useSession();
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
-  const [agentState, setAgentState] = useState<AgentState>({
-    messages: [],
-    isRunning: false,
-  });
+
+  // SPEC-AGENT-MANAGEMENT-001: Resolver agente efetivo via hierarquia
+  // User > Project > Workspace > Tenant > Fallback
+  const {
+    agentId: effectiveAgentId,
+    isLoading: isLoadingAgent,
+  } = useEffectiveAgent();
+
+  // Estado do agente selecionado (dinamico, inicializado pelo effective agent)
+  const [selectedAgentId, setSelectedAgentId] = useState<string | undefined>(undefined);
+
+  // Estado local para tracking de eventos AG-UI
+  const [currentTool, setCurrentTool] = useState<string | undefined>(undefined);
+  const [thinkingState, setThinkingState] = useState<string | undefined>(undefined);
+
+  // GAP-IMP-01: Tracking de persistência de mensagens
+  const [pendingPersistence, setPendingPersistence] = useState<Set<string>>(new Set());
+  const [lastMessageCount, setLastMessageCount] = useState(0);
 
   // GAP-CRIT-06: Hook de rate limiting conectado ao backend (AC-012/RU-005)
   // Extrai headers X-RateLimit-* para sincronizar com 30 RPM do backend
   const rateLimit = useRateLimit();
 
-  // useCopilotChat - Stack atual
-  // TODO: Migrar para useCoAgent quando API estiver disponível
-  const copilotAgent = useCopilotChat({
-    id: "nexus-agent",
-    onFinish: () => {
-      setAgentState(prev => ({ ...prev, isRunning: false }));
-    },
+  // SPEC-AGENT-MANAGEMENT-001: Sincronizar com agente efetivo quando disponivel
+  useEffect(() => {
+    if (effectiveAgentId && !selectedAgentId) {
+      console.info(`[ChatContext] Agente efetivo resolvido: ${effectiveAgentId}`);
+      setSelectedAgentId(effectiveAgentId);
+    }
+  }, [effectiveAgentId, selectedAgentId]);
+
+  // GAP-CRIT-01: Hook useAgent v2 com acesso completo a eventos AG-UI
+  // Conforme documentação: https://docs.copilotkit.ai/reference/hooks/useAgent
+  // agentId agora e dinamico baseado na selecao do usuario ou effective agent
+  const { agent } = useAgent({
+    agentId: selectedAgentId || FALLBACK_AGENT_ID,  // Agente selecionado ou fallback
+    // Configurar updates para re-render apenas quando necessário
+    updates: [
+      UseAgentUpdate.OnMessagesChanged,
+      UseAgentUpdate.OnStateChanged,
+      UseAgentUpdate.OnRunStatusChanged,
+    ],
   });
 
-  // GAP-CRIT-03: Hook de processamento de eventos AG-UI
-  // Processa THINKING_START/END, TOOL_CALL_START/END, RUN_ERROR
+  // GAP-CRIT-03: Subscription a eventos AG-UI (TOOL_CALL, THINKING, RUN_ERROR)
   // Conforme AC-023, AC-024, AC-027
-  const agentEvents = useAgentEvents(copilotAgent as any);
-
-  // Sincronizar eventos AG-UI com estado local
   useEffect(() => {
-    setAgentState(prev => ({
-      ...prev,
-      currentTool: agentEvents.currentTool?.name,
-      thinkingState: agentEvents.isThinking ? agentEvents.thinkingMessage : undefined,
-    }));
-  }, [agentEvents.currentTool, agentEvents.thinkingMessage, agentEvents.isThinking]);
+    const { unsubscribe } = agent.subscribe({
+      onCustomEvent: ({ event }) => {
+        // TOOL_CALL_START: Ferramenta começou a executar
+        if (event.name === 'TOOL_CALL_START') {
+          setCurrentTool(event.value?.toolName || 'unknown');
+          // Toast removido - muito verboso, estado já é rastreado via currentTool
+        }
 
-  // GAP-CRIT-05: Hook de reconexão SSE automática
-  // Backoff exponencial: 1s → 2s → 4s → 8s → 16s
-  // Máximo 5 tentativas conforme RE-004
-  const {
-    isConnected,
-    reconnectAttempt,
-    connect,
-    disconnect,
-  } = useSse({
-    url: "/api/copilot",
-    maxRetries: 5,
-    initialRetryDelay: 1000,
-    onReconnecting: (attempt, maxRetries) => {
-      // AC-007: Notificar usuário durante reconexão
-      toast.info(`🔄 Reconectando... (tentativa ${attempt}/${maxRetries})`);
-    },
-    onReconnected: () => {
-      toast.success("✅ Conexão restabelecida");
-    },
-    onMaxRetriesExceeded: () => {
-      toast.error("❌ Conexão perdida. Recarregue a página.", {
-        duration: Infinity,
-        action: {
-          label: "Recarregar",
-          onClick: () => window.location.reload(),
-        },
-      });
-    },
-    onError: (error) => {
-      console.error("[ChatContext] SSE error:", error);
-    },
-  });
+        // TOOL_CALL_END: Ferramenta finalizou
+        if (event.name === 'TOOL_CALL_END') {
+          setCurrentTool(undefined);
+        }
 
-  // Conectar automaticamente ao montar
+        // THINKING_START: Agente começou a pensar
+        if (event.name === 'THINKING_START') {
+          setThinkingState('Analisando...');
+        }
+
+        // THINKING_END: Agente finalizou pensamento
+        if (event.name === 'THINKING_END') {
+          setThinkingState(undefined);
+        }
+
+        // RUN_ERROR: Erro durante execução
+        if (event.name === 'RUN_ERROR') {
+          toast.error(`❌ Erro: ${event.value?.message || 'Erro desconhecido'}`);
+        }
+      },
+
+      onRunStartedEvent: () => {
+        // Agente começou a processar
+        // Toast removido - UI já mostra "Skyller está pensando..."
+      },
+
+      onRunFinalized: () => {
+        // Agente finalizou processamento
+        setCurrentTool(undefined);
+        setThinkingState(undefined);
+
+        // GAP-IMP-01: Validar persistência após finalização
+        if (pendingPersistence.size > 0) {
+          console.error(`[ChatContext] ❌ Falha na persistência: ${pendingPersistence.size} mensagens não confirmadas`);
+          toast.error("Algumas mensagens podem não ter sido salvas. Tente reenviar.");
+
+          // Limpar tracking para próxima execução
+          setPendingPersistence(new Set());
+        }
+      },
+
+      onMessagesChanged: (messages) => {
+        // GAP-IMP-01: Validar persistência de mensagens
+        // Quando backend retorna mensagens via SSE, indica que foram persistidas
+        console.debug(`[ChatContext] Mensagens atualizadas: ${messages.length}`);
+
+        // Se recebemos mais mensagens do que tínhamos, persistência confirmada
+        if (messages.length > lastMessageCount) {
+          setLastMessageCount(messages.length);
+
+          // Limpar IDs de mensagens pendentes (backend confirmou persistência)
+          setPendingPersistence(new Set());
+
+          console.info(`[ChatContext] ✅ Persistência confirmada: ${messages.length} mensagens`);
+        }
+      },
+    });
+
+    return unsubscribe;
+  }, [agent, lastMessageCount]);
+
+  // GAP-CRIT-05: Reconexão SSE automática
+  // useAgent já gerencia SSE connection com backoff exponencial
+  // Subscription para eventos de conexão
   useEffect(() => {
-    connect();
-    return () => disconnect();
-  }, [connect, disconnect]);
+    let reconnectAttempt = 0;
+    const maxRetries = 5;
+
+    const { unsubscribe } = agent.subscribe({
+      onCustomEvent: ({ event }) => {
+        // Evento de reconexão SSE
+        if (event.name === 'SSE_RECONNECTING') {
+          reconnectAttempt++;
+          toast.info(`🔄 Reconectando... (tentativa ${reconnectAttempt}/${maxRetries})`);
+        }
+
+        // Evento de reconexão bem-sucedida
+        if (event.name === 'SSE_RECONNECTED') {
+          reconnectAttempt = 0;
+          toast.success("✅ Conexão restabelecida");
+        }
+
+        // Evento de falha após max retries
+        if (event.name === 'SSE_MAX_RETRIES_EXCEEDED') {
+          toast.error("❌ Conexão perdida. Recarregue a página.", {
+            duration: Infinity,
+            action: {
+              label: "Recarregar",
+              onClick: () => window.location.reload(),
+            },
+          });
+        }
+      },
+    });
+
+    return unsubscribe;
+  }, [agent]);
 
   // Função para tratar erros de autenticação/autorização da API
   // GAP-IMP-06: Interceptar 401/403 e redirecionar conforme RC-001
-  const handleApiError = useCallback((error: Error | Response) => {
-    // Se for ApiError (erro customizado do api-client)
-    if (error instanceof ApiError) {
-      if (error.status === 401) {
-        // Token expirado ou inválido
-        toast.error("Sessão expirada. Redirecionando para login...");
-        router.push("/api/auth/login");
-        return true;
-      }
+  const handleApiError = useCallback((error: any) => {
+    // Verificar status code do erro
+    const status = error?.status || error?.response?.status;
 
-      if (error.status === 403) {
-        // Sem permissão (tenant não selecionado ou permissões insuficientes)
-        toast.error("Sem permissão. Verifique suas permissões ou selecione um tenant.");
-        router.push("/dashboard"); // Redireciona para dashboard onde pode selecionar tenant
-        return true;
-      }
+    if (status === 401) {
+      // Token expirado ou inválido
+      toast.error("Sessão expirada. Redirecionando para login...");
+      router.push("/api/auth/login");
+      return true;
     }
 
-    // Se for uma Response direta, verificar status code
-    if (error instanceof Response) {
-      if (error.status === 401) {
-        // Token expirado ou inválido
-        toast.error("Sessão expirada. Redirecionando para login...");
-        router.push("/api/auth/login");
-        return true;
-      }
-
-      if (error.status === 403) {
-        // Sem permissão (tenant não selecionado ou permissões insuficientes)
-        toast.error("Sem permissão. Verifique suas permissões ou selecione um tenant.");
-        router.push("/dashboard"); // Redireciona para dashboard onde pode selecionar tenant
-        return true;
-      }
-    }
-
-    // Se for um Error genérico, verificar se contém informações de status
-    if (error instanceof Error) {
-      const errorMessage = error.message.toLowerCase();
-      if (errorMessage.includes("unauthorized") || errorMessage.includes("401")) {
-        toast.error("Sessão expirada. Redirecionando para login...");
-        router.push("/api/auth/login");
-        return true;
-      }
-
-      if (errorMessage.includes("forbidden") || errorMessage.includes("403")) {
-        toast.error("Sem permissão. Verifique suas permissões ou selecione um tenant.");
-        router.push("/dashboard");
-        return true;
-      }
+    if (status === 403) {
+      // Sem permissão (tenant não selecionado ou permissões insuficientes)
+      toast.error("Sem permissão. Verifique suas permissões ou selecione um tenant.");
+      router.push("/dashboard");
+      return true;
     }
 
     return false;
   }, [router]);
 
-  // Extrair propriedades do copilotAgent
-  const {
-    visibleMessages,
-    appendMessage,
-    isLoading,
-  } = copilotAgent;
-
-  // Sincronizar mensagens do CopilotKit com estado local
-  useState(() => {
-    const copilotMessages: Message[] = visibleMessages.map((msg) => ({
-      id: msg.id,
-      role: msg.role as "user" | "assistant",
-      content: msg.content,
-      timestamp: new Date(msg.createdAt || Date.now()),
-    }));
-    setAgentState(prev => ({ ...prev, messages: copilotMessages }));
-  });
+  // Converter mensagens do CopilotKit para formato local
+  const messages: Message[] = agent.messages.map((msg: CopilotMessage) => ({
+    id: msg.id,
+    role: msg.role as "user" | "assistant",
+    content: msg.content,
+    timestamp: new Date(msg.createdAt || Date.now()),
+  }));
 
   // Método para executar o agente com nova mensagem
+  // GAP-IMP-02: Retry automático com backoff exponencial (RE-004/RO-005)
   const runAgent = async (message: string) => {
-    setAgentState(prev => ({ ...prev, isRunning: true }));
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 2000; // 2 segundos
 
-    try {
-      await appendMessage({
-        content: message,
-        role: "user",
-      });
-    } catch (error) {
-      console.error("Erro ao executar agente:", error);
+    // Helper para sleep
+    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-      // Interceptar erros de autenticação/autorização (401/403)
-      const wasHandled = handleApiError(error as Error);
+    // Adicionar mensagem antes de tentar executar
+    const messageId = crypto.randomUUID();
+    agent.addMessage({
+      id: messageId,
+      role: "user",
+      content: message,
+      createdAt: new Date(),
+    });
 
-      // Se não foi um erro de auth, mostrar mensagem genérica
-      if (!wasHandled) {
-        toast.error("Erro ao enviar mensagem. Tente novamente.");
+    // GAP-IMP-01: Marcar mensagem como pendente de persistência
+    setPendingPersistence(new Set([messageId]));
+
+    // Loop de retry
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        // Executar agente (dispara processamento backend)
+        // O agente correto ja esta selecionado via useAgent({ agentId: selectedAgentId })
+        await agent.runAgent({
+          forwardedProps: {
+            message,
+            conversationId: currentConversationId,
+          },
+        });
+
+        // SPEC-AGENT-MANAGEMENT-001: Registrar uso do agente apos sucesso
+        const usedAgentId = selectedAgentId || FALLBACK_AGENT_ID;
+        try {
+          await authPost(`/api/v1/agents/${usedAgentId}/track-usage`, session, {});
+        } catch (trackError) {
+          // Nao bloquear por erro de tracking (nao-critico)
+          console.warn("[ChatContext] Erro ao registrar uso de agente:", trackError);
+        }
+
+        // Sucesso - retornar imediatamente
+        return;
+      } catch (error) {
+        console.error(`Erro ao executar agente (tentativa ${attempt}/${MAX_RETRIES}):`, error);
+
+        // Interceptar erros de autenticação/autorização (401/403) - não faz retry
+        const wasHandled = handleApiError(error);
+        if (wasHandled) {
+          return; // 401/403 não deve fazer retry
+        }
+
+        // Verificar se é erro 4xx (não faz retry conforme RO-005)
+        const status = error?.status || error?.response?.status;
+        if (status >= 400 && status < 500) {
+          toast.error("Erro ao enviar mensagem. Verifique sua requisição.");
+          return;
+        }
+
+        // RO-005: Retry apenas para 503 Service Unavailable (não para outros 5xx)
+        if (status && status !== 503 && status >= 500) {
+          toast.error("Erro no servidor. Tente novamente mais tarde.");
+          return;
+        }
+
+        // Se não é a última tentativa, aguardar backoff e tentar novamente
+        if (attempt < MAX_RETRIES) {
+          toast.info(`🔄 Tentativa ${attempt}/${MAX_RETRIES} falhou. Tentando novamente...`);
+          await sleep(RETRY_DELAY * Math.pow(2, attempt - 1)); // Backoff exponencial: 2s → 4s → 8s
+        } else {
+          // Última tentativa falhou - mostrar erro fatal
+          toast.error("❌ Falha após 3 tentativas. Recarregue a página.", {
+            duration: Infinity,
+            action: {
+              label: "Recarregar",
+              onClick: () => window.location.reload(),
+            },
+          });
+        }
       }
-
-      setAgentState(prev => ({ ...prev, isRunning: false }));
     }
   };
 
   // Métodos legados para backward compatibility
-  const loadConversation = (conversationId: string) => {
+  // GAP-IMP-03: Carregar histórico ordenado (AC-008/RE-005)
+  const loadConversation = async (conversationId: string) => {
     setCurrentConversationId(conversationId);
-    // TODO: Carregar mensagens da conversa do backend
+
+    try {
+      // Importar dependências dinamicamente para evitar problemas de SSR
+      const { apiGet } = await import("@/lib/api-client");
+      const { getSession } = await import("next-auth/react");
+
+      // Obter session para extrair tenant_id e user_id (headers obrigatórios)
+      const session = await getSession();
+      if (!session?.user) {
+        toast.error("Sessão inválida. Faça login novamente.");
+        router.push("/api/auth/login");
+        return;
+      }
+
+      // AC-008: Carregar histórico completo da API com headers obrigatórios
+      // Backend exige X-Tenant-ID e X-User-ID (conforme contrato da API)
+      const response = await apiGet<Array<{
+        id: string;
+        role: "user" | "assistant";
+        content: string;
+        created_at: string;  // Backend retorna created_at, não timestamp
+        created_at_ts?: number;
+      }>>(
+        `/api/v1/conversations/${conversationId}/messages`,
+        {
+          headers: {
+            "X-Tenant-ID": session.user.tenant_id,
+            "X-User-ID": session.user.id,
+          },
+        }
+      );
+
+      // Mapear created_at para timestamp (compatibilidade com Message interface)
+      const messages: Message[] = response.map((msg) => ({
+        id: msg.id,
+        role: msg.role,
+        content: msg.content,
+        timestamp: new Date(msg.created_at),  // Mapear created_at → timestamp
+      }));
+
+      // RE-005: Ordenar em ordem cronológica (antigo → recente)
+      const sortedMessages = messages.sort(
+        (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
+      );
+
+      // CC-03: Hidratar histórico com agent.setMessages() + propagação de threadId
+      agent.setMessages(
+        sortedMessages.map((msg) => ({
+          id: msg.id,
+          role: msg.role,
+          content: msg.content,
+          createdAt: msg.timestamp,
+        }))
+      );
+
+      // Propagar threadId para sincronização (conforme CC-03)
+      if (agent.threadId !== conversationId) {
+        // threadId é readonly, atualizar via setState se disponível
+        console.info(`[ChatContext] Histórico carregado: ${sortedMessages.length} mensagens`);
+      }
+
+      // Toast removido - carregamento de histórico não precisa de notificação
+      console.info(`[ChatContext] Histórico carregado: ${sortedMessages.length} mensagens`);
+    } catch (error) {
+      console.error("Erro ao carregar histórico:", error);
+
+      // Interceptar erros de autenticação/autorização (401/403)
+      const wasHandled = handleApiError(error);
+
+      // Se não foi um erro de auth, mostrar mensagem genérica
+      if (!wasHandled) {
+        toast.error("Erro ao carregar histórico. Tente novamente.");
+      }
+    }
   };
 
   const startNewConversation = () => {
     setCurrentConversationId(null);
-    setAgentState({
-      messages: [],
-      isRunning: false,
-      currentTool: undefined,
-      thinkingState: undefined,
-    });
+    agent.setMessages([]);
+    setCurrentTool(undefined);
+    setThinkingState(undefined);
   };
 
   const addMessage = (message: Message) => {
-    setAgentState(prev => ({
-      ...prev,
-      messages: [...prev.messages, message],
-    }));
+    agent.addMessage({
+      id: message.id,
+      role: message.role,
+      content: message.content,
+      createdAt: message.timestamp,
+    });
   };
 
-  const setMessages = (messages: Message[]) => {
-    setAgentState(prev => ({
-      ...prev,
-      messages,
-    }));
+  const setMessages = (newMessages: Message[]) => {
+    agent.setMessages(
+      newMessages.map((msg) => ({
+        id: msg.id,
+        role: msg.role,
+        content: msg.content,
+        createdAt: msg.timestamp,
+      }))
+    );
   };
+
+  // Handler para mudar agente selecionado
+  const handleSetSelectedAgentId = useCallback((agentId: string) => {
+    if (agentId !== selectedAgentId) {
+      console.info(`[ChatContext] Agente alterado: ${selectedAgentId} → ${agentId}`);
+      setSelectedAgentId(agentId);
+      // Limpar mensagens ao trocar de agente (nova conversa)
+      agent.setMessages([]);
+      setCurrentConversationId(null);
+      setCurrentTool(undefined);
+      setThinkingState(undefined);
+    }
+  }, [selectedAgentId, agent]);
 
   return (
     <ChatContext.Provider
       value={{
-        // Estado do agente
-        messages: agentState.messages,
-        isRunning: agentState.isRunning || isLoading,
-        currentTool: agentState.currentTool,
-        thinkingState: agentState.thinkingState,
-        threadId: undefined, // TODO: Adicionar quando API suportar
+        // Estado do agente (via useAgent)
+        messages,
+        isRunning: agent.isRunning,
+        currentTool,
+        thinkingState,
+        threadId: agent.threadId,
 
-        // Estado da conexão SSE (GAP-CRIT-05)
-        isConnected,
-        reconnectAttempt,
+        // Agente selecionado (com fallback para compatibilidade)
+        selectedAgentId: selectedAgentId || FALLBACK_AGENT_ID,
+        setSelectedAgentId: handleSetSelectedAgentId,
 
         // Estado de rate limiting (GAP-CRIT-06)
         rateLimit,

@@ -147,11 +147,27 @@ export function getApiBaseUrl(): string {
 }
 
 /**
+ * Classe de erro customizada para erros de API
+ * Inclui o status code e a response para tratamento adequado
+ */
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    public statusText: string,
+    public response: Response
+  ) {
+    super(`API Error: ${status} ${statusText}`);
+    this.name = "ApiError";
+  }
+}
+
+/**
  * Faz uma requisicao GET para a API
  *
  * @param endpoint - Endpoint da API (ex: "/users")
  * @param options - Opcoes adicionais do fetch
  * @returns Response da API
+ * @throws {ApiError} Quando a requisicao falha (inclui status 401/403)
  */
 export async function apiGet<T>(
   endpoint: string,
@@ -167,7 +183,8 @@ export async function apiGet<T>(
   });
 
   if (!response.ok) {
-    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+    // Lançar erro customizado com status code para tratamento adequado de 401/403
+    throw new ApiError(response.status, response.statusText, response);
   }
 
   return response.json();
@@ -180,6 +197,7 @@ export async function apiGet<T>(
  * @param data - Dados a enviar
  * @param options - Opcoes adicionais do fetch
  * @returns Response da API
+ * @throws {ApiError} Quando a requisicao falha (inclui status 401/403)
  */
 export async function apiPost<T, D = unknown>(
   endpoint: string,
@@ -197,8 +215,108 @@ export async function apiPost<T, D = unknown>(
   });
 
   if (!response.ok) {
-    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+    // Lançar erro customizado com status code para tratamento adequado de 401/403
+    throw new ApiError(response.status, response.statusText, response);
   }
 
   return response.json();
+}
+
+// ==============================================================================
+// Authenticated API Helper (usa Session do NextAuth)
+// ==============================================================================
+
+/**
+ * Interface para session com campos customizados
+ */
+interface AuthSession {
+  user?: {
+    id?: string;
+    tenant_id?: string;
+    email?: string | null;
+  };
+  accessToken?: string;
+}
+
+/**
+ * Cria headers de autenticacao a partir da session do NextAuth
+ *
+ * @param session - Session do NextAuth (com accessToken)
+ * @returns Headers com Authorization, X-Tenant-ID e X-User-ID
+ */
+export function createAuthHeaders(session: AuthSession | null): HeadersInit {
+  if (!session?.user) return {};
+
+  const headers: HeadersInit = {};
+
+  // Authorization header (JWT token)
+  if (session.accessToken) {
+    headers["Authorization"] = `Bearer ${session.accessToken}`;
+  }
+
+  // Headers de contexto multi-tenant
+  if (session.user.tenant_id) {
+    headers["X-Tenant-ID"] = session.user.tenant_id;
+  }
+  if (session.user.id) {
+    headers["X-User-ID"] = session.user.id;
+  }
+
+  return headers;
+}
+
+/**
+ * Faz uma requisicao GET autenticada para a API
+ *
+ * @param endpoint - Endpoint da API (ex: "/api/v1/agents")
+ * @param session - Session do NextAuth
+ * @param options - Opcoes adicionais do fetch
+ * @returns Response da API
+ * @throws {ApiError} Quando a requisicao falha
+ */
+export async function authGet<T>(
+  endpoint: string,
+  session: AuthSession | null,
+  options?: RequestInit
+): Promise<T> {
+  const authHeaders = createAuthHeaders(session);
+
+  // Nota: credentials: "include" removido pois autenticacao e via header Authorization
+  // e nao via cookies. Isso evita problemas de CORS com wildcard origins.
+  return apiGet<T>(endpoint, {
+    ...options,
+    headers: {
+      ...authHeaders,
+      ...options?.headers,
+    },
+  });
+}
+
+/**
+ * Faz uma requisicao POST autenticada para a API
+ *
+ * @param endpoint - Endpoint da API
+ * @param session - Session do NextAuth
+ * @param data - Dados a enviar
+ * @param options - Opcoes adicionais do fetch
+ * @returns Response da API
+ * @throws {ApiError} Quando a requisicao falha
+ */
+export async function authPost<T, D = unknown>(
+  endpoint: string,
+  session: AuthSession | null,
+  data?: D,
+  options?: RequestInit
+): Promise<T> {
+  const authHeaders = createAuthHeaders(session);
+
+  // Nota: credentials: "include" removido pois autenticacao e via header Authorization
+  // e nao via cookies. Isso evita problemas de CORS com wildcard origins.
+  return apiPost<T, D>(endpoint, data, {
+    ...options,
+    headers: {
+      ...authHeaders,
+      ...options?.headers,
+    },
+  });
 }
