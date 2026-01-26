@@ -22,10 +22,10 @@
     "@ag-ui/encoder": "latest",
     "@ag-ui/langgraph": "latest",
     "@ag-ui/proto": "latest",
-    "@copilotkit/react-core": "latest",
-    "@copilotkit/react-ui": "latest",
-    "@copilotkit/runtime": "latest",
     "@copilotkit/runtime-client-gql": "latest",
+    "@copilotkitnext/react": "1.51.2",
+    "@copilotkitnext/runtime": "1.51.2",
+    "@copilotkitnext/shared": "1.51.2",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
@@ -68,6 +68,7 @@
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
     "fast-json-patch": "3.1.1",
+    "hono": "^4.11.6",
     "input-otp": "^1.4.2",
     "jwt-decode": "^4.0.0",
     "katex": "latest",
@@ -115,12 +116,5 @@
     "typescript": "^5.9.3",
     "vitest": "^4.0.17"
   },
-  "packageManager": "pnpm@10.24.0",
-  "pnpm": {
-    "peerDependencyRules": {
-      "allowedVersions": {
-        "openai": "^4.85.1 || ^5.9.0"
-      }
-    }
-  }
+  "packageManager": "pnpm@10.24.0"
 }

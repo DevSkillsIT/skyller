@@ -1,24 +1,18 @@
 // app/api/copilot/route.ts
 // Integração Skyller ↔ Nexus Core via AG-UI Protocol (Agno)
-// MIGRADO: HttpAgent → AgnoAgent (Stack "Agentic v2")
+// MIGRADO: @copilotkit/runtime → @copilotkitnext/runtime (JSON-RPC)
 // FIX: Headers dinâmicos com token JWT do usuário autenticado
 
-import {
-  CopilotRuntime,
-  ExperimentalEmptyAdapter,
-  copilotRuntimeNextJSAppRouterEndpoint,
-} from "@copilotkit/runtime";
+import { CopilotRuntime, createCopilotEndpointSingleRoute } from "@copilotkitnext/runtime";
 import { AgnoAgent } from "@ag-ui/agno";
 import type { NextRequest } from "next/server";
+import { handle } from "hono/vercel";
 import { auth } from "../../../auth";
 
 // URL do backend Nexus Core (AG-UI Protocol)
 const NEXUS_AGUI_URL = process.env.NEXUS_API_URL
   ? `${process.env.NEXUS_API_URL}/agui`
   : "http://localhost:8000/agui";
-
-// Service adapter para single-agent
-const serviceAdapter = new ExperimentalEmptyAdapter();
 
 /**
  * Cria AgnoAgent dinamicamente com headers de autenticação.
@@ -53,7 +47,7 @@ function createAuthenticatedAgent(
   }) as any;
 }
 
-// Endpoint POST para CopilotKit
+// Endpoint POST para CopilotKit (JSON-RPC via Hono)
 export const POST = async (req: NextRequest) => {
   // Obter sessão do usuário autenticado via NextAuth
   const session = await auth();
@@ -87,11 +81,13 @@ export const POST = async (req: NextRequest) => {
     },
   });
 
-  const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
+  // Criar endpoint Hono com single-route (JSON-RPC)
+  const app = createCopilotEndpointSingleRoute({
     runtime,
-    serviceAdapter,
-    endpoint: "/api/copilot",
+    basePath: "/api/copilot",
   });
 
-  return handleRequest(req);
+  // Adaptar Hono para Next.js App Router
+  const handler = handle(app);
+  return handler(req);
 };

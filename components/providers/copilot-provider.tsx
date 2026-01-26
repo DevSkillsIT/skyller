@@ -1,33 +1,36 @@
 "use client";
 
-import { CopilotKit } from "@copilotkit/react-core";
-import { CopilotSidebar } from "@copilotkit/react-ui";
+import { CopilotKitProvider } from "@copilotkitnext/react";
+import { CopilotSidebar } from "@copilotkitnext/react";
 import type React from "react";
-import "@copilotkit/react-ui/styles.css";
+import "@copilotkitnext/react/styles.css";
 
 /**
  * CopilotProvider - Wrapper para CopilotKit com AG-UI Protocol
  *
  * Conecta o frontend Skyller ao backend Nexus Core via /api/copilot
- * que implementa HttpAgent para comunicação AG-UI.
+ * que implementa AgnoAgent para comunicação AG-UI.
+ *
+ * MIGRAÇÃO @copilotkitnext/react:
+ * - Usa JSON-RPC em vez de GraphQL (compatível com AgnoAgent via AbstractAgent)
+ * - A seleção do agent é feita no backend (route.ts) via CopilotRuntime
+ * - CopilotSidebar renderizado em paralelo ao children
+ * - Suporte completo a AG-UI Protocol (THINKING, STEPS, TOOL_CALLS, ACTIVITY)
  */
 export function CopilotProvider({ children }: { children: React.ReactNode }) {
   return (
-    <CopilotKit
+    <CopilotKitProvider
       runtimeUrl="/api/copilot"
-      agent="skyller"
       showDevConsole={process.env.NODE_ENV === "development"}
     >
+      {children}
       <CopilotSidebar
         defaultOpen={false}
-        clickOutsideToClose={true}
         labels={{
-          title: "Skyller AI Assistant",
-          initial: "Como posso ajudar você hoje?",
+          modalHeaderTitle: "Skyller AI Assistant",
+          chatInputPlaceholder: "Como posso ajudar você hoje?",
         }}
-      >
-        {children}
-      </CopilotSidebar>
-    </CopilotKit>
+      />
+    </CopilotKitProvider>
   );
 }

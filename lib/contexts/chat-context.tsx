@@ -2,8 +2,7 @@
 
 import { createContext, type ReactNode, useContext, useState, useCallback, useEffect, useMemo } from "react";
 import { applyPatch } from "fast-json-patch";
-import { useAgent, UseAgentUpdate } from "@copilotkit/react-core/v2";
-import type { Message as CopilotMessage } from "@copilotkit/runtime-client-gql";
+import { useAgent, UseAgentUpdate, type Message as AGUIMessage } from "@copilotkitnext/react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { Message } from "@/lib/mock/data";
@@ -548,9 +547,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return false;
   }, [router]);
 
-  // Converter mensagens do CopilotKit para formato local
+  // Converter mensagens do AG-UI para formato local
   // Ignora mensagens "tool/system/developer" para evitar vazamento de payloads de tools na UI.
-  const copilotMessages = agent.messages as unknown as CopilotMessage[];
+  const copilotMessages = agent.messages as unknown as AGUIMessage[];
   const messages: Message[] = copilotMessages
     .filter((msg) => (msg as any).role === "user" || (msg as any).role === "assistant")
     .map((msg) => ({
