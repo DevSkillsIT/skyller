@@ -156,6 +156,7 @@ export function useSse(options: UseSseOptions): UseSseState {
 
   const [isConnected, setIsConnected] = useState(false);
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
+  const reconnectAttemptRef = useRef(0);
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isManualDisconnectRef = useRef(false);
@@ -167,6 +168,11 @@ export function useSse(options: UseSseOptions): UseSseState {
   const getReconnectDelay = useCallback((attempt: number): number => {
     return initialRetryDelay * Math.pow(2, attempt - 1);
   }, [initialRetryDelay]);
+
+  const updateReconnectAttempt = useCallback((value: number) => {
+    reconnectAttemptRef.current = value;
+    setReconnectAttempt(value);
+  }, []);
 
   /**
    * Fecha a conexão SSE atual
@@ -191,29 +197,22 @@ export function useSse(options: UseSseOptions): UseSseState {
       return;
     }
 
-    const nextAttempt = reconnectAttempt + 1;
+    const nextAttempt = reconnectAttemptRef.current + 1;
 
     if (nextAttempt > maxRetries) {
-      setReconnectAttempt(maxRetries);
+      updateReconnectAttempt(maxRetries);
       onMaxRetriesExceeded?.();
       return;
     }
 
     const delay = getReconnectDelay(nextAttempt);
-    setReconnectAttempt(nextAttempt);
+    updateReconnectAttempt(nextAttempt);
     onReconnecting?.(nextAttempt, maxRetries);
 
     reconnectTimeoutRef.current = setTimeout(() => {
       connect();
     }, delay);
-  }, [
-    disableReconnect,
-    reconnectAttempt,
-    maxRetries,
-    onMaxRetriesExceeded,
-    onReconnecting,
-    getReconnectDelay,
-  ]);
+  }, [disableReconnect, maxRetries, onMaxRetriesExceeded, onReconnecting, getReconnectDelay, updateReconnectAttempt]);
 
   /**
    * Conecta ao endpoint SSE
@@ -232,10 +231,11 @@ export function useSse(options: UseSseOptions): UseSseState {
       // Handler para abertura da conexão
       eventSource.onopen = (event) => {
         setIsConnected(true);
-        setReconnectAttempt(0);
+        const wasReconnecting = reconnectAttemptRef.current > 0;
+        updateReconnectAttempt(0);
 
         // Se estava reconectando, notifica sucesso
-        if (reconnectAttempt > 0) {
+        if (wasReconnecting) {
           onReconnected?.();
         }
 
@@ -267,12 +267,12 @@ export function useSse(options: UseSseOptions): UseSseState {
   }, [
     url,
     closeConnection,
-    reconnectAttempt,
     onReconnected,
     onOpen,
     onMessage,
     onError,
     attemptReconnect,
+    updateReconnectAttempt,
   ]);
 
   /**
@@ -280,9 +280,9 @@ export function useSse(options: UseSseOptions): UseSseState {
    */
   const disconnect = useCallback(() => {
     isManualDisconnectRef.current = true;
-    setReconnectAttempt(0);
+    updateReconnectAttempt(0);
     closeConnection();
-  }, [closeConnection]);
+  }, [closeConnection, updateReconnectAttempt]);
 
   // Cleanup ao desmontar
   useEffect(() => {

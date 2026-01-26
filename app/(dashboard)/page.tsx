@@ -11,9 +11,21 @@ import { toast } from "sonner";
 
 export default function ChatPage() {
   // GAP-CRIT-01: selectedAgentId sincronizado com chat-context para useAgent dinâmico
-  const { messages, addMessage, setMessages, rateLimit, runAgent, isRunning, selectedAgentId, setSelectedAgentId } = useChat();
+  const {
+    messages,
+    addMessage,
+    setMessages,
+    rateLimit,
+    runAgent,
+    isRunning,
+    selectedAgentId,
+    setSelectedAgentId,
+    thinking,
+    steps,
+    toolCalls,
+    activities,
+  } = useChat();
   const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const [isAgentsGalleryOpen, setIsAgentsGalleryOpen] = useState(false);
 
   const handleSend = async () => {
@@ -28,7 +40,6 @@ export default function ChatPage() {
 
     const message = input.trim();
     setInput("");
-    setIsLoading(true);
 
     try {
       // GAP-CRIT-01: Usar runAgent do ChatContext (useAgent v2)
@@ -36,8 +47,6 @@ export default function ChatPage() {
     } catch (error) {
       console.error("Erro ao enviar mensagem:", error);
       toast.error("Erro ao enviar mensagem. Tente novamente.");
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -46,8 +55,12 @@ export default function ChatPage() {
       {/* Chat Messages */}
       <ChatMessages
         messages={messages}
-        isLoading={isLoading}
+        isLoading={isRunning}
         selectedAgentId={selectedAgentId}
+        thinking={thinking}
+        steps={steps}
+        toolCalls={toolCalls}
+        activities={activities}
       />
 
       {/* Chat Input */}
@@ -55,7 +68,7 @@ export default function ChatPage() {
         input={input}
         setInput={setInput}
         onSend={handleSend}
-        isLoading={isLoading}
+        isLoading={isRunning}
         rateLimit={rateLimit}
         selectedAgentId={selectedAgentId}
         setSelectedAgentId={setSelectedAgentId}

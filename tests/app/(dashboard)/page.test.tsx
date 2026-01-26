@@ -1,45 +1,55 @@
 import { render } from "@testing-library/react";
 import { vi, describe, it, expect } from "vitest";
 
-// Mock the hook module
-const mockUseRateLimit = vi.fn(() => ({
-  isLimited: false,
-  formattedTime: "",
-  remaining: 30,
-  limit: 30,
-}));
-
-vi.mock("@/lib/hooks/use-rate-limit", () => ({
-  useRateLimit: (...args: any[]) => mockUseRateLimit(...args),
-}));
+const mockChatMessages = vi.fn();
+const mockChatInput = vi.fn();
 
 // Mock the chat context to avoid provider requirement
 vi.mock("@/lib/contexts/chat-context", () => ({
   useChat: () => ({
     messages: [],
-    sendMessage: vi.fn(),
-    isLoading: false,
-    isThinking: false,
-    regenerateLastResponse: vi.fn(),
-    retryMessage: vi.fn(),
+    addMessage: vi.fn(),
+    setMessages: vi.fn(),
+    rateLimit: {
+      isLimited: false,
+      formattedTime: "",
+      remaining: 30,
+      limit: 30,
+      resetAt: null,
+    },
+    runAgent: vi.fn(),
+    isRunning: false,
+    selectedAgentId: "skyller",
+    setSelectedAgentId: vi.fn(),
+    thinking: undefined,
+    steps: [],
+    toolCalls: [],
+    activities: [],
   }),
 }));
 
 // Mock panel context
-vi.mock("@/lib/contexts/panel-context", () => ({
-  usePanel: () => ({
-    openPanel: vi.fn(),
-  }),
+vi.mock("@/components/chat/chat-messages", () => ({
+  ChatMessages: (props: unknown) => {
+    mockChatMessages(props);
+    return null;
+  },
+}));
+
+vi.mock("@/components/chat/chat-input", () => ({
+  ChatInput: (props: unknown) => {
+    mockChatInput(props);
+    return null;
+  },
 }));
 
 import ChatPage from "@/app/(dashboard)/page";
 
 describe("ChatPage - rate limit configuration", () => {
-  it("calls useRateLimit with defaultLimit 30", () => {
+  it("passa rateLimit do contexto para ChatInput", () => {
     render(<ChatPage />);
-    // Expect the hook to have been called with an options object containing defaultLimit:30
-    expect(mockUseRateLimit).toHaveBeenCalled();
-    const callArgs = mockUseRateLimit.mock.calls[0][0] || {};
-    expect(callArgs.defaultLimit).toBe(30);
+    expect(mockChatInput).toHaveBeenCalled();
+    const props = mockChatInput.mock.calls[0][0] as { rateLimit?: { limit?: number } };
+    expect(props.rateLimit?.limit).toBe(30);
   });
 });

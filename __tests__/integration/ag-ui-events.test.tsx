@@ -1,17 +1,31 @@
 /**
  * Testes de Integração - Eventos AG-UI
  *
- * Validação da migração GAP-CRIT-01:
- * - Estrutura preparada para eventos TOOL_CALL
- * - Estrutura preparada para eventos THINKING
- * - AgentState disponível no contexto
- * - Backward compatibility mantida
+ * Validação da estrutura de contexto:
+ * - currentTool/thinkingState disponíveis
+ * - estados de visualização (thinking/steps/toolCalls/activities)
+ * - runAgent disponível
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { ChatProvider, useChat } from "@/lib/contexts/chat-context";
+
+vi.mock("@/lib/api-client", () => ({
+  authPost: vi.fn(async () => ({})),
+}));
+
+const mockAgent = {
+  messages: [],
+  isRunning: false,
+  threadId: "thread-1",
+  subscribe: vi.fn(() => ({ unsubscribe: vi.fn() })),
+  addMessage: vi.fn(),
+  setMessages: vi.fn(),
+  runAgent: vi.fn(async () => {}),
+  setState: vi.fn(),
+};
 
 // Mock do useRouter do Next.js
 vi.mock("next/navigation", () => ({
@@ -22,13 +36,14 @@ vi.mock("next/navigation", () => ({
   })),
 }));
 
-// Mock do useCopilotChat da CopilotKit
-vi.mock("@copilotkit/react-core", () => ({
-  useCopilotChat: vi.fn(() => ({
-    visibleMessages: [],
-    appendMessage: vi.fn(async () => {}),
-    isLoading: false,
-  })),
+// Mock do useAgent do CopilotKit v2
+vi.mock("@copilotkit/react-core/v2", () => ({
+  useAgent: vi.fn(() => ({ agent: mockAgent })),
+  UseAgentUpdate: {
+    OnMessagesChanged: "OnMessagesChanged",
+    OnStateChanged: "OnStateChanged",
+    OnRunStatusChanged: "OnRunStatusChanged",
+  },
 }));
 
 // Mock do toast
@@ -40,7 +55,7 @@ vi.mock("sonner", () => ({
   },
 }));
 
-describe("Eventos AG-UI - GAP-CRIT-01 (Preparação)", () => {
+describe("Eventos AG-UI - Estrutura do ChatContext", () => {
   const wrapper = ({ children }: { children: ReactNode }) => (
     <ChatProvider>{children}</ChatProvider>
   );
@@ -49,26 +64,32 @@ describe("Eventos AG-UI - GAP-CRIT-01 (Preparação)", () => {
     vi.clearAllMocks();
   });
 
-  it("deve ter estrutura AgentState preparada para currentTool", () => {
+  it("deve ter estrutura preparada para currentTool", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
 
-    // Estrutura preparada para eventos TOOL_CALL
     expect(result.current).toHaveProperty("currentTool");
     expect(result.current.currentTool).toBeUndefined();
   });
 
-  it("deve ter estrutura AgentState preparada para thinkingState", () => {
+  it("deve ter estrutura preparada para thinkingState", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
 
-    // Estrutura preparada para eventos THINKING
     expect(result.current).toHaveProperty("thinkingState");
     expect(result.current.thinkingState).toBeUndefined();
+  });
+
+  it("deve expor estados de visualização", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    expect(result.current).toHaveProperty("thinking");
+    expect(result.current).toHaveProperty("steps");
+    expect(result.current).toHaveProperty("toolCalls");
+    expect(result.current).toHaveProperty("activities");
   });
 
   it("deve ter propriedade isRunning disponível", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
 
-    // Estrutura preparada para eventos RUN_STARTED/RUN_FINISHED
     expect(result.current).toHaveProperty("isRunning");
     expect(result.current.isRunning).toBe(false);
   });
@@ -76,7 +97,6 @@ describe("Eventos AG-UI - GAP-CRIT-01 (Preparação)", () => {
   it("deve ter método runAgent disponível", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
 
-    // Método para executar agente
     expect(result.current).toHaveProperty("runAgent");
     expect(typeof result.current.runAgent).toBe("function");
   });
@@ -84,21 +104,18 @@ describe("Eventos AG-UI - GAP-CRIT-01 (Preparação)", () => {
   it("deve ter propriedade threadId preparada", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
 
-    // Estrutura preparada para threadId (será implementado quando API suportar)
     expect(result.current).toHaveProperty("threadId");
   });
 
   it("deve manter backward compatibility com métodos legados", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
 
-    // Métodos legados devem existir
     expect(result.current.loadConversation).toBeDefined();
     expect(result.current.startNewConversation).toBeDefined();
     expect(result.current.addMessage).toBeDefined();
     expect(result.current.setMessages).toBeDefined();
     expect(result.current.currentConversationId).toBeDefined();
 
-    // Deve ser possível usar startNewConversation
     act(() => {
       result.current.startNewConversation();
     });
@@ -109,7 +126,6 @@ describe("Eventos AG-UI - GAP-CRIT-01 (Preparação)", () => {
   it("deve permitir executar runAgent sem erros", async () => {
     const { result } = renderHook(() => useChat(), { wrapper });
 
-    // Deve ser possível chamar runAgent
     await act(async () => {
       await expect(result.current.runAgent("Teste")).resolves.not.toThrow();
     });

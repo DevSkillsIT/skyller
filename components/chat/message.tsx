@@ -1,91 +1,88 @@
 "use client";
 
 import { Streamdown } from "streamdown";
-import { code } from "@streamdown/code";
-import { math } from "@streamdown/math";
-import { Loader2, Wrench, Brain } from "lucide-react";
-import "katex/dist/katex.min.css"; // CSS para LaTeX
+import "katex/dist/katex.min.css";
+import { ActivityCard } from "@/components/chat/activity-card";
+import { StepIndicator } from "@/components/chat/step-indicator";
+import { ThinkingPanel } from "@/components/chat/thinking-panel";
+import { ToolCallCard } from "@/components/chat/tool-call-card";
+import { FEATURES } from "@/lib/config/features";
+import { STREAMDOWN_CONTROLS, STREAMDOWN_MERMAID, STREAMDOWN_PLUGINS, STREAMDOWN_REMEND, STREAMDOWN_SHIKI_THEMES } from "@/lib/streamdown-config";
+import type { ActivityState, StepState, ThinkingState, ToolCallState } from "@/lib/types/agui";
 
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
-  // Suporte a eventos AG-UI
-  toolCall?: {
-    name: string;
-    status: "running" | "completed" | "failed";
-    result?: string;
-  };
-  thinking?: {
-    status: "active" | "completed";
-    content?: string;
-  };
 }
 
 interface MessageProps {
   message: Message;
   isStreaming?: boolean;
-  // Indicadores de estado AG-UI em tempo real
-  currentTool?: string;
-  thinkingState?: string;
+  thinking?: ThinkingState;
+  steps?: StepState[];
+  toolCalls?: ToolCallState[];
+  activities?: ActivityState[];
 }
 
 export function Message({
   message,
   isStreaming = false,
-  currentTool,
-  thinkingState,
+  thinking,
+  steps,
+  toolCalls,
+  activities,
 }: MessageProps) {
-  const showToolIndicator = message.toolCall || currentTool;
-  const showThinkingIndicator = message.thinking || thinkingState;
+  const showAuxiliary = message.role === "assistant";
+  const hasToolCalls = Boolean(toolCalls && toolCalls.length > 0);
+  const hasSteps = Boolean(steps && steps.length > 0);
+  const hasActivities = Boolean(activities && activities.length > 0);
+  const hasThinking = Boolean(thinking && (thinking.content.trim() || thinking.status === "active"));
+  // Flags para habilitar/desabilitar visualizações enterprise.
+  const showThinking = FEATURES.SHOW_THINKING && showAuxiliary && hasThinking && Boolean(thinking);
+  const showSteps = FEATURES.SHOW_STEPS && showAuxiliary && hasSteps && Boolean(steps);
 
   return (
     <div className="message-container">
-      {/* Indicador de Thinking State (AG-UI Event) */}
-      {showThinkingIndicator && (
-        <div className="flex items-center gap-2 mb-2 text-sm text-muted-foreground">
-          <Brain className="h-4 w-4 animate-pulse" />
-          <span className="italic">
-            {thinkingState || message.thinking?.content || "Analisando..."}
-          </span>
+      {showThinking && thinking && (
+        <div className="mb-3">
+          <ThinkingPanel thinking={thinking} isStreaming={isStreaming} />
         </div>
       )}
 
-      {/* Indicador de Tool Call (AG-UI Event) */}
-      {showToolIndicator && (
-        <div className="flex items-center gap-2 mb-2 text-sm">
-          <Wrench className="h-4 w-4" />
-          <span className="font-medium">
-            Ferramenta: {currentTool || message.toolCall?.name}
-          </span>
-          {message.toolCall?.status === "running" && (
-            <Loader2 className="h-3 w-3 animate-spin" />
-          )}
-          {message.toolCall?.status === "completed" && (
-            <span className="text-xs text-green-600 dark:text-green-400">✓ Concluído</span>
-          )}
-          {message.toolCall?.status === "failed" && (
-            <span className="text-xs text-red-600 dark:text-red-400">✗ Falhou</span>
-          )}
+      {showSteps && steps && (
+        <div className="mb-3">
+          <StepIndicator steps={steps} />
         </div>
       )}
 
-      {/* Resultado da Tool Call */}
-      {message.toolCall?.result && (
-        <div className="mb-2 p-2 rounded bg-muted/50 text-sm border border-border">
-          <div className="font-medium text-xs text-muted-foreground mb-1">Resultado:</div>
-          <div className="font-mono text-xs">{message.toolCall.result}</div>
+      {showAuxiliary && hasToolCalls && toolCalls && (
+        <div className="mb-3 space-y-2">
+          {toolCalls.map((toolCall) => (
+            <ToolCallCard key={toolCall.toolCallId} toolCall={toolCall} />
+          ))}
+        </div>
+      )}
+
+      {showAuxiliary && hasActivities && activities && (
+        <div className="mb-3 space-y-2">
+          {activities.map((activity) => (
+            <ActivityCard key={activity.messageId} activity={activity} />
+          ))}
         </div>
       )}
 
       {/* Conteúdo da mensagem com Streamdown */}
       <Streamdown
-        plugins={{
-          code,  // ✅ Syntax highlighting com Shiki
-          math,  // ✅ Renderização LaTeX com KaTeX
-        }}
-        isAnimating={isStreaming}  // ✅ Animação apenas durante streaming
+        plugins={STREAMDOWN_PLUGINS}
+        controls={STREAMDOWN_CONTROLS}
+        remend={STREAMDOWN_REMEND}
+        shikiTheme={STREAMDOWN_SHIKI_THEMES}
+        mermaid={STREAMDOWN_MERMAID}
+        mode={isStreaming ? "streaming" : "static"}
+        parseIncompleteMarkdown
+        isAnimating={isStreaming}
       >
         {message.content}
       </Streamdown>

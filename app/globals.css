@@ -68,3 +68,45 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Collapsible - animações suaves para abertura/fechamento
+ * --------------------------------------------------------------------------- */
+@keyframes collapsible-down {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+  to {
+    height: var(--radix-collapsible-content-height);
+    opacity: 1;
+  }
+}
+
+@keyframes collapsible-up {
+  from {
+    height: var(--radix-collapsible-content-height);
+    opacity: 1;
+  }
+  to {
+    height: 0;
+    opacity: 0;
+  }
+}
+
+.collapsible-content {
+  overflow: hidden;
+  will-change: height, opacity;
+}
+
+.collapsible-content[data-state="open"] {
+  height: var(--radix-collapsible-content-height);
+  opacity: 1;
+  animation: collapsible-down 180ms ease-out;
+}
+
+.collapsible-content[data-state="closed"] {
+  height: 0;
+  opacity: 0;
+  animation: collapsible-up 160ms ease-in;
+}

@@ -2,37 +2,38 @@
  * Componente MessageList - Lista de mensagens com indicadores AG-UI
  *
  * Implementa GAP-CRIT-03:
- * - AC-023: Exibe tool calls em execução
- * - AC-024: Exibe thinking state
- * - AC-027: Exibe erros de execução
+ * - AC-023: Tool calls via cards
+ * - AC-024: Thinking via painel colapsável
+ * - AC-027: Erros via contexto
  *
  * Features:
  * - Renderização de mensagens com Streamdown
- * - Indicadores visuais de thinking state
- * - Indicadores visuais de tool calls
+ * - Propagação de estados AG-UI para a última mensagem
  * - Auto-scroll para última mensagem
  */
 
 "use client";
 
-import { Brain, Loader2, Wrench } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { Message } from "@/components/chat/message";
-import { useToolCallMessage } from "@/lib/hooks/use-agent-events";
+import type { ActivityState, StepState, ThinkingState, ToolCallState } from "@/lib/types/agui";
 import type { Message as MessageType } from "@/lib/mock/data";
 
 interface MessageListProps {
   /** Lista de mensagens a serem exibidas */
   messages: MessageType[];
 
-  /** Indica se o agente está em estado de thinking */
-  isThinking?: boolean;
+  /** Estado de thinking atual */
+  thinking?: ThinkingState;
 
-  /** Mensagem de thinking personalizada */
-  thinkingMessage?: string;
+  /** Steps atuais do agente */
+  steps?: StepState[];
 
-  /** Nome da ferramenta em execução */
-  currentTool?: string;
+  /** Tool calls atuais */
+  toolCalls?: ToolCallState[];
+
+  /** Activities atuais */
+  activities?: ActivityState[];
 
   /** Indica se há streaming em andamento */
   isStreaming?: boolean;
@@ -48,82 +49,48 @@ interface MessageListProps {
  * ```tsx
  * <MessageList
  *   messages={messages}
- *   isThinking={agentState.isThinking}
- *   thinkingMessage={agentState.thinkingMessage}
- *   currentTool={agentState.currentTool}
+ *   thinking={agentState.thinking}
+ *   steps={agentState.steps}
+ *   toolCalls={agentState.toolCalls}
+ *   activities={agentState.activities}
  * />
  * ```
  */
 export function MessageList({
   messages,
-  isThinking = false,
-  thinkingMessage,
-  currentTool,
+  thinking,
+  steps,
+  toolCalls,
+  activities,
   isStreaming = false,
   className = "",
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const toolMessage = useToolCallMessage(currentTool);
 
   /**
    * Auto-scroll para a última mensagem quando nova mensagem chega
    */
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, isThinking, currentTool]);
+  }, [messages.length, thinking?.status, toolCalls?.length]);
 
   return (
     <div className={`flex flex-col gap-4 ${className}`}>
       {/* Renderizar todas as mensagens */}
-      {messages.map((message) => (
-        <Message
-          key={message.id}
-          message={message}
-          isStreaming={isStreaming && message.id === messages[messages.length - 1]?.id}
-          currentTool={currentTool}
-          thinkingState={isThinking ? thinkingMessage : undefined}
-        />
-      ))}
-
-      {/* AC-024: Indicador de Thinking State (GAP-CRIT-03) */}
-      {isThinking && (
-        <div
-          className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 border border-border animate-pulse"
-          role="status"
-          aria-live="polite"
-          aria-label="Agente pensando"
-        >
-          <Brain className="h-4 w-4 text-muted-foreground animate-pulse" aria-hidden="true" />
-          <span className="text-sm text-muted-foreground italic">
-            {thinkingMessage || "🧠 Analisando sua solicitação..."}
-          </span>
-        </div>
-      )}
-
-      {/* AC-023: Indicador de Tool Call (GAP-CRIT-03) */}
-      {currentTool && !isThinking && (
-        <div
-          className="flex items-center gap-2 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800"
-          role="status"
-          aria-live="polite"
-          aria-label={`Executando ferramenta: ${currentTool}`}
-        >
-          <Wrench
-            className="h-4 w-4 text-blue-600 dark:text-blue-400 animate-pulse"
-            aria-hidden="true"
+      {messages.map((message) => {
+        const isLastMessage = message.id === messages[messages.length - 1]?.id;
+        return (
+          <Message
+            key={message.id}
+            message={message}
+            isStreaming={isStreaming && isLastMessage}
+            thinking={isLastMessage ? thinking : undefined}
+            steps={isLastMessage ? steps : undefined}
+            toolCalls={isLastMessage ? toolCalls : undefined}
+            activities={isLastMessage ? activities : undefined}
           />
-          <div className="flex flex-col gap-1">
-            <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
-              🔧 Ferramenta: {currentTool}
-            </span>
-            <span className="text-xs text-blue-700 dark:text-blue-300">{toolMessage}</span>
-          </div>
-          <Loader2
-            className="h-3 w-3 ml-auto text-blue-600 dark:text-blue-400 animate-spin"
-            aria-hidden="true"
-          />
-        </div>
-      )}
+        );
+      })}
 
       {/* Elemento para scroll automático */}
       <div ref={messagesEndRef} />

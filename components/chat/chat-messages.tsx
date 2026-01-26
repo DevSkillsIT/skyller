@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Message } from "@/components/chat/message";
 import { usePanel } from "@/lib/contexts/panel-context";
+import type { ActivityState, StepState, ThinkingState, ToolCallState } from "@/lib/types/agui";
 import type { Message as MessageType, Artifact } from "@/lib/mock/data";
 import { useAgents } from "@/lib/hooks/use-agents";
 
@@ -24,12 +25,20 @@ interface ChatMessagesProps {
   messages: MessageType[];
   isLoading: boolean;
   selectedAgentId: string;
+  thinking?: ThinkingState;
+  steps?: StepState[];
+  toolCalls?: ToolCallState[];
+  activities?: ActivityState[];
 }
 
 export function ChatMessages({
   messages,
   isLoading,
   selectedAgentId,
+  thinking,
+  steps,
+  toolCalls,
+  activities,
 }: ChatMessagesProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
@@ -55,6 +64,9 @@ export function ChatMessages({
   // Encontrar agente selecionado
   const currentAgent = agents.find((a) => a.id === selectedAgentId);
 
+  const lastAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant");
+  const shouldShowLoadingBubble = isLoading && !lastAssistantMessage;
+
   return (
     <ScrollArea className="flex-1 px-4" ref={scrollRef}>
       <div className="max-w-3xl mx-auto py-6 space-y-6">
@@ -76,6 +88,8 @@ export function ChatMessages({
         {messages.map((message) => {
           const agent = message.agentId ? agents.find((a) => a.id === message.agentId) : currentAgent;
           const AgentIcon = agent?.icon || Bot;
+          const isLastAssistant = lastAssistantMessage?.id === message.id;
+          const messageIsStreaming = isLastAssistant && isLoading;
 
           return (
             <div
@@ -108,7 +122,11 @@ export function ChatMessages({
                 >
                   <Message
                     message={message}
-                    isStreaming={false}
+                    isStreaming={messageIsStreaming}
+                    thinking={isLastAssistant ? thinking : undefined}
+                    steps={isLastAssistant ? steps : undefined}
+                    toolCalls={isLastAssistant ? toolCalls : undefined}
+                    activities={isLastAssistant ? activities : undefined}
                   />
                 </div>
 
@@ -176,7 +194,7 @@ export function ChatMessages({
         })}
 
         {/* Loading Indicator */}
-        {isLoading && (
+        {shouldShowLoadingBubble && (
           <div className="flex gap-4 justify-start">
             <Avatar className="h-8 w-8 flex-shrink-0">
               <AvatarFallback className="bg-gradient-to-br from-[#0A2463] to-[#6366f1] text-white">

@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook, waitFor, act } from "@testing-library/react";
 import { useRateLimit } from "@/lib/hooks/use-rate-limit";
 
 describe("useRateLimit - GAP-CRIT-06 (AC-012/RU-005)", () => {
@@ -17,7 +17,6 @@ describe("useRateLimit - GAP-CRIT-06 (AC-012/RU-005)", () => {
 
   beforeEach(() => {
     originalFetch = window.fetch;
-    vi.useFakeTimers();
   });
 
   afterEach(() => {
@@ -46,12 +45,18 @@ describe("useRateLimit - GAP-CRIT-06 (AC-012/RU-005)", () => {
       }),
     });
 
-    window.fetch = vi.fn(async () => mockResponse);
+    const mockFetch = vi.fn(async () => mockResponse);
+    window.fetch = mockFetch;
 
     const { result } = renderHook(() => useRateLimit());
 
     // Fazer uma requisição para disparar interceptação
-    await fetch("/api/test");
+    await act(async () => {});
+    expect(window.fetch).not.toBe(mockFetch);
+
+    await act(async () => {
+      await fetch("/api/test");
+    });
 
     await waitFor(() => {
       expect(result.current.remaining).toBe(25);
@@ -75,12 +80,18 @@ describe("useRateLimit - GAP-CRIT-06 (AC-012/RU-005)", () => {
       }
     );
 
-    window.fetch = vi.fn(async () => mockResponse);
+    const mockFetch = vi.fn(async () => mockResponse);
+    window.fetch = mockFetch;
 
     const { result } = renderHook(() => useRateLimit());
 
     // Disparar fetch que retorna 429
-    await fetch("/api/test");
+    await act(async () => {});
+    expect(window.fetch).not.toBe(mockFetch);
+
+    await act(async () => {
+      await fetch("/api/test");
+    });
 
     await waitFor(() => {
       expect(result.current.isLimited).toBe(true);
@@ -103,11 +114,17 @@ describe("useRateLimit - GAP-CRIT-06 (AC-012/RU-005)", () => {
       }),
     });
 
-    window.fetch = vi.fn(async () => mockResponse);
+    const mockFetch = vi.fn(async () => mockResponse);
+    window.fetch = mockFetch;
 
     const { result } = renderHook(() => useRateLimit());
 
-    await fetch("/api/test");
+    await act(async () => {});
+    expect(window.fetch).not.toBe(mockFetch);
+
+    await act(async () => {
+      await fetch("/api/test");
+    });
 
     await waitFor(() => {
       expect(result.current.formattedTime).toMatch(/\d+s/);
@@ -126,11 +143,17 @@ describe("useRateLimit - GAP-CRIT-06 (AC-012/RU-005)", () => {
       }),
     });
 
-    window.fetch = vi.fn(async () => mockResponse);
+    const mockFetch = vi.fn(async () => mockResponse);
+    window.fetch = mockFetch;
 
     const { result } = renderHook(() => useRateLimit());
 
-    await fetch("/api/test");
+    await act(async () => {});
+    expect(window.fetch).not.toBe(mockFetch);
+
+    await act(async () => {
+      await fetch("/api/test");
+    });
 
     await waitFor(() => {
       expect(result.current.formattedTime).toMatch(/1m \d+s/);
@@ -138,6 +161,7 @@ describe("useRateLimit - GAP-CRIT-06 (AC-012/RU-005)", () => {
   });
 
   it("deve decrementar countdown a cada segundo", async () => {
+    vi.useFakeTimers();
     const resetTimestamp = Math.floor(Date.now() / 1000) + 5; // Reset em 5 segundos
 
     const mockResponse = new Response(null, {
@@ -149,25 +173,30 @@ describe("useRateLimit - GAP-CRIT-06 (AC-012/RU-005)", () => {
       }),
     });
 
-    window.fetch = vi.fn(async () => mockResponse);
+    const mockFetch = vi.fn(async () => mockResponse);
+    window.fetch = mockFetch;
 
     const { result } = renderHook(() => useRateLimit());
 
-    await fetch("/api/test");
+    await act(async () => {});
+    expect(window.fetch).not.toBe(mockFetch);
 
-    await waitFor(() => {
-      expect(result.current.isLimited).toBe(true);
+    await act(async () => {
+      await fetch("/api/test");
     });
+
+    expect(result.current.isLimited).toBe(true);
 
     // Avançar 1 segundo
-    vi.advanceTimersByTime(1000);
-
-    await waitFor(() => {
-      expect(result.current.formattedTime).toMatch(/[0-4]s/);
+    act(() => {
+      vi.advanceTimersByTime(1000);
     });
+
+    expect(result.current.formattedTime).toMatch(/[0-4]s/);
   });
 
   it("deve resetar isLimited quando countdown chegar a zero", async () => {
+    vi.useFakeTimers();
     const resetTimestamp = Math.floor(Date.now() / 1000) + 2; // Reset em 2 segundos
 
     const mockResponse = new Response(null, {
@@ -179,25 +208,29 @@ describe("useRateLimit - GAP-CRIT-06 (AC-012/RU-005)", () => {
       }),
     });
 
-    window.fetch = vi.fn(async () => mockResponse);
+    const mockFetch = vi.fn(async () => mockResponse);
+    window.fetch = mockFetch;
 
     const { result } = renderHook(() => useRateLimit());
 
-    await fetch("/api/test");
+    await act(async () => {});
+    expect(window.fetch).not.toBe(mockFetch);
 
-    await waitFor(() => {
-      expect(result.current.isLimited).toBe(true);
+    await act(async () => {
+      await fetch("/api/test");
     });
+
+    expect(result.current.isLimited).toBe(true);
 
     // Avançar 3 segundos (passando do reset)
-    vi.advanceTimersByTime(3000);
-
-    await waitFor(() => {
-      expect(result.current.isLimited).toBe(false);
-      expect(result.current.remaining).toBe(30);
-      expect(result.current.resetAt).toBeNull();
-      expect(result.current.formattedTime).toBe("");
+    act(() => {
+      vi.advanceTimersByTime(3000);
     });
+
+    expect(result.current.isLimited).toBe(false);
+    expect(result.current.remaining).toBe(30);
+    expect(result.current.resetAt).toBeNull();
+    expect(result.current.formattedTime).toBe("");
   });
 
   it("deve usar Retry-After quando X-RateLimit-Reset não estiver disponível", async () => {
@@ -210,11 +243,17 @@ describe("useRateLimit - GAP-CRIT-06 (AC-012/RU-005)", () => {
       }),
     });
 
-    window.fetch = vi.fn(async () => mockResponse);
+    const mockFetch = vi.fn(async () => mockResponse);
+    window.fetch = mockFetch;
 
     const { result } = renderHook(() => useRateLimit());
 
-    await fetch("/api/test");
+    await act(async () => {});
+    expect(window.fetch).not.toBe(mockFetch);
+
+    await act(async () => {
+      await fetch("/api/test");
+    });
 
     await waitFor(() => {
       expect(result.current.isLimited).toBe(true);
@@ -229,11 +268,17 @@ describe("useRateLimit - GAP-CRIT-06 (AC-012/RU-005)", () => {
       headers: new Headers(), // Sem headers
     });
 
-    window.fetch = vi.fn(async () => mockResponse);
+    const mockFetch = vi.fn(async () => mockResponse);
+    window.fetch = mockFetch;
 
     const { result } = renderHook(() => useRateLimit());
 
-    await fetch("/api/test");
+    await act(async () => {});
+    expect(window.fetch).not.toBe(mockFetch);
+
+    await act(async () => {
+      await fetch("/api/test");
+    });
 
     await waitFor(() => {
       expect(result.current.isLimited).toBe(true);
@@ -244,6 +289,7 @@ describe("useRateLimit - GAP-CRIT-06 (AC-012/RU-005)", () => {
   });
 
   it("deve limpar intervalo quando componente for desmontado", async () => {
+    vi.useFakeTimers();
     const resetTimestamp = Math.floor(Date.now() / 1000) + 60;
 
     const mockResponse = new Response(null, {
@@ -255,22 +301,28 @@ describe("useRateLimit - GAP-CRIT-06 (AC-012/RU-005)", () => {
       }),
     });
 
-    window.fetch = vi.fn(async () => mockResponse);
+    const mockFetch = vi.fn(async () => mockResponse);
+    window.fetch = mockFetch;
 
     const { result, unmount } = renderHook(() => useRateLimit());
 
-    await fetch("/api/test");
+    await act(async () => {});
+    expect(window.fetch).not.toBe(mockFetch);
 
-    await waitFor(() => {
-      expect(result.current.isLimited).toBe(true);
+    await act(async () => {
+      await fetch("/api/test");
     });
+
+    expect(result.current.isLimited).toBe(true);
 
     // Desmonta o componente
     unmount();
 
     // Avançar tempo - não deve causar erro
     expect(() => {
-      vi.advanceTimersByTime(5000);
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
     }).not.toThrow();
   });
 
@@ -285,6 +337,7 @@ describe("useRateLimit - GAP-CRIT-06 (AC-012/RU-005)", () => {
   });
 
   it("deve lidar com múltiplas respostas 429 sem duplicar intervalos", async () => {
+    vi.useFakeTimers();
     const resetTimestamp = Math.floor(Date.now() / 1000) + 60;
 
     const mockResponse = new Response(null, {
@@ -296,26 +349,32 @@ describe("useRateLimit - GAP-CRIT-06 (AC-012/RU-005)", () => {
       }),
     });
 
-    window.fetch = vi.fn(async () => mockResponse);
+    const mockFetch = vi.fn(async () => mockResponse);
+    window.fetch = mockFetch;
 
     const { result } = renderHook(() => useRateLimit());
 
     // Primeira 429
-    await fetch("/api/test1");
+    await act(async () => {});
+    expect(window.fetch).not.toBe(mockFetch);
 
-    await waitFor(() => {
-      expect(result.current.isLimited).toBe(true);
+    await act(async () => {
+      await fetch("/api/test1");
     });
+
+    expect(result.current.isLimited).toBe(true);
 
     // Segunda 429 (deve limpar intervalo anterior)
-    await fetch("/api/test2");
-
-    await waitFor(() => {
-      expect(result.current.isLimited).toBe(true);
+    await act(async () => {
+      await fetch("/api/test2");
     });
 
+    expect(result.current.isLimited).toBe(true);
+
     // Avançar tempo - deve funcionar normalmente
-    vi.advanceTimersByTime(1000);
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
 
     // Não deve causar problemas
     expect(result.current.isLimited).toBe(true);
