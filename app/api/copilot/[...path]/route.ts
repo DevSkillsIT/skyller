@@ -1,13 +1,12 @@
-// app/api/copilot/route.ts
+// app/api/copilot/[...path]/route.ts
+// Catch-all route para sub-rotas do CopilotKit (/info, /agent/:id/run, etc.)
 // Integração Skyller ↔ Nexus Core via AG-UI Protocol (Agno)
-// MIGRADO: @copilotkit/runtime → @copilotkitnext/runtime (JSON-RPC)
-// FIX: Headers dinâmicos com token JWT do usuário autenticado
 
 import { AgnoAgent } from "@ag-ui/agno";
 import { CopilotRuntime, createCopilotEndpoint } from "@copilotkitnext/runtime";
 import { handle } from "hono/vercel";
 import type { NextRequest } from "next/server";
-import { auth } from "../../../auth";
+import { auth } from "../../../../auth";
 
 // URL do backend Nexus Core (AG-UI Protocol)
 const NEXUS_AGUI_URL = process.env.NEXUS_API_URL
@@ -16,14 +15,6 @@ const NEXUS_AGUI_URL = process.env.NEXUS_API_URL
 
 /**
  * Cria AgnoAgent dinamicamente com headers de autenticação.
- *
- * O backend Nexus Core (/agui) exige autenticação via:
- * - Authorization: Bearer <jwt_token>
- * - X-Tenant-ID: tenant slug
- * - X-User-ID: user id
- *
- * Essa função cria o AgnoAgent com os headers corretos extraídos
- * da sessão do usuário autenticado via NextAuth.
  */
 function createAuthenticatedAgent(
   accessToken: string | undefined,
@@ -35,7 +26,6 @@ function createAuthenticatedAgent(
     "X-User-ID": userId,
   };
 
-  // Adicionar token JWT se disponível
   if (accessToken) {
     headers["Authorization"] = `Bearer ${accessToken}`;
   }
@@ -51,15 +41,11 @@ function createAuthenticatedAgent(
  * Cria runtime e app Hono com AgnoAgent autenticado
  */
 async function createCopilotApp(req: NextRequest) {
-  // Obter sessão do usuário autenticado via NextAuth
   const session = await auth();
-
-  // Extrair dados de autenticação da sessão
   const accessToken = session?.accessToken;
   const tenantId = session?.user?.tenant_id || "default";
   const userId = session?.user?.id || "anonymous";
 
-  // Log para debug (remover em produção)
   if (process.env.NODE_ENV === "development") {
     console.log("[Copilot Route] Auth context:", {
       hasSession: !!session,
@@ -69,31 +55,28 @@ async function createCopilotApp(req: NextRequest) {
     });
   }
 
-  // Criar AgnoAgent com headers de autenticação dinâmicos
   const authenticatedAgent = createAuthenticatedAgent(accessToken, tenantId, userId);
 
-  // Criar runtime com o agente autenticado
   const runtime = new CopilotRuntime({
     agents: {
       skyller: authenticatedAgent,
     },
   });
 
-  // Criar endpoint Hono com multi-route (inclui /info, /agent/:agentId/run, etc.)
   return createCopilotEndpoint({
     runtime,
     basePath: "/api/copilot",
   });
 }
 
-// Endpoint GET para runtime info (/api/copilot/info)
+// Endpoint GET para /info e outras rotas GET
 export const GET = async (req: NextRequest) => {
   const app = await createCopilotApp(req);
   const handler = handle(app);
   return handler(req);
 };
 
-// Endpoint POST para CopilotKit (JSON-RPC via Hono)
+// Endpoint POST para JSON-RPC e outras rotas POST
 export const POST = async (req: NextRequest) => {
   const app = await createCopilotApp(req);
   const handler = handle(app);

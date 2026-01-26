@@ -438,7 +438,6 @@ describe("useSse", () => {
       );
 
       // Testa cálculo de delays
-      // @ts-expect-error - Acessando método privado para teste
       const getDelay = (attempt: number) => 1000 * 2 ** (attempt - 1);
 
       expect(getDelay(1)).toBe(1000); // 1s
