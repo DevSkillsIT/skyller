@@ -47,7 +47,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
     if (!userToggled) {
       setOpen(false);
     }
-  }, [toolCall.status, userToggled]);
+  }, [userToggled]);
 
   const argsJson = useMemo(() => tryParseJson(toolCall.args), [toolCall.args]);
   const resultJson = useMemo(() => tryParseJson(toolCall.result), [toolCall.result]);
@@ -106,48 +106,50 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
               <div>
                 <div className="text-xs font-medium text-muted-foreground mb-1">Resultado</div>
                 {resultJson ? (
-                  <>
-                    <pre className="text-xs bg-muted/50 rounded-md p-2 overflow-auto max-h-60">
-                      {JSON.stringify(resultJson, null, 2)}
-                    </pre>
-                  </>
+                  <pre className="text-xs bg-muted/50 rounded-md p-2 overflow-auto max-h-60">
+                    {JSON.stringify(resultJson, null, 2)}
+                  </pre>
                 ) : (
-                  <>
-                    {(() => {
-                      const isTruncated = toolCall.result.length > 500;
-                      const displayContent = showFullResult
-                        ? toolCall.result
-                        : isTruncated
-                          ? toolCall.result.slice(0, 500) + "..."
-                          : toolCall.result;
-                      return (
-                        <>
-                          <div className={!showFullResult && isTruncated ? "max-h-60 overflow-hidden" : ""}>
-                            <Streamdown
-                              plugins={STREAMDOWN_PLUGINS}
-                              controls={STREAMDOWN_CONTROLS}
-                              remend={STREAMDOWN_REMEND}
-                              shikiTheme={STREAMDOWN_SHIKI_THEMES}
-                              mermaid={STREAMDOWN_MERMAID}
-                              mode="static"
-                            >
-                              {displayContent}
-                            </Streamdown>
-                          </div>
-                          {isTruncated && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="mt-2 h-7 text-xs"
-                              onClick={() => setShowFullResult(!showFullResult)}
-                            >
-                              {showFullResult ? "Ver menos" : "Ver completo"}
-                            </Button>
+                  (() => {
+                    // Considera "grande" se > 1000 chars OU > 20 linhas
+                    const isTruncated =
+                      toolCall.result.length > 1000 || toolCall.result.split("\n").length > 20;
+                    return (
+                      <>
+                        <div
+                          className={
+                            !showFullResult && isTruncated
+                              ? "max-h-60 overflow-hidden relative"
+                              : ""
+                          }
+                        >
+                          <Streamdown
+                            plugins={STREAMDOWN_PLUGINS}
+                            controls={STREAMDOWN_CONTROLS}
+                            remend={STREAMDOWN_REMEND}
+                            shikiTheme={STREAMDOWN_SHIKI_THEMES}
+                            mermaid={STREAMDOWN_MERMAID}
+                            mode="static"
+                          >
+                            {toolCall.result}
+                          </Streamdown>
+                          {!showFullResult && isTruncated && (
+                            <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-muted/90 to-transparent pointer-events-none" />
                           )}
-                        </>
-                      );
-                    })()}
-                  </>
+                        </div>
+                        {isTruncated && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="mt-2 h-7 text-xs"
+                            onClick={() => setShowFullResult(!showFullResult)}
+                          >
+                            {showFullResult ? "Ver menos" : "Ver completo"}
+                          </Button>
+                        )}
+                      </>
+                    );
+                  })()
                 )}
               </div>
             )}

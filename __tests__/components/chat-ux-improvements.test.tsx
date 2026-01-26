@@ -9,7 +9,7 @@
  * 5. Processing vs Responding visual (chat-messages.tsx)
  */
 
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ChatMessages } from "@/components/chat/chat-messages";
 import { StepIndicator } from "@/components/chat/step-indicator";
@@ -37,11 +37,7 @@ describe("UX Improvements - Smart Auto-scroll", () => {
     ];
 
     const { rerender } = render(
-      <ChatMessages
-        messages={messages}
-        isLoading={false}
-        selectedAgentId="skyller"
-      />
+      <ChatMessages messages={messages} isLoading={false} selectedAgentId="skyller" />
     );
 
     // Simula que usuário está no bottom
@@ -63,13 +59,7 @@ describe("UX Improvements - Smart Auto-scroll", () => {
       },
     ];
 
-    rerender(
-      <ChatMessages
-        messages={newMessages}
-        isLoading={false}
-        selectedAgentId="skyller"
-      />
-    );
+    rerender(<ChatMessages messages={newMessages} isLoading={false} selectedAgentId="skyller" />);
 
     // Deve exibir a nova mensagem
     expect(screen.getByText("Resposta")).toBeInTheDocument();
@@ -195,7 +185,7 @@ describe("UX Improvements - Auto-open Thinking", () => {
 
 describe("UX Improvements - Tool Result Preview", () => {
   it("deve truncar resultado grande e mostrar botão 'Ver completo'", () => {
-    const longResult = "A".repeat(600); // 600 caracteres
+    const longResult = "A".repeat(1100); // 1100 caracteres (> 1000)
 
     render(
       <ToolCallCard
@@ -295,13 +285,7 @@ describe("UX Improvements - Processing vs Responding Visual", () => {
   });
 
   it("deve exibir 'Respondendo...' quando apenas está escrevendo", () => {
-    render(
-      <ChatMessages
-        messages={[]}
-        isLoading={true}
-        selectedAgentId="skyller"
-      />
-    );
+    render(<ChatMessages messages={[]} isLoading={true} selectedAgentId="skyller" />);
 
     // Deve mostrar "Respondendo..." (sem thinking/tools ativos)
     expect(screen.getByText(/Respondendo\.\.\./)).toBeInTheDocument();
@@ -329,13 +313,7 @@ describe("UX Improvements - Processing vs Responding Visual", () => {
   });
 
   it("deve usar cor accent no spinner quando está respondendo", () => {
-    render(
-      <ChatMessages
-        messages={[]}
-        isLoading={true}
-        selectedAgentId="skyller"
-      />
-    );
+    render(<ChatMessages messages={[]} isLoading={true} selectedAgentId="skyller" />);
 
     // Deve ter spinner com cor accent
     const spinner = document.querySelector(".text-accent");

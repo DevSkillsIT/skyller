@@ -7,7 +7,7 @@ pre-commit:
   jobs:
     - name: biome-check
       glob: "*.{js,ts,jsx,tsx,json}"
-      run: pnpm biome check --apply {staged_files}
+      run: pnpm biome check --write {staged_files}
 
     - name: typescript
       glob: "*.{ts,tsx}"
@@ -20,13 +20,13 @@ pre-push:
       run: pnpm vitest run --passWithNoTests
 
 commit-msg:
-  jobs:
-    - name: commitlint
+  commands:
+    commitlint:
       run: |
         # Validacao basica de mensagem de commit
         # Formato esperado: tipo(escopo): descricao
         # Exemplo: feat(auth): adicionar login com Keycloak
-        MSG=$(cat "$1")
+        MSG=$(cat {1})
         if ! echo "$MSG" | grep -qE "^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?: .+"; then
           echo "Erro: Mensagem de commit invalida."
           echo "Formato esperado: tipo(escopo): descricao"

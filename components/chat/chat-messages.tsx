@@ -1,7 +1,7 @@
 "use client";
 
 import { Bot, Check, Copy, Loader2, RefreshCw, ThumbsDown, ThumbsUp, User } from "lucide-react";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Message } from "@/components/chat/message";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -36,30 +36,35 @@ export function ChatMessages({
   const [isNearBottom, setIsNearBottom] = useState(true);
   const { agents } = useAgents();
 
-  // Detecta se usuário está próximo ao bottom (threshold: 100px)
-  const handleScroll = useCallback(() => {
-    if (!scrollRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    setIsNearBottom(distanceFromBottom < 100);
+  // Smart auto-scroll: detecta viewport interno do ScrollArea e rastreia posição
+  useEffect(() => {
+    const viewport = scrollRef.current?.querySelector("[data-radix-scroll-area-viewport]");
+    if (!viewport) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = viewport;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      setIsNearBottom(distanceFromBottom < 100);
+    };
+
+    viewport.addEventListener("scroll", handleScroll);
+    return () => viewport.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Smart auto-scroll: só rola se usuário estiver próximo ao bottom
+  // Auto-scroll quando novas mensagens chegam (só se usuário estiver no bottom)
   useEffect(() => {
-    if (scrollRef.current && isNearBottom) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (!isNearBottom) return;
+    const viewport = scrollRef.current?.querySelector("[data-radix-scroll-area-viewport]");
+    if (viewport) {
+      viewport.scrollTop = viewport.scrollHeight;
     }
-  }, [messages, isNearBottom]);
+  }, [messages.length, isNearBottom]);
 
   const handleCopy = (content: string, id: string) => {
     navigator.clipboard.writeText(content);
     setCopiedId(id);
     toast.success("Copiado!");
     setTimeout(() => setCopiedId(null), 2000);
-  };
-
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   };
 
   // Encontrar agente selecionado
@@ -78,7 +83,7 @@ export function ChatMessages({
   const loadingText = isProcessing ? "Processando..." : "Respondendo...";
 
   return (
-    <ScrollArea className="flex-1 px-4" ref={scrollRef} onScroll={handleScroll}>
+    <ScrollArea className="flex-1 px-4" ref={scrollRef}>
       <div className="max-w-3xl mx-auto py-6 space-y-6">
         {/* Welcome Message if no messages */}
         {messages.length === 0 && (
@@ -241,8 +246,9 @@ function ArtifactPreview({ artifact }: { artifact: Artifact }) {
   };
 
   return (
-    <div
-      className="border border-dashed border-border rounded-lg p-3 hover:border-accent/50 transition-colors cursor-pointer"
+    <button
+      type="button"
+      className="w-full border border-dashed border-border rounded-lg p-3 hover:border-accent/50 transition-colors cursor-pointer text-left"
       onClick={() => openPanel("artifact", artifact)}
     >
       <div className="flex items-center justify-between mb-2">
@@ -271,6 +277,6 @@ function ArtifactPreview({ artifact }: { artifact: Artifact }) {
       <p className="text-xs text-muted-foreground line-clamp-2">
         {artifact.content.slice(0, 150)}...
       </p>
-    </div>
+    </button>
   );
 }

@@ -40,11 +40,8 @@ function formatDuration(startedAt: number, endedAt?: number) {
 }
 
 export function StepIndicator({ steps }: StepIndicatorProps) {
-  if (!steps.length) {
-    return null;
-  }
-
   const [open, setOpen] = useState(false);
+  const [userToggled, setUserToggled] = useState(false);
   const hasRunningStep = useMemo(() => steps.some((step) => step.status === "running"), [steps]);
   const allStepsComplete = useMemo(
     () => steps.length > 0 && steps.every((step) => step.status === "completed"),
@@ -54,12 +51,21 @@ export function StepIndicator({ steps }: StepIndicatorProps) {
   useEffect(() => {
     if (hasRunningStep) {
       setOpen(true);
-    } else if (allStepsComplete) {
-      // Auto-collapse após 2s quando todos steps terminarem
+    } else if (allStepsComplete && !userToggled) {
+      // Auto-collapse após 2s quando todos steps terminarem (só se usuário não abriu manualmente)
       const timer = setTimeout(() => setOpen(false), 2000);
       return () => clearTimeout(timer);
     }
-  }, [hasRunningStep, allStepsComplete]);
+  }, [hasRunningStep, allStepsComplete, userToggled]);
+
+  const handleToggle = (newOpen: boolean) => {
+    setOpen(newOpen);
+    setUserToggled(true);
+  };
+
+  if (!steps.length) {
+    return null;
+  }
 
   const handleStepClick = (stepName: string) => {
     if (!stepName.startsWith("tool:")) return;
@@ -75,7 +81,7 @@ export function StepIndicator({ steps }: StepIndicatorProps) {
   return (
     <Collapsible
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={handleToggle}
       className="rounded-lg border border-border bg-muted/30 px-3 py-2"
     >
       <div className="flex items-center justify-between">

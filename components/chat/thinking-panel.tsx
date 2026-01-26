@@ -21,12 +21,23 @@ interface ThinkingPanelProps {
 
 export function ThinkingPanel({ thinking, isStreaming = false }: ThinkingPanelProps) {
   const [open, setOpen] = useState(false);
+  const [userToggled, setUserToggled] = useState(false);
 
   // Auto-open quando thinking está ativo (Glass Box AI)
-  // Auto-close quando thinking termina
+  // Auto-close quando thinking termina (só se usuário não abriu manualmente)
   useEffect(() => {
-    setOpen(thinking.status === "active");
-  }, [thinking.status]);
+    if (thinking.status === "active") {
+      setOpen(true);
+      setUserToggled(false); // Reset ao iniciar novo thinking
+    } else if (!userToggled) {
+      setOpen(false);
+    }
+  }, [thinking.status, userToggled]);
+
+  const handleToggle = (newOpen: boolean) => {
+    setOpen(newOpen);
+    setUserToggled(true);
+  };
 
   const hasContent = Boolean(thinking.content.trim());
   if (!hasContent && thinking.status !== "active") {
@@ -38,7 +49,7 @@ export function ThinkingPanel({ thinking, isStreaming = false }: ThinkingPanelPr
   return (
     <Collapsible
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={handleToggle}
       className="rounded-lg border border-border bg-muted/30"
     >
       <div className="flex items-center justify-between gap-2 px-3 py-2">
