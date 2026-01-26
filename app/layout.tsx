@@ -4,6 +4,7 @@ import { SessionProvider } from "next-auth/react";
 import type React from "react";
 import { CopilotProvider } from "@/components/providers/copilot-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
 const inter = Inter({
