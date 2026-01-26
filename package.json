@@ -16,13 +16,12 @@
     "prepare": "lefthook install"
   },
   "dependencies": {
-    "@ag-ui/agno": "latest",
-    "@ag-ui/client": "latest",
+    "@ag-ui/agno": "0.0.3",
+    "@ag-ui/client": "0.0.43",
     "@ag-ui/core": "0.0.42",
-    "@ag-ui/encoder": "latest",
-    "@ag-ui/langgraph": "latest",
-    "@ag-ui/proto": "latest",
-    "@copilotkit/runtime-client-gql": "latest",
+    "@ag-ui/encoder": "0.0.43",
+    "@ag-ui/langgraph": "0.0.22",
+    "@ag-ui/proto": "0.0.43",
     "@copilotkitnext/react": "1.51.2",
     "@copilotkitnext/runtime": "1.51.2",
     "@copilotkitnext/shared": "1.51.2",

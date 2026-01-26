@@ -47,8 +47,10 @@ function createAuthenticatedAgent(
   }) as any;
 }
 
-// Endpoint POST para CopilotKit (JSON-RPC via Hono)
-export const POST = async (req: NextRequest) => {
+/**
+ * Cria runtime e app Hono com AgnoAgent autenticado
+ */
+async function createCopilotApp(req: NextRequest) {
   // Obter sessão do usuário autenticado via NextAuth
   const session = await auth();
 
@@ -78,12 +80,22 @@ export const POST = async (req: NextRequest) => {
   });
 
   // Criar endpoint Hono com single-route (JSON-RPC)
-  const app = createCopilotEndpointSingleRoute({
+  return createCopilotEndpointSingleRoute({
     runtime,
     basePath: "/api/copilot",
   });
+}
 
-  // Adaptar Hono para Next.js App Router
+// Endpoint GET para runtime info (/api/copilot/info)
+export const GET = async (req: NextRequest) => {
+  const app = await createCopilotApp(req);
+  const handler = handle(app);
+  return handler(req);
+};
+
+// Endpoint POST para CopilotKit (JSON-RPC via Hono)
+export const POST = async (req: NextRequest) => {
+  const app = await createCopilotApp(req);
   const handler = handle(app);
   return handler(req);
 };
