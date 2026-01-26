@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  CopilotKitProvider,
-  CopilotChatConfigurationProvider,
-  CopilotSidebar,
-} from "@copilotkitnext/react";
+import { CopilotKitProvider, CopilotChatConfigurationProvider } from "@copilotkitnext/react";
 import type React from "react";
 import "@copilotkitnext/react/styles.css";
 
@@ -17,7 +13,7 @@ import "@copilotkitnext/react/styles.css";
  * MIGRAÇÃO @copilotkitnext/react:
  * - Usa JSON-RPC em vez de GraphQL (compatível com AgnoAgent via AbstractAgent)
  * - A seleção do agent é feita via CopilotChatConfigurationProvider (agentId="skyller")
- * - CopilotSidebar renderizado em paralelo ao children
+ * - CopilotSidebar movido para rota dedicada (/lite-chat)
  * - Suporte completo a AG-UI Protocol (THINKING, STEPS, TOOL_CALLS, ACTIVITY)
  */
 export function CopilotProvider({ children }: { children: React.ReactNode }) {
@@ -26,16 +22,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       runtimeUrl="/api/copilot"
       showDevConsole={process.env.NODE_ENV === "development"}
     >
-      <CopilotChatConfigurationProvider agentId="skyller">
-        {children}
-        <CopilotSidebar
-          defaultOpen={false}
-          labels={{
-            modalHeaderTitle: "Skyller AI Assistant",
-            chatInputPlaceholder: "Como posso ajudar você hoje?",
-          }}
-        />
-      </CopilotChatConfigurationProvider>
+      <CopilotChatConfigurationProvider agentId="skyller">{children}</CopilotChatConfigurationProvider>
     </CopilotKitProvider>
   );
 }

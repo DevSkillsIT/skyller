@@ -46,12 +46,20 @@ export function StepIndicator({ steps }: StepIndicatorProps) {
 
   const [open, setOpen] = useState(false);
   const hasRunningStep = useMemo(() => steps.some((step) => step.status === "running"), [steps]);
+  const allStepsComplete = useMemo(
+    () => steps.length > 0 && steps.every((step) => step.status === "completed"),
+    [steps]
+  );
 
   useEffect(() => {
     if (hasRunningStep) {
       setOpen(true);
+    } else if (allStepsComplete) {
+      // Auto-collapse após 2s quando todos steps terminarem
+      const timer = setTimeout(() => setOpen(false), 2000);
+      return () => clearTimeout(timer);
     }
-  }, [hasRunningStep]);
+  }, [hasRunningStep, allStepsComplete]);
 
   const handleStepClick = (stepName: string) => {
     if (!stepName.startsWith("tool:")) return;

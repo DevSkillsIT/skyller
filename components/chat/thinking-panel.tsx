@@ -22,10 +22,10 @@ interface ThinkingPanelProps {
 export function ThinkingPanel({ thinking, isStreaming = false }: ThinkingPanelProps) {
   const [open, setOpen] = useState(false);
 
+  // Auto-open quando thinking está ativo (Glass Box AI)
+  // Auto-close quando thinking termina
   useEffect(() => {
-    if (thinking.status !== "active") {
-      setOpen(false);
-    }
+    setOpen(thinking.status === "active");
   }, [thinking.status]);
 
   const hasContent = Boolean(thinking.content.trim());

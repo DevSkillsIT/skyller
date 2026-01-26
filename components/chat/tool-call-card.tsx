@@ -41,6 +41,7 @@ function formatDuration(startedAt: number, endedAt?: number) {
 export function ToolCallCard({ toolCall }: ToolCallCardProps) {
   const [open, setOpen] = useState(false);
   const [userToggled, setUserToggled] = useState(false);
+  const [showFullResult, setShowFullResult] = useState(false);
 
   useEffect(() => {
     if (!userToggled) {
@@ -105,20 +106,48 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
               <div>
                 <div className="text-xs font-medium text-muted-foreground mb-1">Resultado</div>
                 {resultJson ? (
-                  <pre className="text-xs bg-muted/50 rounded-md p-2 overflow-auto">
-                    {JSON.stringify(resultJson, null, 2)}
-                  </pre>
+                  <>
+                    <pre className="text-xs bg-muted/50 rounded-md p-2 overflow-auto max-h-60">
+                      {JSON.stringify(resultJson, null, 2)}
+                    </pre>
+                  </>
                 ) : (
-                  <Streamdown
-                    plugins={STREAMDOWN_PLUGINS}
-                    controls={STREAMDOWN_CONTROLS}
-                    remend={STREAMDOWN_REMEND}
-                    shikiTheme={STREAMDOWN_SHIKI_THEMES}
-                    mermaid={STREAMDOWN_MERMAID}
-                    mode="static"
-                  >
-                    {toolCall.result}
-                  </Streamdown>
+                  <>
+                    {(() => {
+                      const isTruncated = toolCall.result.length > 500;
+                      const displayContent = showFullResult
+                        ? toolCall.result
+                        : isTruncated
+                          ? toolCall.result.slice(0, 500) + "..."
+                          : toolCall.result;
+                      return (
+                        <>
+                          <div className={!showFullResult && isTruncated ? "max-h-60 overflow-hidden" : ""}>
+                            <Streamdown
+                              plugins={STREAMDOWN_PLUGINS}
+                              controls={STREAMDOWN_CONTROLS}
+                              remend={STREAMDOWN_REMEND}
+                              shikiTheme={STREAMDOWN_SHIKI_THEMES}
+                              mermaid={STREAMDOWN_MERMAID}
+                              mode="static"
+                            >
+                              {displayContent}
+                            </Streamdown>
+                          </div>
+                          {isTruncated && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="mt-2 h-7 text-xs"
+                              onClick={() => setShowFullResult(!showFullResult)}
+                            >
+                              {showFullResult ? "Ver menos" : "Ver completo"}
+                            </Button>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </>
                 )}
               </div>
             )}

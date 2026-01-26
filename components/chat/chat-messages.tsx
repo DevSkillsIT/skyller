@@ -1,7 +1,7 @@
 "use client";
 
 import { Bot, Check, Copy, Loader2, RefreshCw, ThumbsDown, ThumbsUp, User } from "lucide-react";
-import React, { useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Message } from "@/components/chat/message";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -33,13 +33,23 @@ export function ChatMessages({
 }: ChatMessagesProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
+  const [isNearBottom, setIsNearBottom] = useState(true);
   const { agents } = useAgents();
 
+  // Detecta se usuário está próximo ao bottom (threshold: 100px)
+  const handleScroll = useCallback(() => {
+    if (!scrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    setIsNearBottom(distanceFromBottom < 100);
+  }, []);
+
+  // Smart auto-scroll: só rola se usuário estiver próximo ao bottom
   useEffect(() => {
-    if (scrollRef.current) {
+    if (scrollRef.current && isNearBottom) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, isNearBottom]);
 
   const handleCopy = (content: string, id: string) => {
     navigator.clipboard.writeText(content);
@@ -60,8 +70,15 @@ export function ChatMessages({
     .find((message) => message.role === "assistant");
   const shouldShowLoadingBubble = isLoading && !lastAssistantMessage;
 
+  // Diferenciação visual: Processing (tools/steps ativos) vs Responding (apenas escrevendo)
+  const isProcessing =
+    thinking?.status === "active" ||
+    steps?.some((step) => step.status === "running") ||
+    toolCalls?.some((tool) => tool.status === "running");
+  const loadingText = isProcessing ? "Processando..." : "Respondendo...";
+
   return (
-    <ScrollArea className="flex-1 px-4" ref={scrollRef}>
+    <ScrollArea className="flex-1 px-4" ref={scrollRef} onScroll={handleScroll}>
       <div className="max-w-3xl mx-auto py-6 space-y-6">
         {/* Welcome Message if no messages */}
         {messages.length === 0 && (
@@ -199,8 +216,10 @@ export function ChatMessages({
               </AvatarFallback>
             </Avatar>
             <div className="flex items-center gap-2 bg-muted rounded-2xl px-4 py-3">
-              <Loader2 className="h-4 w-4 animate-spin text-accent" />
-              <span className="text-sm text-muted-foreground">Skyller está pensando...</span>
+              <Loader2
+                className={`h-4 w-4 animate-spin ${isProcessing ? "text-blue-500" : "text-accent"}`}
+              />
+              <span className="text-sm text-muted-foreground">{loadingText}</span>
             </div>
           </div>
         )}
