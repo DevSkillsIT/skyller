@@ -1,0 +1,133 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronRight, Loader2, Wrench, XCircle } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Streamdown } from "streamdown";
+import type { ToolCallState } from "@/lib/types/agui";
+import {
+  STREAMDOWN_CONTROLS,
+  STREAMDOWN_MERMAID,
+  STREAMDOWN_PLUGINS,
+  STREAMDOWN_REMEND,
+  STREAMDOWN_SHIKI_THEMES,
+} from "@/lib/streamdown-config";
+
+interface ToolCallCardProps {
+  toolCall: ToolCallState;
+}
+
+function tryParseJson(value?: string) {
+  if (!value) return null;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+function formatDuration(startedAt: number, endedAt?: number) {
+  if (!startedAt) return null;
+  const end = endedAt ?? Date.now();
+  const elapsed = Math.max(end - startedAt, 0);
+  if (elapsed < 1000) {
+    return `${elapsed}ms`;
+  }
+  return `${(elapsed / 1000).toFixed(1)}s`;
+}
+
+export function ToolCallCard({ toolCall }: ToolCallCardProps) {
+  const [open, setOpen] = useState(false);
+  const [userToggled, setUserToggled] = useState(false);
+
+  useEffect(() => {
+    if (!userToggled) {
+      setOpen(false);
+    }
+  }, [toolCall.status, userToggled]);
+
+  const argsJson = useMemo(() => tryParseJson(toolCall.args), [toolCall.args]);
+  const resultJson = useMemo(() => tryParseJson(toolCall.result), [toolCall.result]);
+  const duration = toolCall.startedAt ? formatDuration(toolCall.startedAt, toolCall.endedAt) : null;
+  const hasDetails = Boolean(toolCall.args || toolCall.result);
+
+  const statusBadge = toolCall.status === "running"
+    ? { label: "Executando", variant: "warning" as const }
+    : toolCall.status === "failed"
+      ? { label: "Falhou", variant: "destructive" as const }
+      : { label: "Concluído", variant: "success" as const };
+
+  return (
+    <Collapsible
+      id={`toolcall-${toolCall.toolCallId}`}
+      open={open}
+      onOpenChange={setOpen}
+      className="rounded-lg border border-border bg-background"
+    >
+      <div className="flex items-center gap-2 px-3 py-2">
+        <Wrench className="h-4 w-4 text-muted-foreground" />
+        <span className="text-sm font-medium text-foreground">{toolCall.toolCallName}</span>
+        <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
+        {toolCall.status === "running" && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+        {duration && <span className="ml-auto text-xs text-muted-foreground">{duration}</span>}
+        {hasDetails && (
+          <CollapsibleTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 ml-1"
+              onClick={() => setUserToggled(true)}
+              title={open ? "Ocultar detalhes técnicos" : "Ver detalhes técnicos"}
+            >
+              {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </Button>
+          </CollapsibleTrigger>
+        )}
+      </div>
+      {hasDetails && (
+        // Classe utilitária para animar abertura/fechamento do Collapsible.
+        <CollapsibleContent className="collapsible-content">
+          <div className="border-t border-border px-3 py-2 space-y-3">
+            {toolCall.args && (
+              <div>
+                <div className="text-xs font-medium text-muted-foreground mb-1">Argumentos</div>
+                <pre className="text-xs bg-muted/50 rounded-md p-2 overflow-auto">
+                  {argsJson ? JSON.stringify(argsJson, null, 2) : toolCall.args}
+                </pre>
+              </div>
+            )}
+            {toolCall.result && (
+              <div>
+                <div className="text-xs font-medium text-muted-foreground mb-1">Resultado</div>
+                {resultJson ? (
+                  <pre className="text-xs bg-muted/50 rounded-md p-2 overflow-auto">
+                    {JSON.stringify(resultJson, null, 2)}
+                  </pre>
+                ) : (
+                  <Streamdown
+                    plugins={STREAMDOWN_PLUGINS}
+                    controls={STREAMDOWN_CONTROLS}
+                    remend={STREAMDOWN_REMEND}
+                    shikiTheme={STREAMDOWN_SHIKI_THEMES}
+                    mermaid={STREAMDOWN_MERMAID}
+                    mode="static"
+                  >
+                    {toolCall.result}
+                  </Streamdown>
+                )}
+              </div>
+            )}
+            {toolCall.status === "failed" && (
+              <div className="flex items-center gap-2 text-xs text-destructive">
+                <XCircle className="h-3 w-3" />
+                Falha ao executar ferramenta.
+              </div>
+            )}
+          </div>
+        </CollapsibleContent>
+      )}
+    </Collapsible>
+  );
+}

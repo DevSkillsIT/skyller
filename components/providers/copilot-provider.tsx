@@ -1,59 +1,36 @@
-/**
- * CopilotProvider - Wrapper para CopilotKit com AG-UI Protocol
- * @spec SPEC-COPILOT-INTEGRATION-001
- * @acceptance AC-001: CopilotProvider Configurado
- *
- * Conecta o frontend Skyller ao backend Nexus Core via /api/copilot
- * que implementa HttpAgent para comunicacao AG-UI.
- *
- * Configuracao:
- * - runtimeUrl: /api/copilot (endpoint do CopilotKit)
- * - agent: nexus_agent (agente padrao)
- * - showDevConsole: apenas em desenvolvimento
- */
 "use client";
 
-import { CopilotKit } from "@copilotkit/react-core";
+import { CopilotKitProvider } from "@copilotkitnext/react";
+import { CopilotSidebar } from "@copilotkitnext/react";
 import type React from "react";
-
-export interface CopilotProviderProps {
-  /** Componentes filhos */
-  children: React.ReactNode;
-  /** URL do runtime CopilotKit (padrao: /api/copilot) */
-  runtimeUrl?: string;
-  /** Nome do agente padrao (padrao: nexus_agent) */
-  agent?: string;
-}
+import "@copilotkitnext/react/styles.css";
 
 /**
- * CopilotProvider - Provider principal do CopilotKit
+ * CopilotProvider - Wrapper para CopilotKit com AG-UI Protocol
  *
- * Fornece acesso aos hooks do CopilotKit:
- * - useCopilotChat: Para interacao de chat
- * - useCopilotAction: Para acoes do agente
- * - useCopilotReadable: Para contexto legivel
+ * Conecta o frontend Skyller ao backend Nexus Core via /api/copilot
+ * que implementa AgnoAgent para comunicação AG-UI.
  *
- * @example
- * ```tsx
- * <CopilotProvider>
- *   <ChatInterface />
- * </CopilotProvider>
- * ```
+ * MIGRAÇÃO @copilotkitnext/react:
+ * - Usa JSON-RPC em vez de GraphQL (compatível com AgnoAgent via AbstractAgent)
+ * - A seleção do agent é feita no backend (route.ts) via CopilotRuntime
+ * - CopilotSidebar renderizado em paralelo ao children
+ * - Suporte completo a AG-UI Protocol (THINKING, STEPS, TOOL_CALLS, ACTIVITY)
  */
-export function CopilotProvider({
-  children,
-  runtimeUrl = "/api/copilot",
-  agent = "nexus_agent",
-}: CopilotProviderProps) {
+export function CopilotProvider({ children }: { children: React.ReactNode }) {
   return (
-    <CopilotKit
+    <CopilotKitProvider
       runtimeUrl="/api/copilot"
-      agent="skyller"
       showDevConsole={process.env.NODE_ENV === "development"}
     >
       {children}
-    </CopilotKit>
+      <CopilotSidebar
+        defaultOpen={false}
+        labels={{
+          modalHeaderTitle: "Skyller AI Assistant",
+          chatInputPlaceholder: "Como posso ajudar você hoje?",
+        }}
+      />
+    </CopilotKitProvider>
   );
 }
-
-export default CopilotProvider;

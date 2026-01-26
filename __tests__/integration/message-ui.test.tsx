@@ -8,11 +8,11 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { Message } from "@/components/chat/message";
 
-describe("Message UI - Tool Calls e Thinking State", () => {
-  it("deve exibir indicador de thinking state", () => {
+describe("Message UI - Thinking, Steps e Tool Calls", () => {
+  it("deve exibir painel de thinking", () => {
     const message = {
       id: "msg-1",
       role: "assistant" as const,
@@ -24,31 +24,44 @@ describe("Message UI - Tool Calls e Thinking State", () => {
       <Message
         message={message}
         isStreaming={false}
-        thinkingState="Analisando..."
+        thinking={{
+          status: "active",
+          title: "Analisando...",
+          content: "Raciocinando sobre a resposta...",
+          startedAt: Date.now(),
+        }}
       />
     );
 
-    // Deve exibir o texto do thinking state
+    // Deve exibir o título do painel de thinking
     expect(screen.getByText("Analisando...")).toBeInTheDocument();
   });
 
-  it("deve exibir indicador de tool call em execução", () => {
+  it("deve exibir etapas de execução", () => {
     const message = {
       id: "msg-2",
       role: "assistant" as const,
-      content: "Pesquisando no banco de dados...",
+      content: "Executando fluxo...",
       timestamp: new Date(),
-      toolCall: {
-        name: "search_database",
-        status: "running" as const,
-      },
     };
 
-    render(<Message message={message} isStreaming={false} />);
+    render(
+      <Message
+        message={message}
+        isStreaming={false}
+        steps={[
+          {
+            stepName: "processing",
+            status: "running",
+            startedAt: Date.now(),
+          },
+        ]}
+      />
+    );
 
-    // Deve exibir o nome da ferramenta
-    expect(screen.getByText(/search_database/)).toBeInTheDocument();
-    expect(screen.getByText(/Ferramenta:/)).toBeInTheDocument();
+    // Deve exibir o indicador de etapas
+    expect(screen.getByText(/Etapas/)).toBeInTheDocument();
+    expect(screen.getByText(/Processando/)).toBeInTheDocument();
   });
 
   it("deve exibir tool call concluído com resultado", () => {
@@ -57,56 +70,60 @@ describe("Message UI - Tool Calls e Thinking State", () => {
       role: "assistant" as const,
       content: "Encontrei os resultados",
       timestamp: new Date(),
-      toolCall: {
-        name: "search_database",
-        status: "completed" as const,
-        result: "3 usuários encontrados",
-      },
     };
 
-    render(<Message message={message} isStreaming={false} />);
+    render(
+      <Message
+        message={message}
+        isStreaming={false}
+        toolCalls={[
+          {
+            toolCallId: "tc-1",
+            toolCallName: "search_database",
+            status: "completed",
+            args: "{\"query\":\"users\"}",
+            result: "3 usuários encontrados",
+            startedAt: Date.now(),
+            endedAt: Date.now(),
+          },
+        ]}
+      />
+    );
+
+    const toggle = screen.getByRole("button");
+
+    fireEvent.click(toggle);
 
     // Deve exibir o resultado
     expect(screen.getByText("3 usuários encontrados")).toBeInTheDocument();
     expect(screen.getByText(/Concluído/)).toBeInTheDocument();
   });
 
-  it("deve exibir tool call que falhou", () => {
+  it("deve exibir activity card", () => {
     const message = {
       id: "msg-4",
       role: "assistant" as const,
-      content: "Erro ao executar",
-      timestamp: new Date(),
-      toolCall: {
-        name: "invalid_tool",
-        status: "failed" as const,
-      },
-    };
-
-    render(<Message message={message} isStreaming={false} />);
-
-    // Deve exibir indicador de falha
-    expect(screen.getByText(/Falhou/)).toBeInTheDocument();
-  });
-
-  it("deve exibir tool call via currentTool prop", () => {
-    const message = {
-      id: "msg-5",
-      role: "assistant" as const,
-      content: "Processando...",
+      content: "Atividade em progresso",
       timestamp: new Date(),
     };
 
     render(
       <Message
         message={message}
-        isStreaming={true}
-        currentTool="analyze_data"
+        isStreaming={false}
+        activities={[
+          {
+            messageId: "activity-1",
+            activityType: "SEARCH",
+            content: { query: "AG-UI", results: 5 },
+            updatedAt: Date.now(),
+          },
+        ]}
       />
     );
 
-    // Deve exibir o currentTool
-    expect(screen.getByText(/analyze_data/)).toBeInTheDocument();
+    // Deve exibir a activityType
+    expect(screen.getByText(/SEARCH/)).toBeInTheDocument();
   });
 
   it("deve renderizar conteúdo com Streamdown", () => {
@@ -124,7 +141,7 @@ describe("Message UI - Tool Calls e Thinking State", () => {
     expect(screen.getByText(/importante/)).toBeInTheDocument();
   });
 
-  it("não deve exibir indicadores quando não há tool call ou thinking", () => {
+  it("não deve exibir blocos auxiliares quando não há eventos", () => {
     const message = {
       id: "msg-7",
       role: "assistant" as const,
@@ -134,8 +151,8 @@ describe("Message UI - Tool Calls e Thinking State", () => {
 
     render(<Message message={message} isStreaming={false} />);
 
-    // Não deve exibir indicadores
-    expect(screen.queryByText(/Ferramenta:/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Analisando/)).not.toBeInTheDocument();
+    // Não deve exibir blocos auxiliares
+    expect(screen.queryByText(/Etapas/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Pensando/)).not.toBeInTheDocument();
   });
 });

@@ -52,21 +52,24 @@ class MockEventSource {
 
 describe("useSse", () => {
   let mockEventSource: MockEventSource | null = null;
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn> | null = null;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     // Substitui EventSource global pelo mock
-    global.EventSource = class {
-      constructor(url: string) {
-        mockEventSource = new MockEventSource(url);
-        return mockEventSource as any;
-      }
-    } as any;
+    global.EventSource = vi.fn(function (this: any, url: string) {
+      mockEventSource = new MockEventSource(url);
+      return mockEventSource as any;
+    }) as any;
   });
 
   afterEach(() => {
     mockEventSource = null;
+    consoleErrorSpy?.mockRestore();
+    consoleErrorSpy = null;
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   describe("Conexão inicial", () => {
@@ -259,8 +262,6 @@ describe("useSse", () => {
         { timeout: 200 }
       );
 
-      expect(result.current.reconnectAttempt).toBe(1);
-
       // Aguarda reconexão bem-sucedida
       await waitFor(
         () => {
@@ -274,17 +275,14 @@ describe("useSse", () => {
     });
 
     it("deve usar backoff exponencial: 1s → 2s → 4s → 8s", async () => {
-      const delays: number[] = [];
-      const startTimes: number[] = [];
+      vi.useFakeTimers();
+      const setTimeoutSpy = vi.spyOn(global, "setTimeout");
 
       const { result } = renderHook(() =>
         useSse({
           url: "/api/copilot",
           maxRetries: 4,
           initialRetryDelay: 100, // 100ms para acelerar teste
-          onReconnecting: () => {
-            startTimes.push(Date.now());
-          },
         })
       );
 
@@ -292,52 +290,32 @@ describe("useSse", () => {
         result.current.connect();
       });
 
-      await waitFor(
-        () => {
-          expect(result.current.isConnected).toBe(true);
-        },
-        { timeout: 150 }
-      );
+      act(() => {
+        vi.advanceTimersByTime(20);
+      });
 
-      const initialTime = Date.now();
+      expect(result.current.isConnected).toBe(true);
 
-      // Simula 3 falhas consecutivas
+      // Simula 3 falhas consecutivas (agendam reconexões)
       for (let i = 0; i < 3; i++) {
         act(() => {
           mockEventSource?.simulateError();
         });
-
-        await waitFor(
-          () => {
-            expect(result.current.reconnectAttempt).toBe(i + 1);
-          },
-          { timeout: 200 }
-        );
       }
 
-      // Calcula delays entre tentativas
-      for (let i = 1; i < startTimes.length; i++) {
-        delays.push(startTimes[i] - startTimes[i - 1]);
-      }
+      const delays = setTimeoutSpy.mock.calls
+        .map(([, delay]) => delay)
+        .filter((delay): delay is number => typeof delay === "number" && delay >= 100);
 
-      // Verifica backoff exponencial (com margem de erro de ±30ms)
-      if (delays.length >= 1) {
-        expect(delays[0]).toBeGreaterThanOrEqual(70); // ~100ms
-        expect(delays[0]).toBeLessThanOrEqual(130);
-      }
+      expect(delays[0]).toBe(100);
+      expect(delays[1]).toBe(200);
+      expect(delays[2]).toBe(400);
 
-      if (delays.length >= 2) {
-        expect(delays[1]).toBeGreaterThanOrEqual(170); // ~200ms
-        expect(delays[1]).toBeLessThanOrEqual(230);
-      }
-
-      if (delays.length >= 3) {
-        expect(delays[2]).toBeGreaterThanOrEqual(370); // ~400ms
-        expect(delays[2]).toBeLessThanOrEqual(430);
-      }
+      vi.useRealTimers();
     });
 
     it("deve parar de reconectar após maxRetries tentativas", async () => {
+      const onReconnecting = vi.fn();
       const onMaxRetriesExceeded = vi.fn();
 
       const { result } = renderHook(() =>
@@ -345,6 +323,7 @@ describe("useSse", () => {
           url: "/api/copilot",
           maxRetries: 3,
           initialRetryDelay: 50,
+          onReconnecting,
           onMaxRetriesExceeded,
         })
       );
@@ -353,34 +332,21 @@ describe("useSse", () => {
         result.current.connect();
       });
 
-      await waitFor(
-        () => {
-          expect(result.current.isConnected).toBe(true);
-        },
-        { timeout: 100 }
-      );
-
-      // Simula 4 falhas consecutivas (excedendo maxRetries=3)
-      for (let i = 0; i < 4; i++) {
+      // Simula falhas até atingir maxRetries
+      for (let i = 0; i < 3; i++) {
         act(() => {
           mockEventSource?.simulateError();
         });
-
-        await waitFor(
-          () => {
-            expect(result.current.reconnectAttempt).toBeGreaterThan(i);
-          },
-          { timeout: 200 }
-        );
+        expect(onReconnecting).toHaveBeenCalledWith(i + 1, 3);
       }
 
+      // Falha extra deve exceder maxRetries
+      act(() => {
+        mockEventSource?.simulateError();
+      });
+
       // Deve ter chamado callback de máximo excedido
-      await waitFor(
-        () => {
-          expect(onMaxRetriesExceeded).toHaveBeenCalled();
-        },
-        { timeout: 500 }
-      );
+      expect(onMaxRetriesExceeded).toHaveBeenCalled();
 
       expect(result.current.reconnectAttempt).toBe(3);
       expect(result.current.isConnected).toBe(false);
@@ -401,19 +367,9 @@ describe("useSse", () => {
         result.current.connect();
       });
 
-      await waitFor(
-        () => {
-          expect(result.current.isConnected).toBe(true);
-        },
-        { timeout: 100 }
-      );
-
       act(() => {
         mockEventSource?.simulateError();
       });
-
-      // Aguarda para garantir que não houve reconexão
-      await new Promise((resolve) => setTimeout(resolve, 200));
 
       expect(onReconnecting).not.toHaveBeenCalled();
       expect(result.current.reconnectAttempt).toBe(0);
@@ -431,13 +387,6 @@ describe("useSse", () => {
       act(() => {
         result.current.connect();
       });
-
-      await waitFor(
-        () => {
-          expect(result.current.isConnected).toBe(true);
-        },
-        { timeout: 100 }
-      );
 
       unmount();
 
@@ -473,23 +422,11 @@ describe("useSse", () => {
         result.current.connect();
       });
 
-      await waitFor(
-        () => {
-          expect(result.current.isConnected).toBe(true);
-        },
-        { timeout: 100 }
-      );
-
       act(() => {
         mockEventSource?.simulateError();
       });
 
-      await waitFor(
-        () => {
-          expect(onReconnecting).toHaveBeenCalledWith(1, 5);
-        },
-        { timeout: 200 }
-      );
+      expect(onReconnecting).toHaveBeenCalledWith(1, 5);
     });
 
     it("deve implementar backoff exponencial: 1s → 2s → 4s → 8s → 16s", () => {

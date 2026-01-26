@@ -30,8 +30,10 @@ export function ToolChatSidebar({
   const {
     messages,
     isRunning,
-    currentTool,
-    thinkingState,
+    thinking,
+    steps,
+    toolCalls,
+    activities,
     runAgent,
   } = useChat();
 
@@ -158,9 +160,10 @@ export function ToolChatSidebar({
                         <Message
                           message={message}
                           isStreaming={messageIsStreaming}
-                          // Passar estado AG-UI em tempo real
-                          currentTool={isLastAssistantMessage ? currentTool : undefined}
-                          thinkingState={isLastAssistantMessage ? thinkingState : undefined}
+                          thinking={isLastAssistantMessage ? thinking : undefined}
+                          steps={isLastAssistantMessage ? steps : undefined}
+                          toolCalls={isLastAssistantMessage ? toolCalls : undefined}
+                          activities={isLastAssistantMessage ? activities : undefined}
                         />
                       </div>
                       {message.role === "user" && (

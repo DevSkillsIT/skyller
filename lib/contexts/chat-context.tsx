@@ -15,9 +15,9 @@
  */
 "use client";
 
-import { createContext, type ReactNode, useContext, useState, useCallback, useEffect } from "react";
-import { useAgent, UseAgentUpdate } from "@copilotkit/react-core/v2";
-import type { Message as CopilotMessage } from "@copilotkit/runtime-client-gql";
+import { createContext, type ReactNode, useContext, useState, useCallback, useEffect, useMemo } from "react";
+import { applyPatch } from "fast-json-patch";
+import { useAgent, UseAgentUpdate, type Message as AGUIMessage } from "@copilotkitnext/react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { Message } from "@/lib/mock/data";
@@ -25,15 +25,7 @@ import { useRateLimit } from "@/lib/hooks/use-rate-limit";
 import { useEffectiveAgent } from "@/lib/hooks/use-effective-agent";
 import { authPost } from "@/lib/api-client";
 import { useSession } from "next-auth/react";
-
-// Interface do estado do agente com suporte a eventos AG-UI
-// Conforme GAP-CRIT-01 e documentação oficial do CopilotKit
-interface AgentState {
-  messages: Message[];
-  isRunning: boolean;
-  currentTool?: string;
-  thinkingState?: string;
-}
+import type { ActivityState, StepState, ThinkingState, ToolCallState } from "@/lib/types/agui";
 
 // Re-export do tipo Artifact para uso externo
 export type { Artifact };
@@ -63,8 +55,14 @@ interface ChatContextType {
   // Estado do agente (acessado via useAgent)
   messages: Message[];
   isRunning: boolean;
+  isConnected: boolean;
+  reconnectAttempt: number;
   currentTool?: string;
   thinkingState?: string;
+  thinking?: ThinkingState;
+  steps: StepState[];
+  toolCalls: ToolCallState[];
+  activities: ActivityState[];
   threadId?: string;
 
   // Agente selecionado (dinâmico)
@@ -130,9 +128,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // Estado do agente selecionado (dinamico, inicializado pelo effective agent)
   const [selectedAgentId, setSelectedAgentId] = useState<string | undefined>(undefined);
 
-  // Estado local para tracking de eventos AG-UI
-  const [currentTool, setCurrentTool] = useState<string | undefined>(undefined);
-  const [thinkingState, setThinkingState] = useState<string | undefined>(undefined);
+  // Estado local para tracking de eventos AG-UI (Thinking/Steps/Tool Calls/Activities)
+  const [thinking, setThinking] = useState<ThinkingState | undefined>(undefined);
+  const [steps, setSteps] = useState<StepState[]>([]);
+  const [toolCallsById, setToolCallsById] = useState<Record<string, ToolCallState>>({});
+  const [activitiesById, setActivitiesById] = useState<Record<string, ActivityState>>({});
+  const [isConnected, setIsConnected] = useState(true);
+  const [reconnectAttempt, setReconnectAttempt] = useState(0);
 
   // GAP-IMP-01: Tracking de persistência de mensagens
   const [pendingPersistence, setPendingPersistence] = useState<Set<string>>(new Set());
@@ -141,6 +143,25 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // GAP-CRIT-06: Hook de rate limiting conectado ao backend (AC-012/RU-005)
   // Extrai headers X-RateLimit-* para sincronizar com 30 RPM do backend
   const rateLimit = useRateLimit();
+
+  const toolCalls = useMemo(() => {
+    return Object.values(toolCallsById).sort((a, b) => a.startedAt - b.startedAt);
+  }, [toolCallsById]);
+
+  const activities = useMemo(() => {
+    return Object.values(activitiesById).sort((a, b) => a.updatedAt - b.updatedAt);
+  }, [activitiesById]);
+
+  const currentTool = useMemo(() => {
+    return toolCalls.find((toolCall) => toolCall.status === "running")?.toolCallName;
+  }, [toolCalls]);
+
+  const thinkingState = useMemo(() => {
+    if (!thinking || thinking.status !== "active") {
+      return undefined;
+    }
+    return thinking.title || "Analisando...";
+  }, [thinking]);
 
   // SPEC-AGENT-MANAGEMENT-001: Sincronizar com agente efetivo quando disponivel
   useEffect(() => {
@@ -164,47 +185,68 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     ],
   });
 
-  // GAP-CRIT-03: Subscription a eventos AG-UI (TOOL_CALL, THINKING, RUN_ERROR)
+  const resetRunVisualization = useCallback(() => {
+    setThinking(undefined);
+    setSteps([]);
+    setToolCallsById({});
+    setActivitiesById({});
+  }, []);
+
+  const getToolStepName = useCallback((toolCallName?: string, toolCallId?: string) => {
+    const safeName = toolCallName ? toolCallName.replace(/[\s:]+/g, "_") : "tool";
+    if (!toolCallId) {
+      return `tool:${safeName}`;
+    }
+    return `tool:${safeName}:${toolCallId}`;
+  }, []);
+
+  const cloneValue = useCallback((value: unknown) => {
+    if (typeof structuredClone === "function") {
+      return structuredClone(value);
+    }
+    return JSON.parse(JSON.stringify(value));
+  }, []);
+
+  const finalizeRunVisualization = useCallback(() => {
+    const now = Date.now();
+
+    setThinking((prev) => {
+      if (!prev) return prev;
+      if (prev.status === "completed") return prev;
+      return { ...prev, status: "completed", endedAt: prev.endedAt ?? now };
+    });
+
+    setSteps((prev) =>
+      prev.map((step) =>
+        step.status === "running" ? { ...step, status: "completed", endedAt: step.endedAt ?? now } : step
+      )
+    );
+
+    setToolCallsById((prev) => {
+      const next = { ...prev };
+      for (const [id, toolCall] of Object.entries(next)) {
+        if (toolCall.status === "running") {
+          next[id] = { ...toolCall, status: "completed", endedAt: toolCall.endedAt ?? now };
+        }
+      }
+      return next;
+    });
+  }, []);
+
+  // GAP-CRIT-03: Subscription a eventos AG-UI (THINKING, STEPS, TOOL_CALL, ACTIVITY, RUN_ERROR)
   // Conforme AC-023, AC-024, AC-027
   useEffect(() => {
     const { unsubscribe } = agent.subscribe({
-      onCustomEvent: ({ event }) => {
-        // TOOL_CALL_START: Ferramenta começou a executar
-        if (event.name === 'TOOL_CALL_START') {
-          setCurrentTool(event.value?.toolName || 'unknown');
-          // Toast removido - muito verboso, estado já é rastreado via currentTool
-        }
-
-        // TOOL_CALL_END: Ferramenta finalizou
-        if (event.name === 'TOOL_CALL_END') {
-          setCurrentTool(undefined);
-        }
-
-        // THINKING_START: Agente começou a pensar
-        if (event.name === 'THINKING_START') {
-          setThinkingState('Analisando...');
-        }
-
-        // THINKING_END: Agente finalizou pensamento
-        if (event.name === 'THINKING_END') {
-          setThinkingState(undefined);
-        }
-
-        // RUN_ERROR: Erro durante execução
-        if (event.name === 'RUN_ERROR') {
-          toast.error(`❌ Erro: ${event.value?.message || 'Erro desconhecido'}`);
-        }
+      onRunStartedEvent: () => {
+        resetRunVisualization();
       },
 
-      onRunStartedEvent: () => {
-        // Agente começou a processar
-        // Toast removido - UI já mostra "Skyller está pensando..."
+      onRunErrorEvent: ({ event }) => {
+        toast.error(`❌ Erro: ${event.message || "Erro desconhecido"}`);
       },
 
       onRunFinalized: () => {
-        // Agente finalizou processamento
-        setCurrentTool(undefined);
-        setThinkingState(undefined);
+        finalizeRunVisualization();
 
         // GAP-IMP-01: Validar persistência após finalização
         if (pendingPersistence.size > 0) {
@@ -216,7 +258,262 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
       },
 
-      onMessagesChanged: (messages) => {
+      onStepStartedEvent: ({ event }) => {
+        const startedAt = event.timestamp ?? Date.now();
+        setSteps((prev) => {
+          const existingIndex = prev.findIndex((step) => step.stepName === event.stepName);
+          if (existingIndex >= 0) {
+            const next = [...prev];
+            next[existingIndex] = { ...next[existingIndex], status: "running", startedAt };
+            return next;
+          }
+          return [...prev, { stepName: event.stepName, status: "running", startedAt }];
+        });
+      },
+
+      onStepFinishedEvent: ({ event }) => {
+        const endedAt = event.timestamp ?? Date.now();
+        setSteps((prev) =>
+          prev.map((step) =>
+            step.stepName === event.stepName ? { ...step, status: "completed", endedAt } : step
+          )
+        );
+      },
+
+      onToolCallStartEvent: ({ event }) => {
+        const startedAt = event.timestamp ?? Date.now();
+        const eventAny = event as any;
+        const stepName = getToolStepName(eventAny.toolCallName, eventAny.toolCallId);
+        setToolCallsById((prev) => ({
+          ...prev,
+          [eventAny.toolCallId]: {
+            toolCallId: eventAny.toolCallId,
+            toolCallName: eventAny.toolCallName,
+            status: "running",
+            args: "",
+            startedAt,
+            parentMessageId: eventAny.parentMessageId,
+          },
+        }));
+        setSteps((prev) => {
+          const existingIndex = prev.findIndex((step) => step.stepName === stepName);
+          if (existingIndex >= 0) {
+            const next = [...prev];
+            next[existingIndex] = { ...next[existingIndex], status: "running", startedAt };
+            return next;
+          }
+          return [...prev, { stepName, status: "running", startedAt }];
+        });
+      },
+
+      onToolCallArgsEvent: ({ event, toolCallName, partialToolCallArgs }) => {
+        const eventAny = event as any;
+        const delta = eventAny.delta ?? partialToolCallArgs ?? "";
+        setToolCallsById((prev) => {
+          const existing = prev[eventAny.toolCallId];
+          const base: ToolCallState = existing ?? {
+            toolCallId: eventAny.toolCallId,
+            toolCallName: toolCallName || "unknown",
+            status: "running",
+            args: "",
+            startedAt: event.timestamp ?? Date.now(),
+          };
+          return {
+            ...prev,
+            [eventAny.toolCallId]: {
+              ...base,
+              args: `${base.args}${delta}`,
+            },
+          };
+        });
+      },
+
+      onToolCallEndEvent: ({ event }) => {
+        const endedAt = event.timestamp ?? Date.now();
+        const eventAny = event as any;
+        const stepName = getToolStepName(eventAny.toolCallName, eventAny.toolCallId);
+        setToolCallsById((prev) => {
+          const existing = prev[eventAny.toolCallId];
+          if (!existing) return prev;
+          return {
+            ...prev,
+            [eventAny.toolCallId]: { ...existing, status: "completed", endedAt },
+          };
+        });
+        setSteps((prev) =>
+          prev.map((step) =>
+            step.stepName === stepName ? { ...step, status: "completed", endedAt } : step
+          )
+        );
+      },
+
+      onToolCallResultEvent: ({ event }) => {
+        const eventAny = event as any;
+        const stepName = getToolStepName(eventAny.toolCallName, eventAny.toolCallId);
+        setToolCallsById((prev) => {
+          const existing = prev[eventAny.toolCallId];
+          if (!existing) return prev;
+          return {
+            ...prev,
+            [eventAny.toolCallId]: {
+              ...existing,
+              result: eventAny.content,
+              status: existing.status === "failed" ? "failed" : "completed",
+            },
+          };
+        });
+        setSteps((prev) =>
+          prev.map((step) =>
+            step.stepName === stepName ? { ...step, status: "completed", endedAt: Date.now() } : step
+          )
+        );
+      },
+
+      onActivitySnapshotEvent: ({ event }) => {
+        const updatedAt = event.timestamp ?? Date.now();
+        const eventAny = event as any;
+        setActivitiesById((prev) => ({
+          ...prev,
+          [event.messageId]: {
+            messageId: event.messageId,
+            activityType: event.activityType,
+            content: event.content,
+            status: eventAny.status,
+            replace: event.replace,
+            updatedAt,
+          },
+        }));
+      },
+
+      onActivityDeltaEvent: ({ event }) => {
+        const updatedAt = event.timestamp ?? Date.now();
+        setActivitiesById((prev) => {
+          const existing = prev[event.messageId];
+          if (!existing || !event.patch) return prev;
+          try {
+            const applied = applyPatch(
+              cloneValue(existing.content ?? {}),
+              event.patch,
+              true,
+              false
+            );
+            return {
+              ...prev,
+              [event.messageId]: {
+                ...existing,
+                content: applied.newDocument ?? existing.content,
+                updatedAt,
+              },
+            };
+          } catch (error) {
+            console.warn("[ChatContext] Falha ao aplicar patch de activity:", error);
+            return prev;
+          }
+        });
+      },
+
+      // Thinking ainda não possui handlers tipados no SDK atual.
+      // Mantemos o onEvent para THINKING_* para garantir cobertura completa.
+      onEvent: ({ event }) => {
+        const timestamp = event.timestamp ?? Date.now();
+        const eventAny = event as any;
+
+        if (event.type === "THINKING_START") {
+          setSteps((prev) => {
+            const existingIndex = prev.findIndex((step) => step.stepName === "reasoning");
+            if (existingIndex >= 0) {
+              const next = [...prev];
+              next[existingIndex] = {
+                ...next[existingIndex],
+                status: "running",
+                startedAt: next[existingIndex].startedAt ?? timestamp,
+              };
+              return next;
+            }
+            return [...prev, { stepName: "reasoning", status: "running", startedAt: timestamp }];
+          });
+          setThinking((prev) => ({
+            status: "active",
+            content: prev?.status === "active" ? prev.content : "",
+            title: eventAny.title || prev?.title || "Analisando...",
+            startedAt: prev?.startedAt ?? timestamp,
+          }));
+        }
+
+        if (event.type === "THINKING_TEXT_MESSAGE_START") {
+          setSteps((prev) => {
+            const existingIndex = prev.findIndex((step) => step.stepName === "reasoning");
+            if (existingIndex >= 0) {
+              const next = [...prev];
+              next[existingIndex] = {
+                ...next[existingIndex],
+                status: "running",
+                startedAt: next[existingIndex].startedAt ?? timestamp,
+              };
+              return next;
+            }
+            return [...prev, { stepName: "reasoning", status: "running", startedAt: timestamp }];
+          });
+          setThinking((prev) => ({
+            status: "active",
+            content: prev?.status === "active" ? prev.content : "",
+            title: prev?.title || "Analisando...",
+            startedAt: prev?.startedAt ?? timestamp,
+          }));
+        }
+
+        if (event.type === "THINKING_TEXT_MESSAGE_CONTENT") {
+          setThinking((prev) => ({
+            status: "active",
+            content: `${prev?.content ?? ""}${eventAny.delta ?? ""}`,
+            title: prev?.title || "Analisando...",
+            startedAt: prev?.startedAt ?? timestamp,
+          }));
+        }
+
+        if (event.type === "THINKING_TEXT_MESSAGE_END" || event.type === "THINKING_END") {
+          setSteps((prev) =>
+            prev.map((step) =>
+              step.stepName === "reasoning"
+                ? { ...step, status: "completed", endedAt: step.endedAt ?? timestamp }
+                : step
+            )
+          );
+          setThinking((prev) => {
+            if (!prev) {
+              return {
+                status: "completed",
+                content: "",
+                title: "Pensando",
+                endedAt: timestamp,
+              };
+            }
+            return { ...prev, status: "completed", endedAt: timestamp };
+          });
+        }
+
+        if (event.type === "TOOL_CALL_CHUNK") {
+          setToolCallsById((prev) => {
+            const existing = prev[eventAny.toolCallId];
+            const base: ToolCallState = existing ?? {
+              toolCallId: eventAny.toolCallId,
+              toolCallName: eventAny.toolCallName || "unknown",
+              status: "running",
+              args: "",
+              startedAt: timestamp,
+            };
+            return {
+              ...prev,
+              [eventAny.toolCallId]: {
+                ...base,
+                args: `${base.args}${eventAny.delta ?? ""}`,
+              },
+            };
+          });
+        }
+      },
+
+      onMessagesChanged: ({ messages }) => {
         // GAP-IMP-01: Validar persistência de mensagens
         // Quando backend retorna mensagens via SSE, indica que foram persistidas
         console.debug(`[ChatContext] Mensagens atualizadas: ${messages.length}`);
@@ -234,31 +531,43 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     });
 
     return unsubscribe;
-  }, [agent, lastMessageCount]);
+  }, [
+    agent,
+    cloneValue,
+    finalizeRunVisualization,
+    getToolStepName,
+    lastMessageCount,
+    pendingPersistence.size,
+    resetRunVisualization,
+  ]);
 
   // GAP-CRIT-05: Reconexão SSE automática
   // useAgent já gerencia SSE connection com backoff exponencial
   // Subscription para eventos de conexão
   useEffect(() => {
-    let reconnectAttempt = 0;
-    const maxRetries = 5;
-
     const { unsubscribe } = agent.subscribe({
       onCustomEvent: ({ event }) => {
         // Evento de reconexão SSE
         if (event.name === 'SSE_RECONNECTING') {
-          reconnectAttempt++;
-          toast.info(`🔄 Reconectando... (tentativa ${reconnectAttempt}/${maxRetries})`);
+          setIsConnected(false);
+          setReconnectAttempt((prev) => {
+            const nextAttempt = prev + 1;
+            toast.info(`🔄 Reconectando... (tentativa ${nextAttempt}/5)`);
+            return nextAttempt;
+          });
         }
 
         // Evento de reconexão bem-sucedida
         if (event.name === 'SSE_RECONNECTED') {
-          reconnectAttempt = 0;
+          setIsConnected(true);
+          setReconnectAttempt(0);
           toast.success("✅ Conexão restabelecida");
         }
 
         // Evento de falha após max retries
         if (event.name === 'SSE_MAX_RETRIES_EXCEEDED') {
+          setIsConnected(false);
+          setReconnectAttempt(5);
           toast.error("❌ Conexão perdida. Recarregue a página.", {
             duration: Infinity,
             action: {
@@ -296,13 +605,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return false;
   }, [router]);
 
-  // Converter mensagens do CopilotKit para formato local
-  const messages: Message[] = agent.messages.map((msg: CopilotMessage) => ({
-    id: msg.id,
-    role: msg.role as "user" | "assistant",
-    content: msg.content,
-    timestamp: new Date(msg.createdAt || Date.now()),
-  }));
+  // Converter mensagens do AG-UI para formato local
+  // Ignora mensagens "tool/system/developer" para evitar vazamento de payloads de tools na UI.
+  const copilotMessages = agent.messages as unknown as AGUIMessage[];
+  const messages: Message[] = copilotMessages
+    .filter((msg) => (msg as any).role === "user" || (msg as any).role === "assistant")
+    .map((msg) => ({
+      id: (msg as any).id,
+      role: (msg as any).role as "user" | "assistant",
+      content: (msg as any).content,
+      timestamp: new Date((msg as any).createdAt || Date.now()),
+    }));
 
   // Método para executar o agente com nova mensagem
   // GAP-IMP-02: Retry automático com backoff exponencial (RE-004/RO-005)
@@ -315,7 +628,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     // Adicionar mensagem antes de tentar executar
     const messageId = crypto.randomUUID();
-    agent.addMessage({
+    (agent.addMessage as any)({
       id: messageId,
       role: "user",
       content: message,
@@ -360,7 +673,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
 
         // Verificar se é erro 4xx (não faz retry conforme RO-005)
-        const status = error?.status || error?.response?.status;
+        const errorAny = error as any;
+        const status = errorAny?.status || errorAny?.response?.status;
         if (status >= 400 && status < 500) {
           toast.error("Erro ao enviar mensagem. Verifique sua requisição.");
           return;
@@ -510,12 +824,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const startNewConversation = useCallback(() => {
     setCurrentConversationId(null);
     agent.setMessages([]);
-    setCurrentTool(undefined);
-    setThinkingState(undefined);
+    resetRunVisualization();
   };
 
   const addMessage = (message: Message) => {
-    agent.addMessage({
+    (agent.addMessage as any)({
       id: message.id,
       role: message.role,
       content: message.content,
@@ -542,10 +855,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       // Limpar mensagens ao trocar de agente (nova conversa)
       agent.setMessages([]);
       setCurrentConversationId(null);
-      setCurrentTool(undefined);
-      setThinkingState(undefined);
+      resetRunVisualization();
     }
-  }, [selectedAgentId, agent]);
+  }, [selectedAgentId, agent, resetRunVisualization]);
 
   return (
     <ChatContext.Provider
@@ -553,8 +865,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         // Estado do agente (via useAgent)
         messages,
         isRunning: agent.isRunning,
+        isConnected,
+        reconnectAttempt,
         currentTool,
         thinkingState,
+        thinking,
+        steps,
+        toolCalls,
+        activities,
         threadId: agent.threadId,
 
         // Agente selecionado (com fallback para compatibilidade)
