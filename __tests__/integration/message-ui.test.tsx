@@ -7,8 +7,8 @@
  * - Indicadores visuais funcionam
  */
 
-import { describe, it, expect } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 import { Message } from "@/components/chat/message";
 
 describe("Message UI - Thinking, Steps e Tool Calls", () => {
@@ -81,7 +81,7 @@ describe("Message UI - Thinking, Steps e Tool Calls", () => {
             toolCallId: "tc-1",
             toolCallName: "search_database",
             status: "completed",
-            args: "{\"query\":\"users\"}",
+            args: '{"query":"users"}',
             result: "3 usuários encontrados",
             startedAt: Date.now(),
             endedAt: Date.now(),

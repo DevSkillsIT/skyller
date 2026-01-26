@@ -1,7 +1,7 @@
-import { render, screen, act } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ChatProvider, useChat } from "@/lib/contexts/chat-context";
+import { act, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ConnectionStatus } from "@/components/chat/connection-status";
+import { ChatProvider, useChat } from "@/lib/contexts/chat-context";
 
 const mockAgent = {
   messages: [],
@@ -59,9 +59,7 @@ function TestChatComponent() {
 
   return (
     <div>
-      <div data-testid="connection-status">
-        {isConnected ? "Conectado" : "Desconectado"}
-      </div>
+      <div data-testid="connection-status">{isConnected ? "Conectado" : "Desconectado"}</div>
       <div data-testid="reconnect-attempt">{reconnectAttempt}</div>
       <ConnectionStatus
         isConnected={isConnected}
