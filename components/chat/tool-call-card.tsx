@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Loader2, Wrench, XCircle } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useEffect, useMemo, useState } from "react";
+import { Streamdown } from "streamdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Streamdown } from "streamdown";
-import type { ToolCallState } from "@/lib/types/agui";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   STREAMDOWN_CONTROLS,
   STREAMDOWN_MERMAID,
@@ -14,6 +13,7 @@ import {
   STREAMDOWN_REMEND,
   STREAMDOWN_SHIKI_THEMES,
 } from "@/lib/streamdown-config";
+import type { ToolCallState } from "@/lib/types/agui";
 
 interface ToolCallCardProps {
   toolCall: ToolCallState;
@@ -53,11 +53,12 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
   const duration = toolCall.startedAt ? formatDuration(toolCall.startedAt, toolCall.endedAt) : null;
   const hasDetails = Boolean(toolCall.args || toolCall.result);
 
-  const statusBadge = toolCall.status === "running"
-    ? { label: "Executando", variant: "warning" as const }
-    : toolCall.status === "failed"
-      ? { label: "Falhou", variant: "destructive" as const }
-      : { label: "Concluído", variant: "success" as const };
+  const statusBadge =
+    toolCall.status === "running"
+      ? { label: "Executando", variant: "warning" as const }
+      : toolCall.status === "failed"
+        ? { label: "Falhou", variant: "destructive" as const }
+        : { label: "Concluído", variant: "success" as const };
 
   return (
     <Collapsible
@@ -70,7 +71,9 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
         <Wrench className="h-4 w-4 text-muted-foreground" />
         <span className="text-sm font-medium text-foreground">{toolCall.toolCallName}</span>
         <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
-        {toolCall.status === "running" && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+        {toolCall.status === "running" && (
+          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+        )}
         {duration && <span className="ml-auto text-xs text-muted-foreground">{duration}</span>}
         {hasDetails && (
           <CollapsibleTrigger asChild>

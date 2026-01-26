@@ -1,12 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
 import { Activity, ChevronDown, ChevronRight } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useMemo, useState } from "react";
+import { Streamdown } from "streamdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Streamdown } from "streamdown";
-import type { ActivityState } from "@/lib/types/agui";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   STREAMDOWN_CONTROLS,
   STREAMDOWN_MERMAID,
@@ -14,6 +13,7 @@ import {
   STREAMDOWN_REMEND,
   STREAMDOWN_SHIKI_THEMES,
 } from "@/lib/streamdown-config";
+import type { ActivityState } from "@/lib/types/agui";
 
 interface ActivityCardProps {
   activity: ActivityState;
@@ -38,14 +38,19 @@ export function ActivityCard({ activity }: ActivityCardProps) {
     return null;
   }, [activity.content]);
 
-  const badgeVariant: "success" | "destructive" | "secondary" = activity.status === "completed"
-    ? "success"
-    : activity.status === "failed"
-      ? "destructive"
-      : "secondary";
+  const badgeVariant: "success" | "destructive" | "secondary" =
+    activity.status === "completed"
+      ? "success"
+      : activity.status === "failed"
+        ? "destructive"
+        : "secondary";
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="rounded-lg border border-border bg-muted/30">
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      className="rounded-lg border border-border bg-muted/30"
+    >
       <div className="flex items-center gap-2 px-3 py-2">
         <Activity className="h-4 w-4 text-muted-foreground" />
         <span className="text-sm font-medium text-foreground">{activity.activityType}</span>
