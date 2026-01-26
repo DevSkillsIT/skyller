@@ -1,7 +1,6 @@
 "use client";
 
-import { CopilotKitProvider } from "@copilotkitnext/react";
-import { CopilotSidebar } from "@copilotkitnext/react";
+import { CopilotKitProvider, CopilotSidebar } from "@copilotkitnext/react";
 import type React from "react";
 import "@copilotkitnext/react/styles.css";
 

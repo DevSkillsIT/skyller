@@ -16,8 +16,8 @@
 
 import { useEffect, useRef } from "react";
 import { Message } from "@/components/chat/message";
-import type { ActivityState, StepState, ThinkingState, ToolCallState } from "@/lib/types/agui";
 import type { Message as MessageType } from "@/lib/mock/data";
+import type { ActivityState, StepState, ThinkingState, ToolCallState } from "@/lib/types/agui";
 
 interface MessageListProps {
   /** Lista de mensagens a serem exibidas */

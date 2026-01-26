@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { StepState } from "@/lib/types/agui";
 
 interface StepIndicatorProps {
@@ -27,9 +27,7 @@ function formatStepName(stepName: string) {
   if (STEP_LABELS[stepName]) {
     return STEP_LABELS[stepName];
   }
-  return stepName
-    .replace(/[_-]+/g, " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  return stepName.replace(/[_-]+/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function formatDuration(startedAt: number, endedAt?: number) {
@@ -47,10 +45,7 @@ export function StepIndicator({ steps }: StepIndicatorProps) {
   }
 
   const [open, setOpen] = useState(false);
-  const hasRunningStep = useMemo(
-    () => steps.some((step) => step.status === "running"),
-    [steps]
-  );
+  const hasRunningStep = useMemo(() => steps.some((step) => step.status === "running"), [steps]);
 
   useEffect(() => {
     if (hasRunningStep) {
@@ -99,7 +94,9 @@ export function StepIndicator({ steps }: StepIndicatorProps) {
                     }
                   : {})}
                 className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs text-foreground ${
-                  isToolStep ? "border-border bg-background hover:bg-muted cursor-pointer" : "border-border bg-background"
+                  isToolStep
+                    ? "border-border bg-background hover:bg-muted cursor-pointer"
+                    : "border-border bg-background"
                 }`}
                 title={isToolStep ? "Clique para ver a ferramenta" : undefined}
               >

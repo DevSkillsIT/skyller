@@ -7,9 +7,9 @@
  * - Acessibilidade/estrutura base
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { MessageList, EmptyMessageList, MessageListSkeleton } from "@/components/chat/message-list";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { EmptyMessageList, MessageList, MessageListSkeleton } from "@/components/chat/message-list";
 import type { Message } from "@/lib/mock/data";
 import type { ActivityState, StepState, ThinkingState, ToolCallState } from "@/lib/types/agui";
 
@@ -19,11 +19,7 @@ const messageSpy = vi.fn();
 vi.mock("@/components/chat/message", () => ({
   Message: (props: any) => {
     messageSpy(props);
-    return (
-      <div data-testid={`message-${props.message.id}`}>
-        {props.message.content}
-      </div>
-    );
+    return <div data-testid={`message-${props.message.id}`}>{props.message.content}</div>;
   },
 }));
 
@@ -64,9 +60,7 @@ describe("MessageList Component", () => {
   });
 
   it("deve aplicar className customizada", () => {
-    const { container } = render(
-      <MessageList messages={mockMessages} className="custom-class" />
-    );
+    const { container } = render(<MessageList messages={mockMessages} className="custom-class" />);
 
     const listDiv = container.firstChild as HTMLElement;
     expect(listDiv.className).toContain("custom-class");

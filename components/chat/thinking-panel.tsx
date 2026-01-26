@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Brain, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Button } from "@/components/ui/button";
+import { useEffect, useState } from "react";
 import { Streamdown } from "streamdown";
-import type { ThinkingState } from "@/lib/types/agui";
+import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   STREAMDOWN_CONTROLS,
   STREAMDOWN_MERMAID,
@@ -13,6 +12,7 @@ import {
   STREAMDOWN_REMEND,
   STREAMDOWN_SHIKI_THEMES,
 } from "@/lib/streamdown-config";
+import type { ThinkingState } from "@/lib/types/agui";
 
 interface ThinkingPanelProps {
   thinking: ThinkingState;
@@ -36,7 +36,11 @@ export function ThinkingPanel({ thinking, isStreaming = false }: ThinkingPanelPr
   const title = thinking.title || "Pensando";
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="rounded-lg border border-border bg-muted/30">
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      className="rounded-lg border border-border bg-muted/30"
+    >
       <div className="flex items-center justify-between gap-2 px-3 py-2">
         <div className="flex items-center gap-2 text-sm">
           <Brain className="h-4 w-4 text-muted-foreground" />

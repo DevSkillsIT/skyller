@@ -1,5 +1,5 @@
 import { render } from "@testing-library/react";
-import { vi, describe, it, expect } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 const mockChatMessages = vi.fn();
 const mockChatInput = vi.fn();

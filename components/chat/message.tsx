@@ -7,7 +7,13 @@ import { StepIndicator } from "@/components/chat/step-indicator";
 import { ThinkingPanel } from "@/components/chat/thinking-panel";
 import { ToolCallCard } from "@/components/chat/tool-call-card";
 import { FEATURES } from "@/lib/config/features";
-import { STREAMDOWN_CONTROLS, STREAMDOWN_MERMAID, STREAMDOWN_PLUGINS, STREAMDOWN_REMEND, STREAMDOWN_SHIKI_THEMES } from "@/lib/streamdown-config";
+import {
+  STREAMDOWN_CONTROLS,
+  STREAMDOWN_MERMAID,
+  STREAMDOWN_PLUGINS,
+  STREAMDOWN_REMEND,
+  STREAMDOWN_SHIKI_THEMES,
+} from "@/lib/streamdown-config";
 import type { ActivityState, StepState, ThinkingState, ToolCallState } from "@/lib/types/agui";
 
 interface Message {
@@ -38,7 +44,9 @@ export function Message({
   const hasToolCalls = Boolean(toolCalls && toolCalls.length > 0);
   const hasSteps = Boolean(steps && steps.length > 0);
   const hasActivities = Boolean(activities && activities.length > 0);
-  const hasThinking = Boolean(thinking && (thinking.content.trim() || thinking.status === "active"));
+  const hasThinking = Boolean(
+    thinking && (thinking.content.trim() || thinking.status === "active")
+  );
   // Flags para habilitar/desabilitar visualizações enterprise.
   const showThinking = FEATURES.SHOW_THINKING && showAuxiliary && hasThinking && Boolean(thinking);
   const showSteps = FEATURES.SHOW_STEPS && showAuxiliary && hasSteps && Boolean(steps);

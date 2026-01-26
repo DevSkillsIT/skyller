@@ -1,25 +1,16 @@
 "use client";
 
-import {
-  Bot,
-  Check,
-  Copy,
-  Loader2,
-  RefreshCw,
-  ThumbsDown,
-  ThumbsUp,
-  User,
-} from "lucide-react";
-import React, { useRef, useEffect } from "react";
+import { Bot, Check, Copy, Loader2, RefreshCw, ThumbsDown, ThumbsUp, User } from "lucide-react";
+import React, { useEffect, useRef } from "react";
 import { toast } from "sonner";
+import { Message } from "@/components/chat/message";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Message } from "@/components/chat/message";
 import { usePanel } from "@/lib/contexts/panel-context";
-import type { ActivityState, StepState, ThinkingState, ToolCallState } from "@/lib/types/agui";
-import type { Message as MessageType, Artifact } from "@/lib/mock/data";
 import { useAgents } from "@/lib/hooks/use-agents";
+import type { Artifact, Message as MessageType } from "@/lib/mock/data";
+import type { ActivityState, StepState, ThinkingState, ToolCallState } from "@/lib/types/agui";
 
 interface ChatMessagesProps {
   messages: MessageType[];
@@ -64,7 +55,9 @@ export function ChatMessages({
   // Encontrar agente selecionado
   const currentAgent = agents.find((a) => a.id === selectedAgentId);
 
-  const lastAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant");
+  const lastAssistantMessage = [...messages]
+    .reverse()
+    .find((message) => message.role === "assistant");
   const shouldShowLoadingBubble = isLoading && !lastAssistantMessage;
 
   return (
@@ -78,15 +71,17 @@ export function ChatMessages({
             </div>
             <h2 className="text-xl font-semibold mb-1">Como posso ajudar?</h2>
             <p className="text-muted-foreground text-sm max-w-md mx-auto mb-6">
-              Pergunte qualquer coisa. Posso ajudar com pesquisa, escrita, codigo, analise de
-              dados e mais.
+              Pergunte qualquer coisa. Posso ajudar com pesquisa, escrita, codigo, analise de dados
+              e mais.
             </p>
           </div>
         )}
 
         {/* Messages */}
         {messages.map((message) => {
-          const agent = message.agentId ? agents.find((a) => a.id === message.agentId) : currentAgent;
+          const agent = message.agentId
+            ? agents.find((a) => a.id === message.agentId)
+            : currentAgent;
           const AgentIcon = agent?.icon || Bot;
           const isLastAssistant = lastAssistantMessage?.id === message.id;
           const messageIsStreaming = isLastAssistant && isLoading;
@@ -105,8 +100,9 @@ export function ChatMessages({
               )}
 
               <div
-                className={`flex flex-col gap-2 max-w-[80%] ${message.role === "user" ? "items-end" : "items-start"
-                  }`}
+                className={`flex flex-col gap-2 max-w-[80%] ${
+                  message.role === "user" ? "items-end" : "items-start"
+                }`}
               >
                 {/* Message Header - Only for Assistant */}
                 {message.role === "assistant" && agent && (
@@ -117,8 +113,9 @@ export function ChatMessages({
 
                 {/* Message Content */}
                 <div
-                  className={`rounded-2xl px-4 py-3 ${message.role === "user" ? "bg-accent text-accent-foreground" : "bg-muted"
-                    }`}
+                  className={`rounded-2xl px-4 py-3 ${
+                    message.role === "user" ? "bg-accent text-accent-foreground" : "bg-muted"
+                  }`}
                 >
                   <Message
                     message={message}

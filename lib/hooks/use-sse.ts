@@ -165,9 +165,12 @@ export function useSse(options: UseSseOptions): UseSseState {
    * Calcula o delay de reconexão usando backoff exponencial
    * 1s → 2s → 4s → 8s → 16s
    */
-  const getReconnectDelay = useCallback((attempt: number): number => {
-    return initialRetryDelay * Math.pow(2, attempt - 1);
-  }, [initialRetryDelay]);
+  const getReconnectDelay = useCallback(
+    (attempt: number): number => {
+      return initialRetryDelay * 2 ** (attempt - 1);
+    },
+    [initialRetryDelay]
+  );
 
   const updateReconnectAttempt = useCallback((value: number) => {
     reconnectAttemptRef.current = value;
@@ -212,7 +215,14 @@ export function useSse(options: UseSseOptions): UseSseState {
     reconnectTimeoutRef.current = setTimeout(() => {
       connect();
     }, delay);
-  }, [disableReconnect, maxRetries, onMaxRetriesExceeded, onReconnecting, getReconnectDelay, updateReconnectAttempt]);
+  }, [
+    disableReconnect,
+    maxRetries,
+    onMaxRetriesExceeded,
+    onReconnecting,
+    getReconnectDelay,
+    updateReconnectAttempt,
+  ]);
 
   /**
    * Conecta ao endpoint SSE

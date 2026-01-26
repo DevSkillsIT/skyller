@@ -8,8 +8,8 @@
  * - Desabilitação de envio quando remaining = 0
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, waitFor, act } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useRateLimit } from "@/lib/hooks/use-rate-limit";
 
 describe("useRateLimit - GAP-CRIT-06 (AC-012/RU-005)", () => {
@@ -67,18 +67,15 @@ describe("useRateLimit - GAP-CRIT-06 (AC-012/RU-005)", () => {
   it("deve detectar resposta 429 e ativar rate limiting", async () => {
     const resetTimestamp = Math.floor(Date.now() / 1000) + 60; // Reset em 60 segundos
 
-    const mockResponse = new Response(
-      JSON.stringify({ error: "Too Many Requests" }),
-      {
-        status: 429,
-        headers: new Headers({
-          "X-RateLimit-Limit": "30",
-          "X-RateLimit-Remaining": "0",
-          "X-RateLimit-Reset": String(resetTimestamp),
-          "Retry-After": "60",
-        }),
-      }
-    );
+    const mockResponse = new Response(JSON.stringify({ error: "Too Many Requests" }), {
+      status: 429,
+      headers: new Headers({
+        "X-RateLimit-Limit": "30",
+        "X-RateLimit-Remaining": "0",
+        "X-RateLimit-Reset": String(resetTimestamp),
+        "Retry-After": "60",
+      }),
+    });
 
     const mockFetch = vi.fn(async () => mockResponse);
     window.fetch = mockFetch;

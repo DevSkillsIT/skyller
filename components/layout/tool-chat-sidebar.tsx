@@ -3,13 +3,13 @@
 import { Bot, Loader2, Maximize2, MessageSquare, Minimize2, Send, User, X } from "lucide-react";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
+import { Message } from "@/components/chat/message";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
-import { Message } from "@/components/chat/message";
 import { useChat } from "@/lib/contexts/chat-context";
+import { cn } from "@/lib/utils";
 
 interface ToolChatSidebarProps {
   toolName: string;
@@ -27,15 +27,7 @@ export function ToolChatSidebar({
   className,
 }: ToolChatSidebarProps) {
   // Usar contexto com AgentState (useAgent v2)
-  const {
-    messages,
-    isRunning,
-    thinking,
-    steps,
-    toolCalls,
-    activities,
-    runAgent,
-  } = useChat();
+  const { messages, isRunning, thinking, steps, toolCalls, activities, runAgent } = useChat();
 
   const [input, setInput] = useState("");
   const [isMinimized, setIsMinimized] = useState(false);
@@ -133,7 +125,8 @@ export function ToolChatSidebar({
               <div className="space-y-3">
                 {messages.map((message, index) => {
                   // Última mensagem do assistente está em streaming durante isRunning
-                  const isLastAssistantMessage = message.role === "assistant" && index === messages.length - 1;
+                  const isLastAssistantMessage =
+                    message.role === "assistant" && index === messages.length - 1;
                   const messageIsStreaming = isLastAssistantMessage && isRunning;
 
                   return (

@@ -3,11 +3,11 @@
 // Forçar renderização dinâmica (não pré-renderizar durante build)
 export const dynamic = "force-dynamic";
 
-import { ChatMessages } from "@/components/chat/chat-messages";
-import { ChatInput } from "@/components/chat/chat-input";
-import { useChat } from "@/lib/contexts/chat-context";
 import { useState } from "react";
 import { toast } from "sonner";
+import { ChatInput } from "@/components/chat/chat-input";
+import { ChatMessages } from "@/components/chat/chat-messages";
+import { useChat } from "@/lib/contexts/chat-context";
 
 export default function ChatPage() {
   // GAP-CRIT-01: selectedAgentId sincronizado com chat-context para useAgent dinâmico
@@ -34,7 +34,9 @@ export default function ChatPage() {
     // GAP-CRIT-07: Validar limite de 10.000 caracteres (AC-010/RC-003)
     const MAX_MESSAGE_LENGTH = 10000;
     if (input.trim().length > MAX_MESSAGE_LENGTH) {
-      toast.error(`Mensagem muito longa! Máximo ${MAX_MESSAGE_LENGTH.toLocaleString()} caracteres.`);
+      toast.error(
+        `Mensagem muito longa! Máximo ${MAX_MESSAGE_LENGTH.toLocaleString()} caracteres.`
+      );
       return;
     }
 

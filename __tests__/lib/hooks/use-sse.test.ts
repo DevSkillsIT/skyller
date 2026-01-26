@@ -1,7 +1,7 @@
-import { renderHook, act, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { useSse } from "@/lib/hooks/use-sse";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { toast } from "sonner";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useSse } from "@/lib/hooks/use-sse";
 
 // Mock do sonner toast
 vi.mock("sonner", () => ({
@@ -438,8 +438,8 @@ describe("useSse", () => {
       );
 
       // Testa cálculo de delays
-      // @ts-ignore - Acessando método privado para teste
-      const getDelay = (attempt: number) => 1000 * Math.pow(2, attempt - 1);
+      // @ts-expect-error - Acessando método privado para teste
+      const getDelay = (attempt: number) => 1000 * 2 ** (attempt - 1);
 
       expect(getDelay(1)).toBe(1000); // 1s
       expect(getDelay(2)).toBe(2000); // 2s
