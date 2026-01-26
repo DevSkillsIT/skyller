@@ -1,10 +1,10 @@
-import type { ControlsConfig, MermaidOptions, PluginConfig } from "streamdown";
-import type { RemendOptions } from "remend";
-import type { BundledTheme } from "shiki";
+import { cjk } from "@streamdown/cjk";
 import { code } from "@streamdown/code";
 import { math } from "@streamdown/math";
 import { mermaid } from "@streamdown/mermaid";
-import { cjk } from "@streamdown/cjk";
+import type { RemendOptions } from "remend";
+import type { BundledTheme } from "shiki";
+import type { ControlsConfig, MermaidOptions, PluginConfig } from "streamdown";
 
 export const STREAMDOWN_PLUGINS: PluginConfig = {
   code,

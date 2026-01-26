@@ -3,10 +3,10 @@
 // MIGRADO: @copilotkit/runtime → @copilotkitnext/runtime (JSON-RPC)
 // FIX: Headers dinâmicos com token JWT do usuário autenticado
 
-import { CopilotRuntime, createCopilotEndpointSingleRoute } from "@copilotkitnext/runtime";
 import { AgnoAgent } from "@ag-ui/agno";
-import type { NextRequest } from "next/server";
+import { CopilotRuntime, createCopilotEndpointSingleRoute } from "@copilotkitnext/runtime";
 import { handle } from "hono/vercel";
+import type { NextRequest } from "next/server";
 import { auth } from "../../../auth";
 
 // URL do backend Nexus Core (AG-UI Protocol)
@@ -68,11 +68,7 @@ export const POST = async (req: NextRequest) => {
   }
 
   // Criar AgnoAgent com headers de autenticação dinâmicos
-  const authenticatedAgent = createAuthenticatedAgent(
-    accessToken,
-    tenantId,
-    userId
-  );
+  const authenticatedAgent = createAuthenticatedAgent(accessToken, tenantId, userId);
 
   // Criar runtime com o agente autenticado
   const runtime = new CopilotRuntime({
