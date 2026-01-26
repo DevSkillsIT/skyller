@@ -1,15 +1,23 @@
 "use client";
 
-import { createContext, type ReactNode, useContext, useState, useCallback, useEffect, useMemo } from "react";
+import { type Message as AGUIMessage, UseAgentUpdate, useAgent } from "@copilotkitnext/react";
 import { applyPatch } from "fast-json-patch";
-import { useAgent, UseAgentUpdate, type Message as AGUIMessage } from "@copilotkitnext/react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import type { Message } from "@/lib/mock/data";
-import { useRateLimit } from "@/lib/hooks/use-rate-limit";
-import { useEffectiveAgent } from "@/lib/hooks/use-effective-agent";
-import { authPost } from "@/lib/api-client";
 import { useSession } from "next-auth/react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { toast } from "sonner";
+import { authPost } from "@/lib/api-client";
+import { useEffectiveAgent } from "@/lib/hooks/use-effective-agent";
+import { useRateLimit } from "@/lib/hooks/use-rate-limit";
+import type { Message } from "@/lib/mock/data";
 import type { ActivityState, StepState, ThinkingState, ToolCallState } from "@/lib/types/agui";
 
 interface ChatContextType {
@@ -62,10 +70,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // SPEC-AGENT-MANAGEMENT-001: Resolver agente efetivo via hierarquia
   // User > Project > Workspace > Tenant > Fallback
-  const {
-    agentId: effectiveAgentId,
-    isLoading: isLoadingAgent,
-  } = useEffectiveAgent();
+  const { agentId: effectiveAgentId, isLoading: isLoadingAgent } = useEffectiveAgent();
 
   // Estado do agente selecionado (dinamico, inicializado pelo effective agent)
   const [selectedAgentId, setSelectedAgentId] = useState<string | undefined>(undefined);
@@ -118,7 +123,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // SPEC-AGENT-MANAGEMENT-001: CopilotKit Runtime usa "skyller" como proxy fixo
   // O agente real (selectedAgentId) e passado via forwardedProps para o backend
   const { agent } = useAgent({
-    agentId: FALLBACK_AGENT_ID,  // Proxy fixo - agente real via forwardedProps
+    agentId: FALLBACK_AGENT_ID, // Proxy fixo - agente real via forwardedProps
     // Configurar updates para re-render apenas quando necessário
     updates: [
       UseAgentUpdate.OnMessagesChanged,
@@ -160,7 +165,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     setSteps((prev) =>
       prev.map((step) =>
-        step.status === "running" ? { ...step, status: "completed", endedAt: step.endedAt ?? now } : step
+        step.status === "running"
+          ? { ...step, status: "completed", endedAt: step.endedAt ?? now }
+          : step
       )
     );
 
@@ -192,7 +199,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
         // GAP-IMP-01: Validar persistência após finalização
         if (pendingPersistence.size > 0) {
-          console.error(`[ChatContext] ❌ Falha na persistência: ${pendingPersistence.size} mensagens não confirmadas`);
+          console.error(
+            `[ChatContext] ❌ Falha na persistência: ${pendingPersistence.size} mensagens não confirmadas`
+          );
           toast.error("Algumas mensagens podem não ter sido salvas. Tente reenviar.");
 
           // Limpar tracking para próxima execução
@@ -306,7 +315,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         });
         setSteps((prev) =>
           prev.map((step) =>
-            step.stepName === stepName ? { ...step, status: "completed", endedAt: Date.now() } : step
+            step.stepName === stepName
+              ? { ...step, status: "completed", endedAt: Date.now() }
+              : step
           )
         );
       },
@@ -490,7 +501,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const { unsubscribe } = agent.subscribe({
       onCustomEvent: ({ event }) => {
         // Evento de reconexão SSE
-        if (event.name === 'SSE_RECONNECTING') {
+        if (event.name === "SSE_RECONNECTING") {
           setIsConnected(false);
           setReconnectAttempt((prev) => {
             const nextAttempt = prev + 1;
@@ -500,14 +511,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
 
         // Evento de reconexão bem-sucedida
-        if (event.name === 'SSE_RECONNECTED') {
+        if (event.name === "SSE_RECONNECTED") {
           setIsConnected(true);
           setReconnectAttempt(0);
           toast.success("✅ Conexão restabelecida");
         }
 
         // Evento de falha após max retries
-        if (event.name === 'SSE_MAX_RETRIES_EXCEEDED') {
+        if (event.name === "SSE_MAX_RETRIES_EXCEEDED") {
           setIsConnected(false);
           setReconnectAttempt(5);
           toast.error("❌ Conexão perdida. Recarregue a página.", {
@@ -526,26 +537,29 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Função para tratar erros de autenticação/autorização da API
   // GAP-IMP-06: Interceptar 401/403 e redirecionar conforme RC-001
-  const handleApiError = useCallback((error: any) => {
-    // Verificar status code do erro
-    const status = error?.status || error?.response?.status;
+  const handleApiError = useCallback(
+    (error: any) => {
+      // Verificar status code do erro
+      const status = error?.status || error?.response?.status;
 
-    if (status === 401) {
-      // Token expirado ou inválido
-      toast.error("Sessão expirada. Redirecionando para login...");
-      router.push("/api/auth/login");
-      return true;
-    }
+      if (status === 401) {
+        // Token expirado ou inválido
+        toast.error("Sessão expirada. Redirecionando para login...");
+        router.push("/api/auth/login");
+        return true;
+      }
 
-    if (status === 403) {
-      // Sem permissão (tenant não selecionado ou permissões insuficientes)
-      toast.error("Sem permissão. Verifique suas permissões ou selecione um tenant.");
-      router.push("/dashboard");
-      return true;
-    }
+      if (status === 403) {
+        // Sem permissão (tenant não selecionado ou permissões insuficientes)
+        toast.error("Sem permissão. Verifique suas permissões ou selecione um tenant.");
+        router.push("/dashboard");
+        return true;
+      }
 
-    return false;
-  }, [router]);
+      return false;
+    },
+    [router]
+  );
 
   // Converter mensagens do AG-UI para formato local
   // Ignora mensagens "tool/system/developer" para evitar vazamento de payloads de tools na UI.
@@ -566,7 +580,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const RETRY_DELAY = 2000; // 2 segundos
 
     // Helper para sleep
-    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
     // Adicionar mensagem antes de tentar executar
     const messageId = crypto.randomUUID();
@@ -590,7 +604,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           forwardedProps: {
             message,
             conversationId: currentConversationId,
-            agent_id: selectedAgentId || FALLBACK_AGENT_ID,  // Agente real para backend (snake_case)
+            agent_id: selectedAgentId || FALLBACK_AGENT_ID, // Agente real para backend (snake_case)
           },
         });
 
@@ -631,7 +645,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         // Se não é a última tentativa, aguardar backoff e tentar novamente
         if (attempt < MAX_RETRIES) {
           toast.info(`🔄 Tentativa ${attempt}/${MAX_RETRIES} falhou. Tentando novamente...`);
-          await sleep(RETRY_DELAY * Math.pow(2, attempt - 1)); // Backoff exponencial: 2s → 4s → 8s
+          await sleep(RETRY_DELAY * 2 ** (attempt - 1)); // Backoff exponencial: 2s → 4s → 8s
         } else {
           // Última tentativa falhou - mostrar erro fatal
           toast.error("❌ Falha após 3 tentativas. Recarregue a página.", {
@@ -666,34 +680,31 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       // AC-008: Carregar histórico completo da API com headers obrigatórios
       // Backend exige X-Tenant-ID e X-User-ID (conforme contrato da API)
-      const response = await apiGet<Array<{
-        id: string;
-        role: "user" | "assistant";
-        content: string;
-        created_at: string;  // Backend retorna created_at, não timestamp
-        created_at_ts?: number;
-      }>>(
-        `/api/v1/conversations/${conversationId}/messages`,
-        {
-          headers: {
-            "X-Tenant-ID": session.user.tenant_id,
-            "X-User-ID": session.user.id,
-          },
-        }
-      );
+      const response = await apiGet<
+        Array<{
+          id: string;
+          role: "user" | "assistant";
+          content: string;
+          created_at: string; // Backend retorna created_at, não timestamp
+          created_at_ts?: number;
+        }>
+      >(`/api/v1/conversations/${conversationId}/messages`, {
+        headers: {
+          "X-Tenant-ID": session.user.tenant_id,
+          "X-User-ID": session.user.id,
+        },
+      });
 
       // Mapear created_at para timestamp (compatibilidade com Message interface)
       const messages: Message[] = response.map((msg) => ({
         id: msg.id,
         role: msg.role,
         content: msg.content,
-        timestamp: new Date(msg.created_at),  // Mapear created_at → timestamp
+        timestamp: new Date(msg.created_at), // Mapear created_at → timestamp
       }));
 
       // RE-005: Ordenar em ordem cronológica (antigo → recente)
-      const sortedMessages = messages.sort(
-        (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
-      );
+      const sortedMessages = messages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
       // CC-03: Hidratar histórico com agent.setMessages() + propagação de threadId
       agent.setMessages(
@@ -753,16 +764,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   };
 
   // Handler para mudar agente selecionado
-  const handleSetSelectedAgentId = useCallback((agentId: string) => {
-    if (agentId !== selectedAgentId) {
-      console.info(`[ChatContext] Agente alterado: ${selectedAgentId} → ${agentId}`);
-      setSelectedAgentId(agentId);
-      // Limpar mensagens ao trocar de agente (nova conversa)
-      agent.setMessages([]);
-      setCurrentConversationId(null);
-      resetRunVisualization();
-    }
-  }, [selectedAgentId, agent, resetRunVisualization]);
+  const handleSetSelectedAgentId = useCallback(
+    (agentId: string) => {
+      if (agentId !== selectedAgentId) {
+        console.info(`[ChatContext] Agente alterado: ${selectedAgentId} → ${agentId}`);
+        setSelectedAgentId(agentId);
+        // Limpar mensagens ao trocar de agente (nova conversa)
+        agent.setMessages([]);
+        setCurrentConversationId(null);
+        resetRunVisualization();
+      }
+    },
+    [selectedAgentId, agent, resetRunVisualization]
+  );
 
   return (
     <ChatContext.Provider
