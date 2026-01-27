@@ -22,11 +22,10 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
-import useSWR from "swr"; // Import useSWR to resolve the undeclared variable error
 import { ProjectInstructionsDialog } from "@/components/dialogs/project-instructions-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   DropdownMenu,
@@ -39,7 +38,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { mockConversations, mockProjects, mockWorkspaces } from "@/lib/mock/data";
-import { cn, formatRelativeTime } from "@/lib/utils"; // Import formatRelativeTime function
+import { cn } from "@/lib/utils"; // Import formatRelativeTime function
 
 interface Message {
   id: string;
@@ -52,7 +51,7 @@ export default function ProjectPage() {
   const params = useParams();
   const projectId = params.id as string;
   const project = mockProjects.find((p) => p.id === projectId);
-  const workspace = project ? mockWorkspaces.find((w) => w.id === project.workspaceId) : null;
+  const _workspace = project ? mockWorkspaces.find((w) => w.id === project.workspaceId) : null;
   const projectConversations = mockConversations.filter((c) => c.projectId === projectId);
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -326,153 +325,152 @@ export default function ProjectPage() {
 
       {/* Right Sidebar - Project Settings (esconde quando chat ativo, igual Claude) */}
       {messages.length === 0 && (
-      <div className="w-80 border-l bg-muted/20 flex-shrink-0 hidden lg:block">
-        <ScrollArea className="h-full">
-          <div className="p-4 space-y-4">
-            {/* Memoria */}
-            <Collapsible open={isMemoryOpen} onOpenChange={setIsMemoryOpen}>
-              <CollapsibleTrigger asChild>
-                <div className="flex items-center justify-between cursor-pointer hover:bg-accent/50 rounded-lg p-2 -m-2">
-                  <h3 className="font-medium text-sm">Memoria</h3>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-[10px] h-5 gap-1">
-                      <Lock className="h-3 w-3" />
-                      Apenas voce
-                    </Badge>
-                    <ChevronDown
-                      className={cn("h-4 w-4 transition-transform", isMemoryOpen && "rotate-180")}
-                    />
+        <div className="w-80 border-l bg-muted/20 flex-shrink-0 hidden lg:block">
+          <ScrollArea className="h-full">
+            <div className="p-4 space-y-4">
+              {/* Memoria */}
+              <Collapsible open={isMemoryOpen} onOpenChange={setIsMemoryOpen}>
+                <CollapsibleTrigger asChild>
+                  <div className="flex items-center justify-between cursor-pointer hover:bg-accent/50 rounded-lg p-2 -m-2">
+                    <h3 className="font-medium text-sm">Memoria</h3>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-[10px] h-5 gap-1">
+                        <Lock className="h-3 w-3" />
+                        Apenas voce
+                      </Badge>
+                      <ChevronDown
+                        className={cn("h-4 w-4 transition-transform", isMemoryOpen && "rotate-180")}
+                      />
+                    </div>
                   </div>
-                </div>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <p className="text-xs text-muted-foreground mt-2">
-                  A memoria do projeto aparecera aqui apos alguns chats.
-                </p>
-              </CollapsibleContent>
-            </Collapsible>
-
-            <Separator />
-
-            {/* Instrucoes */}
-            <Collapsible
-              open={isInstructionsSectionOpen}
-              onOpenChange={setIsInstructionsSectionOpen}
-            >
-              <CollapsibleTrigger asChild>
-                <div className="flex items-center justify-between cursor-pointer hover:bg-accent/50 rounded-lg p-2 -m-2">
-                  <h3 className="font-medium text-sm">Instrucoes</h3>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsInstructionsOpen(true);
-                      }}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                    <ChevronDown
-                      className={cn(
-                        "h-4 w-4 transition-transform",
-                        isInstructionsSectionOpen && "rotate-180"
-                      )}
-                    />
-                  </div>
-                </div>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                {instructions ? (
-                  <div
-                    className="mt-2 p-3 bg-muted rounded-lg cursor-pointer hover:bg-muted/80 transition-colors"
-                    onClick={() => setIsInstructionsOpen(true)}
-                  >
-                    <p className="text-xs text-muted-foreground line-clamp-3">{instructions}</p>
-                  </div>
-                ) : (
+                </CollapsibleTrigger>
+                <CollapsibleContent>
                   <p className="text-xs text-muted-foreground mt-2">
-                    Adicionar instrucoes para personalizar as respostas do Skyller.
+                    A memoria do projeto aparecera aqui apos alguns chats.
                   </p>
-                )}
-              </CollapsibleContent>
-            </Collapsible>
+                </CollapsibleContent>
+              </Collapsible>
 
-            <Separator />
+              <Separator />
 
-            {/* Arquivos */}
-            <Collapsible open={isFilesOpen} onOpenChange={setIsFilesOpen}>
-              <CollapsibleTrigger asChild>
-                <div className="flex items-center justify-between cursor-pointer hover:bg-accent/50 rounded-lg p-2 -m-2">
-                  <h3 className="font-medium text-sm">Arquivos</h3>
-                  <div className="flex items-center gap-2">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-52">
-                        <DropdownMenuItem>
-                          <Upload className="h-4 w-4 mr-2" />
-                          Carregar do aparelho
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <FileText className="h-4 w-4 mr-2" />
-                          Adicionar conteudo de texto
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem>
-                          <Github className="h-4 w-4 mr-2" />
-                          GitHub
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24">
-                            <path
-                              fill="currentColor"
-                              d="M12.545 10.239v3.821h5.445c-.712 2.315-2.647 3.972-5.445 3.972a6.033 6.033 0 110-12.064c1.498 0 2.866.549 3.921 1.453l2.814-2.814A9.969 9.969 0 0012.545 2C7.021 2 2.543 6.477 2.543 12s4.478 10 10.002 10c8.396 0 10.249-7.85 9.426-11.748l-9.426-.013z"
-                            />
-                          </svg>
-                          Google Drive
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    <ChevronDown
-                      className={cn("h-4 w-4 transition-transform", isFilesOpen && "rotate-180")}
-                    />
-                  </div>
-                </div>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="mt-4 p-6 border-2 border-dashed rounded-lg flex flex-col items-center justify-center text-center">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-10 h-12 bg-muted rounded border flex items-center justify-center">
-                      <FileText className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                    <div className="w-10 h-12 bg-muted rounded border flex items-center justify-center -ml-4">
-                      <FileText className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                    <div className="w-10 h-12 bg-muted rounded border flex items-center justify-center -ml-4">
-                      <Plus className="h-5 w-5 text-muted-foreground" />
+              {/* Instrucoes */}
+              <Collapsible
+                open={isInstructionsSectionOpen}
+                onOpenChange={setIsInstructionsSectionOpen}
+              >
+                <CollapsibleTrigger asChild>
+                  <div className="flex items-center justify-between cursor-pointer hover:bg-accent/50 rounded-lg p-2 -m-2">
+                    <h3 className="font-medium text-sm">Instrucoes</h3>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsInstructionsOpen(true);
+                        }}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                      <ChevronDown
+                        className={cn(
+                          "h-4 w-4 transition-transform",
+                          isInstructionsSectionOpen && "rotate-180"
+                        )}
+                      />
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Adicione PDFs, documentos ou outros textos para usar como referencia neste
-                    projeto.
-                  </p>
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  {instructions ? (
+                    <div
+                      className="mt-2 p-3 bg-muted rounded-lg cursor-pointer hover:bg-muted/80 transition-colors"
+                      onClick={() => setIsInstructionsOpen(true)}
+                    >
+                      <p className="text-xs text-muted-foreground line-clamp-3">{instructions}</p>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Adicionar instrucoes para personalizar as respostas do Skyller.
+                    </p>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
 
-          </div>
-        </ScrollArea>
-      </div>
+              <Separator />
+
+              {/* Arquivos */}
+              <Collapsible open={isFilesOpen} onOpenChange={setIsFilesOpen}>
+                <CollapsibleTrigger asChild>
+                  <div className="flex items-center justify-between cursor-pointer hover:bg-accent/50 rounded-lg p-2 -m-2">
+                    <h3 className="font-medium text-sm">Arquivos</h3>
+                    <div className="flex items-center gap-2">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-52">
+                          <DropdownMenuItem>
+                            <Upload className="h-4 w-4 mr-2" />
+                            Carregar do aparelho
+                          </DropdownMenuItem>
+                          <DropdownMenuItem>
+                            <FileText className="h-4 w-4 mr-2" />
+                            Adicionar conteudo de texto
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem>
+                            <Github className="h-4 w-4 mr-2" />
+                            GitHub
+                          </DropdownMenuItem>
+                          <DropdownMenuItem>
+                            <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24">
+                              <path
+                                fill="currentColor"
+                                d="M12.545 10.239v3.821h5.445c-.712 2.315-2.647 3.972-5.445 3.972a6.033 6.033 0 110-12.064c1.498 0 2.866.549 3.921 1.453l2.814-2.814A9.969 9.969 0 0012.545 2C7.021 2 2.543 6.477 2.543 12s4.478 10 10.002 10c8.396 0 10.249-7.85 9.426-11.748l-9.426-.013z"
+                              />
+                            </svg>
+                            Google Drive
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      <ChevronDown
+                        className={cn("h-4 w-4 transition-transform", isFilesOpen && "rotate-180")}
+                      />
+                    </div>
+                  </div>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="mt-4 p-6 border-2 border-dashed rounded-lg flex flex-col items-center justify-center text-center">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-10 h-12 bg-muted rounded border flex items-center justify-center">
+                        <FileText className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <div className="w-10 h-12 bg-muted rounded border flex items-center justify-center -ml-4">
+                        <FileText className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <div className="w-10 h-12 bg-muted rounded border flex items-center justify-center -ml-4">
+                        <Plus className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Adicione PDFs, documentos ou outros textos para usar como referencia neste
+                      projeto.
+                    </p>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+          </ScrollArea>
+        </div>
       )}
 
       {/* Instructions Dialog */}

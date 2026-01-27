@@ -28,8 +28,11 @@ function tryParseJson(value?: string) {
   }
 }
 
-function formatDuration(startedAt: number, endedAt?: number) {
+function formatDuration(startedAt: number, endedAt?: number, isRunning?: boolean) {
   if (!startedAt) return null;
+  // Se não está rodando e não tem endedAt, não usar Date.now()
+  // Evita timer "rodando" após conclusão
+  if (!isRunning && !endedAt) return null;
   const end = endedAt ?? Date.now();
   const elapsed = Math.max(end - startedAt, 0);
   if (elapsed < 1000) {
@@ -51,7 +54,10 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
 
   const argsJson = useMemo(() => tryParseJson(toolCall.args), [toolCall.args]);
   const resultJson = useMemo(() => tryParseJson(toolCall.result), [toolCall.result]);
-  const duration = toolCall.startedAt ? formatDuration(toolCall.startedAt, toolCall.endedAt) : null;
+  const isRunning = toolCall.status === "running";
+  const duration = toolCall.startedAt
+    ? formatDuration(toolCall.startedAt, toolCall.endedAt, isRunning)
+    : null;
   const hasDetails = Boolean(toolCall.args || toolCall.result);
 
   const statusBadge =
@@ -112,17 +118,22 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
                 ) : (
                   (() => {
                     // Considera "grande" se > 1000 chars OU > 20 linhas
-                    const isTruncated =
-                      toolCall.result.length > 1000 || toolCall.result.split("\n").length > 20;
+                    const lines = toolCall.result.split("\n");
+                    const isTruncated = toolCall.result.length > 1000 || lines.length > 20;
+                    const previewLines = lines.slice(0, 20).join("\n");
+                    const previewText =
+                      previewLines.length > 1000
+                        ? `${previewLines.slice(0, 1000)}...`
+                        : previewLines;
+                    const shouldShowPreview = isTruncated && !showFullResult;
+
                     return (
                       <>
-                        <div
-                          className={
-                            !showFullResult && isTruncated
-                              ? "max-h-60 overflow-hidden relative"
-                              : ""
-                          }
-                        >
+                        {shouldShowPreview ? (
+                          <pre className="text-xs bg-muted/50 rounded-md p-2 overflow-auto max-h-60 whitespace-pre-wrap">
+                            {previewText}
+                          </pre>
+                        ) : (
                           <Streamdown
                             plugins={STREAMDOWN_PLUGINS}
                             controls={STREAMDOWN_CONTROLS}
@@ -133,10 +144,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
                           >
                             {toolCall.result}
                           </Streamdown>
-                          {!showFullResult && isTruncated && (
-                            <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-muted/90 to-transparent pointer-events-none" />
-                          )}
-                        </div>
+                        )}
                         {isTruncated && (
                           <Button
                             variant="ghost"

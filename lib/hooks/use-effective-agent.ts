@@ -9,8 +9,8 @@
  * Utiliza o endpoint GET /api/v1/settings/effective-agent
  */
 
-import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import { useCallback, useEffect, useState } from "react";
 import { authGet } from "@/lib/api-client";
 
 // ==============================================================================
@@ -70,12 +70,9 @@ interface UseEffectiveAgentState {
  *   }
  * }, [agentId]);
  */
-export function useEffectiveAgent(
-  options: UseEffectiveAgentOptions = {}
-): UseEffectiveAgentState {
+export function useEffectiveAgent(options: UseEffectiveAgentOptions = {}): UseEffectiveAgentState {
   const { data: session } = useSession();
-  const [effectiveAgent, setEffectiveAgent] =
-    useState<EffectiveAgentResponse | null>(null);
+  const [effectiveAgent, setEffectiveAgent] = useState<EffectiveAgentResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -99,18 +96,14 @@ export function useEffectiveAgent(
       }
 
       const queryString = params.toString();
-      const url = `/api/v1/settings/effective-agent${
-        queryString ? `?${queryString}` : ""
-      }`;
+      const url = `/api/v1/settings/effective-agent${queryString ? `?${queryString}` : ""}`;
 
       // Buscar agente efetivo usando helper de autenticacao
       const response = await authGet<EffectiveAgentResponse>(url, session);
       setEffectiveAgent(response);
     } catch (err) {
       console.error("[useEffectiveAgent] Erro ao resolver agente:", err);
-      setError(
-        err instanceof Error ? err.message : "Erro ao resolver agente efetivo"
-      );
+      setError(err instanceof Error ? err.message : "Erro ao resolver agente efetivo");
       setEffectiveAgent(null);
     } finally {
       setIsLoading(false);

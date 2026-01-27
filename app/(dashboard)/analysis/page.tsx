@@ -20,7 +20,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ToolChatSidebar } from "@/components/layout/tool-chat-sidebar";
 import { ToolHistorySidebar } from "@/components/layout/tool-history-sidebar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -30,7 +29,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 
 // Mock analysis data
 const mockAnalysis = {

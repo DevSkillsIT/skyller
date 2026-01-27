@@ -1,7 +1,8 @@
 "use server";
 
-import { signOut } from "@/auth";
+import { auth, signOut } from "@/auth";
 import { getClientId, getIssuer } from "@/lib/auth/helpers/issuer";
+import { getTenantConfig } from "@/lib/auth/providers/keycloak-factory";
 
 /**
  * Gera a URL de logout do Keycloak (end_session_endpoint).
@@ -40,11 +41,58 @@ export async function generateKeycloakLogoutUrl(
 }
 
 /**
- * Server Action para sign-out completo (Auth.js + Keycloak).
+ * Invalida a sessao do Keycloak via backchannel (server-side).
  *
- * Realiza o logout em duas etapas:
- * 1. Invalida a sessao do Auth.js (limpa cookies)
- * 2. Redireciona para o endpoint de logout do Keycloak
+ * Faz uma chamada HTTP para o endpoint de logout do Keycloak
+ * usando o refresh_token para invalidar a sessao sem redirect.
+ *
+ * @param refreshToken - Refresh token da sessao atual
+ * @param tenantId - ID do tenant
+ * @returns true se logout foi bem sucedido
+ */
+async function invalidateKeycloakSession(
+  refreshToken: string,
+  tenantId?: string
+): Promise<boolean> {
+  try {
+    const issuer = getIssuer(tenantId);
+    const tenant = tenantId || process.env.DEFAULT_TENANT || "skills";
+    const config = getTenantConfig(tenant);
+
+    const logoutUrl = `${issuer}/protocol/openid-connect/logout`;
+
+    const response = await fetch(logoutUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
+        refresh_token: refreshToken,
+      }),
+    });
+
+    if (response.ok || response.status === 204) {
+      console.log("[SignOut] Keycloak session invalidated successfully");
+      return true;
+    }
+
+    console.warn("[SignOut] Keycloak logout returned:", response.status);
+    return false;
+  } catch (error) {
+    console.error("[SignOut] Failed to invalidate Keycloak session:", error);
+    return false;
+  }
+}
+
+/**
+ * Server Action para sign-out COMPLETO.
+ *
+ * Realiza o logout:
+ * 1. Invalida a sessao do Keycloak via backchannel (sem redirect externo)
+ * 2. Limpa a sessao do Auth.js
+ * 3. Redireciona para a URL especificada (dentro do dominio)
  *
  * @param callbackUrl - URL para redirect apos logout (padrao: "/")
  *
@@ -64,8 +112,15 @@ export async function generateKeycloakLogoutUrl(
 export async function signOutFromKeycloak(callbackUrl?: string): Promise<void> {
   const redirectTo = callbackUrl || "/";
 
-  // Realiza o signOut do Auth.js que limpa os cookies de sessao
-  // e redireciona para a URL especificada
+  // 1. Obter sessao atual para pegar o refresh_token
+  const session = await auth();
+
+  // 2. Invalidar sessao do Keycloak via backchannel (se tiver refresh token)
+  if (session?.refreshToken) {
+    await invalidateKeycloakSession(session.refreshToken, session.user?.tenant_id);
+  }
+
+  // 3. Limpar sessao do Auth.js e redirecionar
   await signOut({
     redirect: true,
     redirectTo,
@@ -93,15 +148,8 @@ export async function getKeycloakLogoutUrl(idToken?: string): Promise<string> {
 /**
  * Server Action para logout completo com redirect limpo.
  *
- * Esta versao primeiro obtem a URL de logout do Keycloak
- * e depois executa o signOut do Auth.js, garantindo que
- * ambas as sessoes sejam invalidadas.
+ * Alias para signOutFromKeycloak - mantido para compatibilidade.
  */
 export async function signOutComplete(): Promise<void> {
-  // Primeiro, signOut do Auth.js
-  // O callback sera tratado pela rota /api/auth/logout
-  await signOut({
-    redirect: true,
-    redirectTo: "/",
-  });
+  return signOutFromKeycloak("/");
 }

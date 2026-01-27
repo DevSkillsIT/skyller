@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, Clock, FileText, FolderKanban, MessageSquare, Search } from "lucide-react";
+import { Bot, FileText, FolderKanban, MessageSquare, Search } from "lucide-react";
 import { useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";

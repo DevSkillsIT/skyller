@@ -93,6 +93,12 @@ declare module "next-auth" {
     /** Access token para chamadas ao backend (BFF pattern) */
     accessToken?: string;
 
+    /** Refresh token para logout no Keycloak (backchannel) */
+    refreshToken?: string;
+
+    /** ID token para logout no Keycloak (id_token_hint) */
+    idToken?: string;
+
     /** Erro de autenticacao, se houver */
     error?: string;
   }
@@ -161,6 +167,8 @@ declare module "next-auth/jwt" {
     accessToken?: string;
     /** Refresh token para renovacao */
     refreshToken?: string;
+    /** ID token para logout no Keycloak (id_token_hint) */
+    idToken?: string;
     /** Timestamp de expiracao do access token */
     expiresAt?: number;
     /** Erro de autenticacao/refresh */

@@ -6,7 +6,6 @@ export const dynamic = "force-dynamic";
 import {
   Archive,
   ArrowLeft,
-  Clock,
   FileText,
   FolderOpen,
   MessageSquare,
@@ -19,7 +18,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { CreateProjectDialog } from "@/components/dialogs/create-project-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,7 +33,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { mockProjects, mockWorkspaces } from "@/lib/mock/data";
-import { cn } from "@/lib/utils";
 
 function Loading() {
   return null;

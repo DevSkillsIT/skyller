@@ -67,7 +67,7 @@ export function ProtectedContent({
 
   // Enquanto carrega ou nao autenticado, mostra loading
   if (status !== "authenticated") {
-    return loadingComponent ? <>{loadingComponent}</> : <DefaultLoading />;
+    return loadingComponent ? loadingComponent : <DefaultLoading />;
   }
 
   // Usuario autenticado - renderiza conteudo

@@ -26,7 +26,7 @@ vi.mock("@/lib/hooks/use-agents", () => ({
 }));
 
 describe("UX Improvements - Smart Auto-scroll", () => {
-  it("deve fazer scroll automático quando usuário está no bottom", async () => {
+  it("deve usar StickToBottom para auto-scroll (componente configurado corretamente)", async () => {
     const messages = [
       {
         id: "1",
@@ -40,13 +40,10 @@ describe("UX Improvements - Smart Auto-scroll", () => {
       <ChatMessages messages={messages} isLoading={false} selectedAgentId="skyller" />
     );
 
-    // Simula que usuário está no bottom
-    const scrollArea = document.querySelector(".flex-1");
-    if (scrollArea) {
-      Object.defineProperty(scrollArea, "scrollTop", { value: 1000, writable: true });
-      Object.defineProperty(scrollArea, "scrollHeight", { value: 1100, writable: true });
-      Object.defineProperty(scrollArea, "clientHeight", { value: 500, writable: true });
-    }
+    // Verifica que o container de scroll existe
+    const viewport = screen.getByTestId("chat-scroll");
+    expect(viewport).toBeInTheDocument();
+    expect(viewport).toHaveClass("overflow-y-scroll");
 
     // Adiciona nova mensagem
     const newMessages = [
@@ -61,7 +58,7 @@ describe("UX Improvements - Smart Auto-scroll", () => {
 
     rerender(<ChatMessages messages={newMessages} isLoading={false} selectedAgentId="skyller" />);
 
-    // Deve exibir a nova mensagem
+    // Deve exibir a nova mensagem (o scroll é gerenciado pela biblioteca use-stick-to-bottom)
     expect(screen.getByText("Resposta")).toBeInTheDocument();
   });
 });

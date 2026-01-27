@@ -7,16 +7,12 @@ import {
   BarChart3,
   Building2,
   Calendar,
-  CheckSquare,
   ChevronDown,
-  Code2,
   FileText,
   GripVertical,
   MoreHorizontal,
   Plus,
   Search,
-  Settings,
-  Square,
   StickyNote,
 } from "lucide-react";
 import { useState } from "react";
@@ -33,7 +29,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";

@@ -91,6 +91,7 @@
     "swr": "^2.3.8",
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
+    "use-stick-to-bottom": "^1.1.2",
     "vaul": "^1.1.2",
     "ws": "latest",
     "zod": "^3.25.76"

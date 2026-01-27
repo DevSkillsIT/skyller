@@ -1,10 +1,10 @@
 "use client";
 
 import { X } from "lucide-react";
-import * as React from "react";
+import type * as React from "react";
 import * as Sonner from "sonner";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type ToasterProps = React.ComponentProps<typeof Sonner.Toaster>;
 
@@ -25,10 +25,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
           toast:
             "group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg",
           description: "group-[.toast]:text-muted-foreground",
-          actionButton:
-            "group-[.toast]:bg-primary group-[.toast]:text-primary-foreground",
-          cancelButton:
-            "group-[.toast]:bg-muted group-[.toast]:text-muted-foreground",
+          actionButton: "group-[.toast]:bg-primary group-[.toast]:text-primary-foreground",
+          cancelButton: "group-[.toast]:bg-muted group-[.toast]:text-muted-foreground",
           success:
             "group-[.toast]:border-green-500/20 group-[.toast]:bg-green-50 dark:group-[.toast]:bg-green-950/20",
           error:
@@ -65,14 +63,8 @@ export const CustomToast = ({
       {...props}
     >
       <div className="grid gap-1">
-        {title && (
-          <div className="text-sm font-semibold leading-none tracking-tight">
-            {title}
-          </div>
-        )}
-        {description && (
-          <div className="text-sm opacity-90">{description}</div>
-        )}
+        {title && <div className="text-sm font-semibold leading-none tracking-tight">{title}</div>}
+        {description && <div className="text-sm opacity-90">{description}</div>}
       </div>
       {action}
       {onDismiss && (

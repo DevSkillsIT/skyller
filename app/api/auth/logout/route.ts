@@ -16,7 +16,7 @@ import { signOut } from "@/auth";
  * Este endpoint e chamado pelo Keycloak apos logout.
  * Completa o logout limpando a session do NextAuth.
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   const baseUrl = process.env.AUTH_URL || process.env.NEXTAUTH_URL || "http://localhost:3004";
 
   try {

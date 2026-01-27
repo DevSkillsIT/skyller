@@ -167,6 +167,9 @@ export async function sessionCallback({
     // Access token para chamadas ao backend
     session.accessToken = token.accessToken;
 
+    // Refresh token para logout no Keycloak (backchannel)
+    session.refreshToken = token.refreshToken;
+
     // Error state
     session.error = token.error;
 

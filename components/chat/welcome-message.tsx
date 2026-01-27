@@ -1,15 +1,7 @@
 "use client";
 
-import {
-  Bot,
-  FileSearch,
-  Code2,
-  FileText,
-  TrendingUp,
-} from "lucide-react";
-import type React from "react";
+import { Bot, Code2, FileSearch, FileText, TrendingUp } from "lucide-react";
 import { conversationSuggestions } from "@/lib/mock/data";
-import { useAgents } from "@/lib/hooks/use-agents";
 
 interface WelcomeMessageProps {
   onSelectSuggestion: (suggestion: string, agentId: string) => void;
@@ -23,8 +15,8 @@ export function WelcomeMessage({ onSelectSuggestion }: WelcomeMessageProps) {
       </div>
       <h2 className="text-xl font-semibold mb-1">Como posso ajudar?</h2>
       <p className="text-muted-foreground text-sm max-w-md mx-auto mb-6">
-        Pergunte qualquer coisa. Posso ajudar com pesquisa, escrita, codigo, analise de
-        dados e mais.
+        Pergunte qualquer coisa. Posso ajudar com pesquisa, escrita, codigo, analise de dados e
+        mais.
       </p>
 
       {/* Conversation Suggestions */}

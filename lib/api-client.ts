@@ -16,6 +16,96 @@ import type { Session } from "next-auth";
 const ACTIVE_ORG_COOKIE = "active-organization";
 
 // ==============================================================================
+// 401 Unauthorized Handler
+// ==============================================================================
+
+/**
+ * Limpa cookies de autenticacao do NextAuth.
+ *
+ * Necessario antes de redirecionar para login quando o token expira,
+ * para evitar erro "400 Bad Request - Header Too Large" causado por
+ * cookies acumulados sendo enviados para o Keycloak.
+ */
+function clearAuthCookies(): void {
+  if (typeof document === "undefined") return;
+
+  // Lista de cookies do NextAuth que precisam ser limpos
+  // Usa prefixos para pegar tanto dev quanto prod
+  const cookiePrefixes = [
+    "authjs.",
+    "__Secure-authjs.",
+    "__Host-authjs.",
+    "next-auth.",
+    "__Secure-next-auth.",
+  ];
+
+  // Obter todos os cookies
+  const cookies = document.cookie.split(";");
+
+  for (const cookie of cookies) {
+    const [name] = cookie.split("=").map((c) => c.trim());
+
+    // Verificar se e um cookie de auth
+    const isAuthCookie = cookiePrefixes.some((prefix) => name.startsWith(prefix));
+
+    if (isAuthCookie) {
+      // Limpar o cookie definindo data de expiracao no passado
+      document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+      // Tambem tentar com secure flag para cookies __Secure-
+      document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure`;
+    }
+  }
+}
+
+/**
+ * Handler para erros 401 (Unauthorized).
+ *
+ * Quando o backend retorna 401 (token expirado, invalido, ou backend reiniciado),
+ * redireciona automaticamente para a pagina de login para renovar a sessao.
+ *
+ * O fluxo completo:
+ * 1. API retorna 401 Unauthorized
+ * 2. handleUnauthorized() limpa cookies de auth (evita 400 Header Too Large)
+ * 3. Redireciona para /api/auth/signin
+ * 4. NextAuth inicia fluxo OIDC com Keycloak
+ * 5. Usuario e autenticado e retorna para a pagina original (callbackUrl)
+ *
+ * @param currentPath - Path atual para retornar apos login (opcional)
+ */
+export function handleUnauthorized(currentPath?: string): void {
+  // Apenas executa no client-side
+  if (typeof window === "undefined") return;
+
+  // Evitar loops de redirect se ja estiver na pagina de auth
+  if (
+    window.location.pathname.startsWith("/auth") ||
+    window.location.pathname.startsWith("/api/auth")
+  ) {
+    return;
+  }
+
+  // Construir URL de callback para retornar apos login
+  const callbackUrl = currentPath || window.location.pathname + window.location.search;
+  const encodedCallback = encodeURIComponent(callbackUrl);
+
+  // Log para debug em desenvolvimento
+  if (process.env.NODE_ENV === "development") {
+    console.log("[API Client] 401 Unauthorized - Redirecionando para login", {
+      callbackUrl,
+      currentPath: window.location.pathname,
+    });
+  }
+
+  // IMPORTANTE: Limpar cookies de auth ANTES de redirecionar
+  // Isso evita erro "400 Bad Request - Header Too Large" no Keycloak
+  clearAuthCookies();
+
+  // Redirecionar para signin do NextAuth com callback
+  // Isso inicia o fluxo OIDC automaticamente
+  window.location.href = `/api/auth/signin?callbackUrl=${encodedCallback}`;
+}
+
+// ==============================================================================
 // Organization Helpers
 // ==============================================================================
 
@@ -135,6 +225,9 @@ export function setCookie(name: string, value: string, days = 30): void {
 
 /**
  * Base URL para chamadas de API
+ *
+ * Client-side: Usa URL relativa para passar pelo proxy do Next.js (evita CORS)
+ * Server-side: Usa NEXUS_API_URL diretamente
  */
 export function getApiBaseUrl(): string {
   // Server-side: usar variavel de ambiente
@@ -142,8 +235,9 @@ export function getApiBaseUrl(): string {
     return process.env.NEXUS_API_URL || "http://localhost:8000";
   }
 
-  // Client-side: usar URL relativa ou configurada
-  return process.env.NEXT_PUBLIC_API_URL || "";
+  // Client-side: usar URL relativa (proxy via Next.js rewrites)
+  // Isso evita problemas de CORS pois a requisicao vai para o mesmo dominio
+  return "";
 }
 
 /**
@@ -167,12 +261,9 @@ export class ApiError extends Error {
  * @param endpoint - Endpoint da API (ex: "/users")
  * @param options - Opcoes adicionais do fetch
  * @returns Response da API
- * @throws {ApiError} Quando a requisicao falha (inclui status 401/403)
+ * @throws {ApiError} Quando a requisicao falha (exceto 401 que redireciona para login)
  */
-export async function apiGet<T>(
-  endpoint: string,
-  options?: RequestInit
-): Promise<T> {
+export async function apiGet<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${getApiBaseUrl()}${endpoint}`, {
     method: "GET",
     headers: {
@@ -183,7 +274,14 @@ export async function apiGet<T>(
   });
 
   if (!response.ok) {
-    // Lançar erro customizado com status code para tratamento adequado de 401/403
+    // 401 Unauthorized: Token expirado ou invalido - redirecionar para login
+    if (response.status === 401) {
+      handleUnauthorized();
+      // Lançar erro para interromper o fluxo (o redirect ja foi iniciado)
+      throw new ApiError(response.status, "Session expired - redirecting to login", response);
+    }
+
+    // Outros erros: lançar para tratamento pelo chamador
     throw new ApiError(response.status, response.statusText, response);
   }
 
@@ -197,7 +295,7 @@ export async function apiGet<T>(
  * @param data - Dados a enviar
  * @param options - Opcoes adicionais do fetch
  * @returns Response da API
- * @throws {ApiError} Quando a requisicao falha (inclui status 401/403)
+ * @throws {ApiError} Quando a requisicao falha (exceto 401 que redireciona para login)
  */
 export async function apiPost<T, D = unknown>(
   endpoint: string,
@@ -215,7 +313,14 @@ export async function apiPost<T, D = unknown>(
   });
 
   if (!response.ok) {
-    // Lançar erro customizado com status code para tratamento adequado de 401/403
+    // 401 Unauthorized: Token expirado ou invalido - redirecionar para login
+    if (response.status === 401) {
+      handleUnauthorized();
+      // Lançar erro para interromper o fluxo (o redirect ja foi iniciado)
+      throw new ApiError(response.status, "Session expired - redirecting to login", response);
+    }
+
+    // Outros erros: lançar para tratamento pelo chamador
     throw new ApiError(response.status, response.statusText, response);
   }
 
@@ -239,22 +344,54 @@ interface AuthSession {
 }
 
 /**
+ * Contexto adicional para headers de API
+ *
+ * Esses headers sao usados para logging, auditoria e RBAC no backend:
+ * - X-Session-ID: Identificacao da sessao do navegador
+ * - X-Conversation-ID: Identificacao da conversa atual
+ * - X-Thread-ID: Alternativa ao conversation_id (AG-UI)
+ * - X-Workspace-ID: Identificacao do workspace atual
+ * - X-Agent-ID: Identificacao do agente sendo usado
+ */
+export interface ApiContext {
+  sessionId?: string;
+  conversationId?: string;
+  threadId?: string;
+  workspaceId?: string;
+  agentId?: string;
+}
+
+/**
  * Cria headers de autenticacao a partir da session do NextAuth
  *
  * @param session - Session do NextAuth (com accessToken)
- * @returns Headers com Authorization, X-Tenant-ID e X-User-ID
+ * @param context - Contexto adicional opcional (sessionId, conversationId, etc.)
+ * @returns Headers com Authorization, X-Tenant-ID, X-User-ID e headers de contexto
+ *
+ * @example
+ * // Uso basico (sem contexto)
+ * const headers = createAuthHeaders(session);
+ *
+ * @example
+ * // Uso com contexto completo
+ * const headers = createAuthHeaders(session, {
+ *   sessionId: "sess_abc123",
+ *   conversationId: "conv_xyz789",
+ *   workspaceId: "ws_123",
+ *   agentId: "skyller"
+ * });
  */
-export function createAuthHeaders(session: AuthSession | null): HeadersInit {
+export function createAuthHeaders(session: AuthSession | null, context?: ApiContext): HeadersInit {
   if (!session?.user) return {};
 
-  const headers: HeadersInit = {};
+  const headers: Record<string, string> = {};
 
   // Authorization header (JWT token)
   if (session.accessToken) {
-    headers["Authorization"] = `Bearer ${session.accessToken}`;
+    headers.Authorization = `Bearer ${session.accessToken}`;
   }
 
-  // Headers de contexto multi-tenant
+  // Headers de contexto multi-tenant (obrigatorios)
   if (session.user.tenant_id) {
     headers["X-Tenant-ID"] = session.user.tenant_id;
   }
@@ -262,7 +399,34 @@ export function createAuthHeaders(session: AuthSession | null): HeadersInit {
     headers["X-User-ID"] = session.user.id;
   }
 
+  // Headers de contexto adicional (opcionais)
+  if (context) {
+    if (context.sessionId) {
+      headers["X-Session-ID"] = context.sessionId;
+    }
+    if (context.conversationId) {
+      headers["X-Conversation-ID"] = context.conversationId;
+    }
+    if (context.threadId) {
+      headers["X-Thread-ID"] = context.threadId;
+    }
+    if (context.workspaceId) {
+      headers["X-Workspace-ID"] = context.workspaceId;
+    }
+    if (context.agentId) {
+      headers["X-Agent-ID"] = context.agentId;
+    }
+  }
+
   return headers;
+}
+
+/**
+ * Opcoes estendidas para requisicoes autenticadas
+ */
+export interface AuthRequestOptions extends RequestInit {
+  /** Contexto adicional para headers (sessionId, conversationId, etc.) */
+  context?: ApiContext;
 }
 
 /**
@@ -270,24 +434,35 @@ export function createAuthHeaders(session: AuthSession | null): HeadersInit {
  *
  * @param endpoint - Endpoint da API (ex: "/api/v1/agents")
  * @param session - Session do NextAuth
- * @param options - Opcoes adicionais do fetch
+ * @param options - Opcoes adicionais do fetch (inclui context para headers extras)
  * @returns Response da API
  * @throws {ApiError} Quando a requisicao falha
+ *
+ * @example
+ * // Uso basico
+ * const agents = await authGet('/api/v1/agents', session);
+ *
+ * @example
+ * // Uso com contexto
+ * const history = await authGet('/api/v1/conversations/123/messages', session, {
+ *   context: { sessionId: 'sess_abc', conversationId: '123' }
+ * });
  */
 export async function authGet<T>(
   endpoint: string,
   session: AuthSession | null,
-  options?: RequestInit
+  options?: AuthRequestOptions
 ): Promise<T> {
-  const authHeaders = createAuthHeaders(session);
+  const { context, ...fetchOptions } = options || {};
+  const authHeaders = createAuthHeaders(session, context);
 
   // Nota: credentials: "include" removido pois autenticacao e via header Authorization
   // e nao via cookies. Isso evita problemas de CORS com wildcard origins.
   return apiGet<T>(endpoint, {
-    ...options,
+    ...fetchOptions,
     headers: {
       ...authHeaders,
-      ...options?.headers,
+      ...fetchOptions?.headers,
     },
   });
 }
@@ -298,25 +473,40 @@ export async function authGet<T>(
  * @param endpoint - Endpoint da API
  * @param session - Session do NextAuth
  * @param data - Dados a enviar
- * @param options - Opcoes adicionais do fetch
+ * @param options - Opcoes adicionais do fetch (inclui context para headers extras)
  * @returns Response da API
  * @throws {ApiError} Quando a requisicao falha
+ *
+ * @example
+ * // Uso basico
+ * await authPost('/api/v1/agents/skyller/track-usage', session, {});
+ *
+ * @example
+ * // Uso com contexto
+ * await authPost('/api/v1/agents/skyller/track-usage', session, {}, {
+ *   context: {
+ *     sessionId: 'sess_abc',
+ *     conversationId: 'conv_123',
+ *     agentId: 'skyller'
+ *   }
+ * });
  */
 export async function authPost<T, D = unknown>(
   endpoint: string,
   session: AuthSession | null,
   data?: D,
-  options?: RequestInit
+  options?: AuthRequestOptions
 ): Promise<T> {
-  const authHeaders = createAuthHeaders(session);
+  const { context, ...fetchOptions } = options || {};
+  const authHeaders = createAuthHeaders(session, context);
 
   // Nota: credentials: "include" removido pois autenticacao e via header Authorization
   // e nao via cookies. Isso evita problemas de CORS com wildcard origins.
   return apiPost<T, D>(endpoint, data, {
-    ...options,
+    ...fetchOptions,
     headers: {
       ...authHeaders,
-      ...options?.headers,
+      ...fetchOptions?.headers,
     },
   });
 }

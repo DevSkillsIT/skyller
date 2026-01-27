@@ -171,7 +171,9 @@ function WorkspaceCard({ workspace, onClick }: WorkspaceCardProps) {
                 {workspace.name}
               </h3>
               {workspace.description && (
-                <p className="text-xs text-muted-foreground line-clamp-1">{workspace.description}</p>
+                <p className="text-xs text-muted-foreground line-clamp-1">
+                  {workspace.description}
+                </p>
               )}
             </div>
           </div>

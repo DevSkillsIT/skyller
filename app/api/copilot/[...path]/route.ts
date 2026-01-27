@@ -27,7 +27,7 @@ function createAuthenticatedAgent(
   };
 
   if (accessToken) {
-    headers["Authorization"] = `Bearer ${accessToken}`;
+    headers.Authorization = `Bearer ${accessToken}`;
   }
 
   return new AgnoAgent({
@@ -40,7 +40,7 @@ function createAuthenticatedAgent(
 /**
  * Cria runtime e app Hono com AgnoAgent autenticado
  */
-async function createCopilotApp(req: NextRequest) {
+async function createCopilotApp(_req: NextRequest) {
   const session = await auth();
   const accessToken = session?.accessToken;
   const tenantId = session?.user?.tenant_id || "default";

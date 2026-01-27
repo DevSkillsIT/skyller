@@ -1,27 +1,27 @@
 "use client";
 
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 // Variantes de animação para mensagens (baseadas em CSS)
 export const messageVariants = {
   initial: "opacity-0 translate-y-5 scale-95",
   animate: "opacity-100 translate-y-0 scale-100 transition-all duration-300 ease-out",
-  exit: "opacity-0 -translate-y-5 scale-95 transition-all duration-200 ease-in"
+  exit: "opacity-0 -translate-y-5 scale-95 transition-all duration-200 ease-in",
 };
 
 // Variantes para fade in
 export const fadeInVariants = {
   initial: "opacity-0",
   animate: "opacity-100 transition-opacity duration-200 ease-out",
-  exit: "opacity-0 transition-opacity duration-100 ease-in"
+  exit: "opacity-0 transition-opacity duration-100 ease-in",
 };
 
 // Variantes para slide up
 export const slideUpVariants = {
   initial: "opacity-0 translate-y-2.5",
   animate: "opacity-100 translate-y-0 transition-all duration-300 ease-out",
-  exit: "opacity-0 translate-y-2.5 transition-all duration-200 ease-in"
+  exit: "opacity-0 translate-y-2.5 transition-all duration-200 ease-in",
 };
 
 // Componente wrapper para animações
@@ -32,15 +32,15 @@ interface AnimatedWrapperProps {
   isAnimating?: boolean;
 }
 
-export function AnimatedWrapper({ 
-  children, 
+export function AnimatedWrapper({
+  children,
   className = "",
   variant = "fadeIn",
-  isAnimating = true
+  isAnimating = true,
 }: AnimatedWrapperProps) {
   const getAnimationClasses = () => {
     if (!isAnimating) return "";
-    
+
     switch (variant) {
       case "message":
         return messageVariants.animate;
@@ -53,16 +53,7 @@ export function AnimatedWrapper({
     }
   };
 
-  return (
-    <div
-      className={cn(
-        getAnimationClasses(),
-        className
-      )}
-    >
-      {children}
-    </div>
-  );
+  return <div className={cn(getAnimationClasses(), className)}>{children}</div>;
 }
 
 // Componente para animar lista de itens
@@ -72,7 +63,11 @@ interface AnimatedListProps {
   staggerDelay?: boolean;
 }
 
-export function AnimatedList({ children, className = "", staggerDelay = false }: AnimatedListProps) {
+export function AnimatedList({
+  children,
+  className = "",
+  staggerDelay = false,
+}: AnimatedListProps) {
   return (
     <div
       className={cn(
@@ -95,15 +90,9 @@ interface AnimatedListItemProps {
 
 export function AnimatedListItem({ children, className = "", delay = 0 }: AnimatedListItemProps) {
   const delayStyle = delay > 0 ? { animationDelay: `${delay}ms` } : {};
-  
+
   return (
-    <div
-      className={cn(
-        slideUpVariants.animate,
-        className
-      )}
-      style={delayStyle}
-    >
+    <div className={cn(slideUpVariants.animate, className)} style={delayStyle}>
       {children}
     </div>
   );
@@ -113,7 +102,7 @@ export function AnimatedListItem({ children, className = "", delay = 0 }: Animat
 export function useAnimatedMount() {
   return {
     className: "opacity-100 scale-100 transition-all duration-200 ease-out",
-    initialClassName: "opacity-0 scale-95"
+    initialClassName: "opacity-0 scale-95",
   };
 }
 
@@ -123,17 +112,17 @@ export const animations = {
   slideIn: "animate-slide-in",
   fadeIn: "animate-fade-in",
   scaleIn: "animate-scale-in",
-  
+
   // Animações de saída
   slideOut: "animate-slide-out",
   fadeOut: "animate-fade-out",
   scaleOut: "animate-scale-out",
-  
+
   // Animações de loading
   spin: "animate-spin",
   pulse: "animate-pulse",
   bounce: "animate-bounce",
-  
+
   // Animações customizadas
   shimmer: "animate-shimmer",
   slideUp: "animate-slide-up",

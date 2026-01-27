@@ -1,12 +1,23 @@
 "use client";
 
-import { Bot, Check, Copy, Loader2, RefreshCw, ThumbsDown, ThumbsUp, User } from "lucide-react";
-import React, { useEffect, useRef, useState } from "react";
+import {
+  Bot,
+  Check,
+  ChevronDown,
+  Copy,
+  Loader2,
+  RefreshCw,
+  ThumbsDown,
+  ThumbsUp,
+  User,
+} from "lucide-react";
+import React from "react";
 import { toast } from "sonner";
+import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import { Message } from "@/components/chat/message";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { useChat } from "@/lib/contexts/chat-context";
 import { usePanel } from "@/lib/contexts/panel-context";
 import { useAgents } from "@/lib/hooks/use-agents";
 import type { Artifact, Message as MessageType } from "@/lib/mock/data";
@@ -31,34 +42,9 @@ export function ChatMessages({
   toolCalls,
   activities,
 }: ChatMessagesProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
-  const [isNearBottom, setIsNearBottom] = useState(true);
+  const { regenerateAssistantResponse } = useChat();
   const { agents } = useAgents();
-
-  // Smart auto-scroll: detecta viewport interno do ScrollArea e rastreia posição
-  useEffect(() => {
-    const viewport = scrollRef.current?.querySelector("[data-radix-scroll-area-viewport]");
-    if (!viewport) return;
-
-    const handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = viewport;
-      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-      setIsNearBottom(distanceFromBottom < 100);
-    };
-
-    viewport.addEventListener("scroll", handleScroll);
-    return () => viewport.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  // Auto-scroll quando novas mensagens chegam (só se usuário estiver no bottom)
-  useEffect(() => {
-    if (!isNearBottom) return;
-    const viewport = scrollRef.current?.querySelector("[data-radix-scroll-area-viewport]");
-    if (viewport) {
-      viewport.scrollTop = viewport.scrollHeight;
-    }
-  }, [messages.length, isNearBottom]);
 
   const handleCopy = (content: string, id: string) => {
     navigator.clipboard.writeText(content);
@@ -83,153 +69,170 @@ export function ChatMessages({
   const loadingText = isProcessing ? "Processando..." : "Respondendo...";
 
   return (
-    <ScrollArea className="flex-1 px-4" ref={scrollRef}>
-      <div className="max-w-3xl mx-auto py-6 space-y-6">
-        {/* Welcome Message if no messages */}
-        {messages.length === 0 && (
-          <div className="text-center py-8">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-accent/10 mb-3">
-              <Bot className="w-7 h-7 text-accent" />
+    <StickToBottom className="flex flex-1 min-h-0 flex-col relative">
+      {/* IMPORTANTE: o scroll real fica no wrapper interno do StickToBottom.
+          Por isso usamos scrollClassName aqui (e não className), senão o
+          auto-scroll e o scroll manual travam. */}
+      <StickToBottom.Content
+        data-testid="chat-scroll"
+        scrollClassName="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4"
+        className="min-h-full"
+      >
+        {/* Espaçamento inferior mínimo para evitar "buraco" visual. */}
+        <div className="max-w-3xl mx-auto py-4 pb-4 md:pb-6 space-y-4">
+          {/* Welcome Message if no messages */}
+          {messages.length === 0 && (
+            <div className="text-center py-8">
+              <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-accent/10 mb-3">
+                <Bot className="w-7 h-7 text-accent" />
+              </div>
+              <h2 className="text-xl font-semibold mb-1">Como posso ajudar?</h2>
+              <p className="text-muted-foreground text-sm max-w-md mx-auto mb-6">
+                Pergunte qualquer coisa. Posso ajudar com pesquisa, escrita, codigo, analise de
+                dados e mais.
+              </p>
             </div>
-            <h2 className="text-xl font-semibold mb-1">Como posso ajudar?</h2>
-            <p className="text-muted-foreground text-sm max-w-md mx-auto mb-6">
-              Pergunte qualquer coisa. Posso ajudar com pesquisa, escrita, codigo, analise de dados
-              e mais.
-            </p>
-          </div>
-        )}
+          )}
 
-        {/* Messages */}
-        {messages.map((message) => {
-          const agent = message.agentId
-            ? agents.find((a) => a.id === message.agentId)
-            : currentAgent;
-          const AgentIcon = agent?.icon || Bot;
-          const isLastAssistant = lastAssistantMessage?.id === message.id;
-          const messageIsStreaming = isLastAssistant && isLoading;
+          {/* Messages */}
+          {messages.map((message) => {
+            const agent = message.agentId
+              ? agents.find((a) => a.id === message.agentId)
+              : currentAgent;
+            const AgentIcon = agent?.icon || Bot;
+            const isLastAssistant = lastAssistantMessage?.id === message.id;
+            const messageIsStreaming = isLastAssistant && isLoading;
 
-          return (
-            <div
-              key={message.id}
-              className={`flex gap-4 ${message.role === "user" ? "justify-end" : "justify-start"}`}
-            >
-              {message.role === "assistant" && (
-                <Avatar className="h-8 w-8 flex-shrink-0">
-                  <AvatarFallback className="bg-gradient-to-br from-[#0A2463] to-[#6366f1] text-white">
-                    <AgentIcon className="h-4 w-4" />
-                  </AvatarFallback>
-                </Avatar>
-              )}
-
+            return (
               <div
-                className={`flex flex-col gap-2 max-w-[80%] ${
-                  message.role === "user" ? "items-end" : "items-start"
-                }`}
+                key={message.id}
+                className={`flex gap-4 ${message.role === "user" ? "justify-end" : "justify-start"}`}
               >
-                {/* Message Header - Only for Assistant */}
-                {message.role === "assistant" && agent && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span className="font-medium text-foreground">{agent.name}</span>
-                  </div>
+                {message.role === "assistant" && (
+                  <Avatar className="h-8 w-8 flex-shrink-0">
+                    <AvatarFallback className="bg-gradient-to-br from-[#0A2463] to-[#6366f1] text-white">
+                      <AgentIcon className="h-4 w-4" />
+                    </AvatarFallback>
+                  </Avatar>
                 )}
 
-                {/* Message Content */}
                 <div
-                  className={`rounded-2xl px-4 py-3 ${
-                    message.role === "user" ? "bg-accent text-accent-foreground" : "bg-muted"
+                  className={`flex flex-col gap-2 max-w-[80%] ${
+                    message.role === "user" ? "items-end" : "items-start"
                   }`}
                 >
-                  <Message
-                    message={message}
-                    isStreaming={messageIsStreaming}
-                    thinking={isLastAssistant ? thinking : undefined}
-                    steps={isLastAssistant ? steps : undefined}
-                    toolCalls={isLastAssistant ? toolCalls : undefined}
-                    activities={isLastAssistant ? activities : undefined}
-                  />
+                  {/* Message Header - Only for Assistant */}
+                  {message.role === "assistant" && agent && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">{agent.name}</span>
+                    </div>
+                  )}
+
+                  {/* Message Content */}
+                  <div
+                    className={`rounded-2xl px-4 py-3 ${
+                      message.role === "user" ? "bg-accent text-accent-foreground" : "bg-muted"
+                    }`}
+                  >
+                    <Message
+                      message={message}
+                      isStreaming={messageIsStreaming}
+                      thinking={isLastAssistant ? thinking : undefined}
+                      steps={isLastAssistant ? steps : undefined}
+                      toolCalls={isLastAssistant ? toolCalls : undefined}
+                      activities={isLastAssistant ? activities : undefined}
+                    />
+                  </div>
+
+                  {/* Artifacts */}
+                  {message.artifacts && message.artifacts.length > 0 && (
+                    <div className="w-full space-y-2">
+                      {message.artifacts.map((artifact) => (
+                        <ArtifactPreview key={artifact.id} artifact={artifact} />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Message Actions */}
+                  {message.role === "assistant" && (
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => toast.success("Feedback positivo registrado!")}
+                      >
+                        <ThumbsUp className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => toast.success("Feedback negativo registrado!")}
+                      >
+                        <ThumbsDown className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => handleCopy(message.content, message.id)}
+                      >
+                        {copiedId === message.id ? (
+                          <Check className="h-3.5 w-3.5 text-green-500" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => regenerateAssistantResponse(message.id)}
+                        disabled={isLoading || !isLastAssistant}
+                        title={
+                          isLastAssistant
+                            ? "Regenerar resposta"
+                            : "Disponível apenas para a última resposta"
+                        }
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
-                {/* Artifacts */}
-                {message.artifacts && message.artifacts.length > 0 && (
-                  <div className="w-full space-y-2">
-                    {message.artifacts.map((artifact) => (
-                      <ArtifactPreview key={artifact.id} artifact={artifact} />
-                    ))}
-                  </div>
-                )}
-
-                {/* Message Actions */}
-                {message.role === "assistant" && (
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => toast.success("Feedback positivo registrado!")}
-                    >
-                      <ThumbsUp className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => toast.success("Feedback negativo registrado!")}
-                    >
-                      <ThumbsDown className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => handleCopy(message.content, message.id)}
-                    >
-                      {copiedId === message.id ? (
-                        <Check className="h-3.5 w-3.5 text-green-500" />
-                      ) : (
-                        <Copy className="h-3.5 w-3.5" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => toast.info("Regenerando resposta...")}
-                    >
-                      <RefreshCw className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
+                {message.role === "user" && (
+                  <Avatar className="h-8 w-8 flex-shrink-0">
+                    <AvatarFallback className="bg-muted">
+                      <User className="h-4 w-4" />
+                    </AvatarFallback>
+                  </Avatar>
                 )}
               </div>
+            );
+          })}
 
-              {message.role === "user" && (
-                <Avatar className="h-8 w-8 flex-shrink-0">
-                  <AvatarFallback className="bg-muted">
-                    <User className="h-4 w-4" />
-                  </AvatarFallback>
-                </Avatar>
-              )}
+          {/* Loading Indicator */}
+          {shouldShowLoadingBubble && (
+            <div className="flex gap-4 justify-start">
+              <Avatar className="h-8 w-8 flex-shrink-0">
+                <AvatarFallback className="bg-gradient-to-br from-[#0A2463] to-[#6366f1] text-white">
+                  <Bot className="h-4 w-4" />
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex items-center gap-2 bg-muted rounded-2xl px-4 py-3">
+                <Loader2
+                  className={`h-4 w-4 animate-spin ${isProcessing ? "text-blue-500" : "text-accent"}`}
+                />
+                <span className="text-sm text-muted-foreground">{loadingText}</span>
+              </div>
             </div>
-          );
-        })}
-
-        {/* Loading Indicator */}
-        {shouldShowLoadingBubble && (
-          <div className="flex gap-4 justify-start">
-            <Avatar className="h-8 w-8 flex-shrink-0">
-              <AvatarFallback className="bg-gradient-to-br from-[#0A2463] to-[#6366f1] text-white">
-                <Bot className="h-4 w-4" />
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex items-center gap-2 bg-muted rounded-2xl px-4 py-3">
-              <Loader2
-                className={`h-4 w-4 animate-spin ${isProcessing ? "text-blue-500" : "text-accent"}`}
-              />
-              <span className="text-sm text-muted-foreground">{loadingText}</span>
-            </div>
-          </div>
-        )}
-      </div>
-    </ScrollArea>
+          )}
+        </div>
+      </StickToBottom.Content>
+      <ScrollToBottomButton />
+    </StickToBottom>
   );
 }
 
@@ -278,5 +281,25 @@ function ArtifactPreview({ artifact }: { artifact: Artifact }) {
         {artifact.content.slice(0, 150)}...
       </p>
     </button>
+  );
+}
+
+function ScrollToBottomButton() {
+  const { isAtBottom, scrollToBottom } = useStickToBottomContext();
+
+  if (isAtBottom) return null;
+
+  return (
+    <div className="absolute inset-x-0 flex justify-center z-10 pointer-events-none bottom-24">
+      <Button
+        variant="outline"
+        size="icon"
+        className="h-9 w-9 rounded-full pointer-events-auto"
+        onClick={() => scrollToBottom()}
+        aria-label="Ir para o final"
+      >
+        <ChevronDown className="h-4 w-4" />
+      </Button>
+    </div>
   );
 }

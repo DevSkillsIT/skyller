@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 // Hook para detectar tamanho de tela
@@ -55,27 +55,31 @@ interface ResponsiveProps {
   className?: string;
 }
 
-export function Responsive({ 
-  children, 
-  mobile, 
-  tablet, 
-  desktop, 
-  className 
-}: ResponsiveProps) {
+export function Responsive({ children, mobile, tablet, desktop, className }: ResponsiveProps) {
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
   const isDesktop = useIsDesktop();
 
-  const content = mobile && isMobile ? mobile : 
-                  tablet && isTablet ? tablet : 
-                  desktop && isDesktop ? desktop : 
-                  children;
+  const content =
+    mobile && isMobile
+      ? mobile
+      : tablet && isTablet
+        ? tablet
+        : desktop && isDesktop
+          ? desktop
+          : children;
 
   return <div className={className}>{content}</div>;
 }
 
 // Componente que oculta em mobile
-export function HiddenOnMobile({ children, className }: { children: ReactNode; className?: string }) {
+export function HiddenOnMobile({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
   const isMobile = useIsMobile();
   if (isMobile) return null;
   return <div className={className}>{children}</div>;
@@ -99,7 +103,7 @@ export function DesktopOnly({ children, className }: { children: ReactNode; clas
 export const responsive = {
   // Container
   container: "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
-  
+
   // Grid
   grid: {
     responsive: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4",
@@ -107,27 +111,27 @@ export const responsive = {
     threeCols: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4",
     fourCols: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4",
   },
-  
+
   // Flex
   flex: {
     responsive: "flex flex-col md:flex-row gap-4",
     colMobile: "flex flex-col md:flex-row lg:flex-col xl:flex-row gap-4",
   },
-  
+
   // Text
   text: {
     responsive: "text-sm md:text-base lg:text-lg",
     heading: "text-xl md:text-2xl lg:text-3xl",
     subheading: "text-lg md:text-xl lg:text-2xl",
   },
-  
+
   // Spacing
   spacing: {
     responsive: "p-4 md:p-6 lg:p-8",
     compact: "p-2 md:p-3 lg:p-4",
     wide: "p-6 md:p-8 lg:p-10",
   },
-  
+
   // Buttons
   button: {
     responsive: "h-10 px-4 py-2 text-sm md:h-11 md:px-6 md:text-base",
@@ -137,13 +141,13 @@ export const responsive = {
 };
 
 // Componente de container responsivo
-export function ResponsiveContainer({ 
-  children, 
+export function ResponsiveContainer({
+  children,
   className = "",
-  size = "default" 
-}: { 
-  children: ReactNode; 
-  className?: string; 
+  size = "default",
+}: {
+  children: ReactNode;
+  className?: string;
   size?: "compact" | "default" | "wide";
 }) {
   const sizeClasses = {
@@ -152,11 +156,7 @@ export function ResponsiveContainer({
     wide: "max-w-full mx-auto px-4 sm:px-6 lg:px-8 xl:px-12",
   };
 
-  return (
-    <div className={cn(sizeClasses[size], className)}>
-      {children}
-    </div>
-  );
+  return <div className={cn(sizeClasses[size], className)}>{children}</div>;
 }
 
 // Hook para orientação da tela
@@ -167,9 +167,7 @@ export function useScreenOrientation() {
     if (typeof window === "undefined") return;
 
     const handleOrientationChange = () => {
-      setOrientation(
-        window.innerHeight > window.innerWidth ? "portrait" : "landscape"
-      );
+      setOrientation(window.innerHeight > window.innerWidth ? "portrait" : "landscape");
     };
 
     handleOrientationChange();
@@ -181,11 +179,11 @@ export function useScreenOrientation() {
 }
 
 // Componente que se ajusta à orientação
-export function OrientationAware({ 
-  children, 
-  portrait, 
-  landscape, 
-  className 
+export function OrientationAware({
+  children,
+  portrait,
+  landscape,
+  className,
 }: {
   children: ReactNode;
   portrait?: ReactNode;
@@ -194,9 +192,12 @@ export function OrientationAware({
 }) {
   const orientation = useScreenOrientation();
 
-  const content = portrait && orientation === "portrait" ? portrait :
-                  landscape && orientation === "landscape" ? landscape :
-                  children;
+  const content =
+    portrait && orientation === "portrait"
+      ? portrait
+      : landscape && orientation === "landscape"
+        ? landscape
+        : children;
 
   return <div className={className}>{content}</div>;
 }

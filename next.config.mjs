@@ -6,6 +6,8 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Transpilacao de pacotes ES modules
+  transpilePackages: ["use-stick-to-bottom"],
 
   // Permitir todos os subdominios skyller.ai para server actions
   experimental: {
@@ -23,6 +25,17 @@ const nextConfig = {
         "*.skyller.ai",
       ],
     },
+  },
+
+  // Proxy para backend API (evita CORS)
+  async rewrites() {
+    const backendUrl = process.env.NEXUS_API_URL || "http://localhost:8000";
+    return [
+      {
+        source: "/api/v1/:path*",
+        destination: `${backendUrl}/api/v1/:path*`,
+      },
+    ];
   },
 
   // Headers para permitir CORS dos subdominios

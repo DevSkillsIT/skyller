@@ -1,16 +1,6 @@
 "use client";
 
-import {
-  Bot,
-  Brain,
-  Building2,
-  Cpu,
-  Globe,
-  Loader2,
-  Search,
-  Sparkles,
-  Zap,
-} from "lucide-react";
+import { Bot, Building2, Cpu, Globe, Loader2, Search, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -22,8 +12,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { type Agent, useAgents } from "@/lib/hooks/use-agents";
 import { cn } from "@/lib/utils";
-import { useAgents, type Agent } from "@/lib/hooks/use-agents";
 
 interface AgentsGalleryDialogProps {
   open: boolean;
@@ -68,9 +58,7 @@ export function AgentsGalleryDialog({
         disabled={!agent.isActive}
         className={cn(
           "relative p-5 rounded-xl border-2 text-left hover:shadow-md transition-all",
-          isSelected
-            ? "border-primary bg-primary/5"
-            : "border-border hover:border-primary/50",
+          isSelected ? "border-primary bg-primary/5" : "border-border hover:border-primary/50",
           !agent.isActive && "opacity-60 cursor-not-allowed hover:shadow-none"
         )}
       >
@@ -86,7 +74,9 @@ export function AgentsGalleryDialog({
             variant={agent.isActive ? "default" : "secondary"}
             className={cn(
               "text-[10px]",
-              agent.isActive ? "bg-green-500/10 text-green-600 border-green-200" : "bg-gray-100 text-gray-500"
+              agent.isActive
+                ? "bg-green-500/10 text-green-600 border-green-200"
+                : "bg-gray-100 text-gray-500"
             )}
           >
             {agent.isActive ? "Ativo" : "Inativo"}
@@ -122,10 +112,12 @@ export function AgentsGalleryDialog({
 
         {/* Informacoes tecnicas do agente */}
         <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground pt-3 border-t">
-          <div className={cn(
-            "h-1.5 w-1.5 rounded-full",
-            agent.isActive ? "bg-green-500" : "bg-gray-400"
-          )}></div>
+          <div
+            className={cn(
+              "h-1.5 w-1.5 rounded-full",
+              agent.isActive ? "bg-green-500" : "bg-gray-400"
+            )}
+          ></div>
           <span>{agent.tasksCompleted.toLocaleString()} tarefas</span>
           <span className="mx-1">•</span>
           <span>{agent.capabilities.length} ferramentas</span>

@@ -45,7 +45,7 @@ export function useRateLimit(): RateLimitState {
   const [state, setState] = useState<RateLimitState>({
     isLimited: false,
     remaining: 30, // Valor inicial conforme SPEC (30 RPM)
-    limit: 30,     // Limite padrão conforme SPEC
+    limit: 30, // Limite padrão conforme SPEC
     resetAt: null,
     formattedTime: "",
   });
@@ -81,9 +81,7 @@ export function useRateLimit(): RateLimitState {
           remaining,
           limit,
           resetAt,
-          formattedTime: formatSecondsToTime(
-            Math.floor((resetAt.getTime() - Date.now()) / 1000)
-          ),
+          formattedTime: formatSecondsToTime(Math.floor((resetAt.getTime() - Date.now()) / 1000)),
         });
 
         // Limpar intervalo anterior se existir

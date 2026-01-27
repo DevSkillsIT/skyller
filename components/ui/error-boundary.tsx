@@ -1,13 +1,9 @@
 "use client";
 
-import React, { Component, ErrorInfo, ReactNode } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
+import { Component, type ErrorInfo, type ReactNode } from "react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@/components/ui/alert";
 
 interface Props {
   children: ReactNode;
@@ -60,8 +56,7 @@ export class ErrorBoundary extends Component<Props, State> {
               <AlertTriangle className="h-4 w-4" />
               <AlertTitle>Ops! Algo deu errado</AlertTitle>
               <AlertDescription>
-                Ocorreu um erro inesperado. Por favor, tente novamente ou 
-                recarregue a página.
+                Ocorreu um erro inesperado. Por favor, tente novamente ou recarregue a página.
               </AlertDescription>
             </Alert>
 
@@ -70,11 +65,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Tentar novamente
               </Button>
-              <Button 
-                variant="outline" 
-                onClick={() => window.location.reload()}
-                className="flex-1"
-              >
+              <Button variant="outline" onClick={() => window.location.reload()} className="flex-1">
                 Recarregar página
               </Button>
             </div>
@@ -86,7 +77,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 </summary>
                 <pre className="text-xs overflow-auto text-muted-foreground">
                   {this.state.error.toString()}
-                  {this.state.errorInfo && this.state.errorInfo.componentStack}
+                  {this.state.errorInfo?.componentStack}
                 </pre>
               </details>
             )}
@@ -103,7 +94,7 @@ export class ErrorBoundary extends Component<Props, State> {
 export function useErrorHandler() {
   return (error: Error, errorInfo?: string) => {
     console.error("Error caught by error handler:", error, errorInfo);
-    
+
     // Aqui você poderia enviar para um serviço de monitoramento
     // reportError(error, errorInfo);
   };
@@ -117,11 +108,11 @@ interface ErrorFallbackProps {
   showRetry?: boolean;
 }
 
-export function ErrorFallback({ 
+export function ErrorFallback({
   title = "Ops! Algo deu errado",
   description = "Ocorreu um erro inesperado. Por favor, tente novamente.",
   onRetry,
-  showRetry = true 
+  showRetry = true,
 }: ErrorFallbackProps) {
   return (
     <div className="flex items-center justify-center min-h-[200px] p-4">

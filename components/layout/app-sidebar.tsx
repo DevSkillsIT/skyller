@@ -7,14 +7,11 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
-  Clock,
-  File,
   FileSearch,
   FileText,
   FolderKanban,
   FolderOpen,
   LayoutGrid,
-  MessageCircle,
   MessageSquare,
   MoreHorizontal,
   Pencil,
@@ -51,12 +48,11 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarRail,
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import type { Conversation, Project, Workspace } from "@/lib/mock/data";
+import type { Project, Workspace } from "@/lib/mock/data";
 import { getRecentConversations } from "@/lib/mock/data";
 import { cn } from "@/lib/utils";
 
@@ -100,8 +96,8 @@ export function AppSidebar({
   const [toolsExpanded, setToolsExpanded] = useState(true);
   const [showAllRecents, setShowAllRecents] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
-  const [expandedProjects, setExpandedProjects] = useState<string[]>([]);
-  const [showAllProjects, setShowAllProjects] = useState(false);
+  const [_expandedProjects, _setExpandedProjects] = useState<string[]>([]);
+  const [_showAllProjects, _setShowAllProjects] = useState(false);
   const [toolsHovered, setToolsHovered] = useState(false);
   const [conversationsHovered, setConversationsHovered] = useState(false);
 
@@ -319,7 +315,10 @@ export function AppSidebar({
                   <SidebarMenu>
                     {/* Link para detalhe do workspace */}
                     <SidebarMenuItem>
-                      <SidebarMenuButton asChild isActive={pathname === `/workspaces/${currentWorkspace.id}`}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={pathname === `/workspaces/${currentWorkspace.id}`}
+                      >
                         <Link href={`/workspaces/${currentWorkspace.id}`}>
                           <Building2 className="h-4 w-4" />
                           <span>Visao Geral</span>
@@ -328,7 +327,10 @@ export function AppSidebar({
                     </SidebarMenuItem>
                     {/* Link para projetos do workspace */}
                     <SidebarMenuItem>
-                      <SidebarMenuButton asChild isActive={pathname === "/projects" || pathname.startsWith("/projects/")}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={pathname === "/projects" || pathname.startsWith("/projects/")}
+                      >
                         <Link href={`/projects?workspace=${currentWorkspace.id}`}>
                           <FolderOpen className="h-4 w-4" />
                           <span>Projetos</span>

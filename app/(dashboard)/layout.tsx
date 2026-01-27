@@ -1,7 +1,7 @@
 "use client";
 
 import { PanelLeft } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type React from "react";
 import { Suspense, useCallback, useEffect, useState } from "react";
@@ -15,11 +15,13 @@ import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { ChatProvider, useChat } from "@/lib/contexts/chat-context";
 import { PanelProvider, usePanel } from "@/lib/contexts/panel-context";
 import { mockProjects, mockWorkspaces } from "@/lib/mock/data";
+import { cn } from "@/lib/utils";
 
 function DashboardInner({ children }: { children: React.ReactNode }) {
   // All hooks MUST be called unconditionally at the top
   const { status } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
   const [currentWorkspace, setCurrentWorkspace] = useState<(typeof mockWorkspaces)[0] | null>(
     () => {
       if (typeof window !== "undefined") {
@@ -74,6 +76,8 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     return null;
   }
 
+  const isChatRoute = pathname === "/" || pathname === "/suporte";
+
   return (
     <div className="flex h-screen w-full bg-background pb-16 md:pb-0">
       {/* Sidebar - 240px expandido, 64px colapsado */}
@@ -123,7 +127,11 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
         {/* Main Area + Artifact Split View */}
         <div className="flex flex-1 overflow-hidden">
-          <main className="flex-1 overflow-auto">{children}</main>
+          {/* IMPORTANTE: no chat principal, o scroll deve ficar somente no
+              container do StickToBottom para garantir auto-scroll correto. */}
+          <main className={cn("flex-1 min-h-0", isChatRoute ? "overflow-hidden" : "overflow-auto")}>
+            {children}
+          </main>
 
           {/* Artifact Panel - Inline like ChatGPT/Claude */}
           {isPanelOpen && (

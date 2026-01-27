@@ -54,6 +54,7 @@ export async function jwtCallback({ token, account, profile }: JWTCallbackParams
     // Tokens para API calls e refresh
     token.accessToken = account.access_token;
     token.refreshToken = account.refresh_token;
+    token.idToken = account.id_token; // Para logout no Keycloak (id_token_hint)
     token.expiresAt = account.expires_at;
 
     // SPEC-ORGS-001: Extrair organization como OBJETO do access_token
@@ -115,7 +116,7 @@ export async function jwtCallback({ token, account, profile }: JWTCallbackParams
  * @returns Refreshed token data
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function refreshAccessToken(token: JWT): Promise<Partial<JWT>> {
+async function _refreshAccessToken(token: JWT): Promise<Partial<JWT>> {
   const tokenEndpoint = `${process.env.KEYCLOAK_ISSUER}/protocol/openid-connect/token`;
 
   const response = await fetch(tokenEndpoint, {

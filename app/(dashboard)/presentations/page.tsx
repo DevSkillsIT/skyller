@@ -15,7 +15,6 @@ import {
   ImageIcon,
   List,
   Maximize2,
-  MoreVertical,
   Play,
   Plus,
   Presentation,
@@ -30,12 +29,10 @@ import { ToolChatSidebar } from "@/components/layout/tool-chat-sidebar";
 import { ToolHistorySidebar } from "@/components/layout/tool-history-sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -335,7 +332,6 @@ export default function PresentationsPage() {
           caption: "Descricao da imagem",
         };
         break;
-      case "grid":
       default:
         // Grid e tipos desconhecidos usam content como fallback
         newSlide = {
