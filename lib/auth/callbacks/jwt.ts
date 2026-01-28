@@ -94,17 +94,25 @@ export async function jwtCallback({ token, account, profile }: JWTCallbackParams
     }
   }
 
-  // Token refresh logic (future implementation)
-  // TODO: Implement token refresh when expired
-  // if (token.expiresAt && Date.now() >= (token.expiresAt as number) * 1000) {
-  //   try {
-  //     const refreshedTokens = await refreshAccessToken(token);
-  //     return { ...token, ...refreshedTokens };
-  //   } catch (error) {
-  //     console.error("[JWT Callback] Token refresh failed:", error);
-  //     return { ...token, error: "RefreshAccessTokenError" };
-  //   }
-  // }
+  // Token refresh logic - SPEC-AUTH-REFRESH-001
+  // Faz refresh proativo do token quando está prestes a expirar (30 segundos antes)
+  // Isso evita erros 401 TOKEN_EXPIRED na primeira requisição após expiração
+  const expiresAt = token.expiresAt as number | undefined;
+  const bufferSeconds = 30; // Refresh 30 segundos antes de expirar
+
+  if (expiresAt && Date.now() >= expiresAt * 1000 - bufferSeconds * 1000) {
+    try {
+      console.log("[JWT Callback] Token próximo de expirar, iniciando refresh...");
+      const refreshedTokens = await refreshAccessToken(token);
+      console.log("[JWT Callback] Token refreshed com sucesso");
+      return { ...token, ...refreshedTokens, error: undefined };
+    } catch (error) {
+      console.error("[JWT Callback] Token refresh failed:", error);
+      // Retorna o token antigo com flag de erro
+      // Isso permite que o usuário tente novamente ou faça re-login
+      return { ...token, error: "RefreshAccessTokenError" };
+    }
+  }
 
   return token;
 }
@@ -112,11 +120,13 @@ export async function jwtCallback({ token, account, profile }: JWTCallbackParams
 /**
  * Refresh access token using refresh token.
  *
+ * SPEC-AUTH-REFRESH-001: Renova o access_token usando o refresh_token do Keycloak.
+ * Chamado automaticamente pelo jwtCallback quando o token está prestes a expirar.
+ *
  * @param token - Current JWT token
  * @returns Refreshed token data
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function _refreshAccessToken(token: JWT): Promise<Partial<JWT>> {
+async function refreshAccessToken(token: JWT): Promise<Partial<JWT>> {
   const tokenEndpoint = `${process.env.KEYCLOAK_ISSUER}/protocol/openid-connect/token`;
 
   const response = await fetch(tokenEndpoint, {
