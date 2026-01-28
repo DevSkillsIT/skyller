@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Archive,
   Bot,
   Building2,
   Check,
@@ -13,18 +12,15 @@ import {
   FolderOpen,
   LayoutGrid,
   MessageSquare,
-  MoreHorizontal,
-  Pencil,
   Plus,
   Presentation,
   Search,
-  Sparkles,
-  Trash2,
   X,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { ConversationHistoryList } from "@/components/conversations";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -53,7 +49,6 @@ import {
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Project, Workspace } from "@/lib/mock/data";
-import { getRecentConversations } from "@/lib/mock/data";
 import { cn } from "@/lib/utils";
 
 const navigation = [
@@ -94,7 +89,6 @@ export function AppSidebar({
   const { open } = useSidebar();
   const [recentsExpanded, setRecentsExpanded] = useState(true);
   const [toolsExpanded, setToolsExpanded] = useState(true);
-  const [showAllRecents, setShowAllRecents] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [_expandedProjects, _setExpandedProjects] = useState<string[]>([]);
   const [_showAllProjects, _setShowAllProjects] = useState(false);
@@ -106,35 +100,6 @@ export function AppSidebar({
     () => projects.filter((p) => p.workspaceId === currentWorkspace?.id),
     [projects, currentWorkspace]
   );
-
-  // Conversas recentes (todas, ordenadas por data)
-  const recentConversations = useMemo(() => getRecentConversations(15), []);
-
-  const getProjectById = (projectId: string | null) => {
-    if (!projectId) return null;
-    return projects.find((p) => p.id === projectId);
-  };
-
-  // Formata tempo relativo
-  const formatRelativeTime = (date: Date) => {
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return "agora";
-    if (diffMins < 60) return `${diffMins}min`;
-    if (diffHours < 24) return `${diffHours}h`;
-    if (diffDays < 7) return `${diffDays}d`;
-    return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
-  };
-
-  // Limite de itens visiveis
-  const VISIBLE_RECENTS = 3;
-  const visibleRecents = showAllRecents
-    ? recentConversations
-    : recentConversations.slice(0, VISIBLE_RECENTS);
 
   return (
     <TooltipProvider>
@@ -420,7 +385,7 @@ export function AppSidebar({
               </Collapsible>
             )}
 
-            {/* SUAS CONVERSAS - Movido para baixo, sempre visível */}
+            {/* SUAS CONVERSAS - Movido para baixo, sempre visivel */}
             {open && (
               <Collapsible open={recentsExpanded} onOpenChange={setRecentsExpanded}>
                 <SidebarGroup className="py-1">
@@ -436,11 +401,6 @@ export function AppSidebar({
                           <span>Suas Conversas</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          {!conversationsHovered && (
-                            <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-                              {recentConversations.length}
-                            </Badge>
-                          )}
                           <ChevronRight
                             className={cn(
                               "h-4 w-4 transition-all",
@@ -454,101 +414,14 @@ export function AppSidebar({
                   </div>
                   <CollapsibleContent>
                     <SidebarGroupContent>
-                      <SidebarMenu>
-                        {visibleRecents.map((chat) => {
-                          const project = getProjectById(chat.projectId);
-                          const isSelected = selectedConversation === chat.id;
-
-                          return (
-                            <SidebarMenuItem key={chat.id}>
-                              <SidebarMenuButton
-                                onClick={() => {
-                                  setSelectedConversation(chat.id);
-                                  onConversationSelect?.(chat.id);
-                                }}
-                                isActive={isSelected}
-                                className="group h-auto py-1.5"
-                              >
-                                {/* Icone do projeto ou chat solto */}
-                                <div className="flex-shrink-0">
-                                  {project ? (
-                                    <span className="text-sm">{project.emoji}</span>
-                                  ) : (
-                                    <div className="w-5 h-5 rounded-md bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-                                      <Sparkles className="h-3 w-3 text-white" />
-                                    </div>
-                                  )}
-                                </div>
-
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <span className="text-sm truncate">{chat.title}</span>
-                                    <span className="text-[10px] text-muted-foreground flex-shrink-0">
-                                      {formatRelativeTime(chat.updatedAt)}
-                                    </span>
-                                  </div>
-                                  <div className="text-[10px] text-muted-foreground truncate">
-                                    {project ? project.name : "Chat rapido"}
-                                  </div>
-                                </div>
-
-                                {/* Menu de contexto */}
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-6 w-6 opacity-0 group-hover:opacity-100 flex-shrink-0 bg-transparent"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <MoreHorizontal className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" className="w-40">
-                                    <DropdownMenuItem>
-                                      <Pencil className="h-4 w-4 mr-2" />
-                                      Renomear
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem>
-                                      <Archive className="h-4 w-4 mr-2" />
-                                      Arquivar
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem className="text-destructive">
-                                      <Trash2 className="h-4 w-4 mr-2" />
-                                      Excluir
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </SidebarMenuButton>
-                            </SidebarMenuItem>
-                          );
-                        })}
-
-                        {/* Botao Ver mais/menos */}
-                        {recentConversations.length > VISIBLE_RECENTS && (
-                          <div className="px-2 py-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="w-full h-7 text-xs text-muted-foreground hover:text-foreground justify-start bg-transparent"
-                              onClick={() => setShowAllRecents(!showAllRecents)}
-                            >
-                              {showAllRecents ? (
-                                <>
-                                  <ChevronRight className="h-3 w-3 mr-1.5 -rotate-90" />
-                                  Ver menos
-                                </>
-                              ) : (
-                                <>
-                                  <ChevronRight className="h-3 w-3 mr-1.5 rotate-90" />
-                                  Ver mais {recentConversations.length - VISIBLE_RECENTS} conversas
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        )}
-                      </SidebarMenu>
+                      <ConversationHistoryList
+                        limit={15}
+                        onSelect={(id) => {
+                          setSelectedConversation(id);
+                          onConversationSelect?.(id);
+                        }}
+                        selectedId={selectedConversation}
+                      />
                     </SidebarGroupContent>
                   </CollapsibleContent>
                 </SidebarGroup>

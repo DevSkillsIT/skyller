@@ -15,7 +15,11 @@
  */
 "use client";
 
-import { type Message as AGUIMessage, UseAgentUpdate, useAgent } from "@copilotkitnext/react";
+import {
+  type Message as AGUIMessage,
+  UseAgentUpdate,
+  useAgent,
+} from "@copilotkitnext/react";
 import { applyPatch } from "fast-json-patch";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -35,7 +39,12 @@ import { useEffectiveAgent } from "@/lib/hooks/use-effective-agent";
 import { useRateLimit } from "@/lib/hooks/use-rate-limit";
 import { useSessionContext } from "@/lib/hooks/use-session-context";
 import type { Message } from "@/lib/mock/data";
-import type { ActivityState, StepState, ThinkingState, ToolCallState } from "@/lib/types/agui";
+import type {
+  ActivityState,
+  StepState,
+  ThinkingState,
+  ToolCallState,
+} from "@/lib/types/agui";
 
 // Re-export do tipo Artifact para uso externo
 export type { Artifact };
@@ -98,6 +107,8 @@ interface ChatContextType {
   isLoading: boolean;
   /** Se o assistente esta pensando (THINKING event) */
   isThinking: boolean;
+  /** CC-04: Se esta carregando historico */
+  isLoadingHistory: boolean;
   /** Carrega uma conversa existente (AC-008: busca historico do backend) */
   loadConversation: (conversationId: string) => Promise<void>;
   /** Inicia nova conversa */
@@ -124,14 +135,24 @@ const FALLBACK_AGENT_ID = "skyller";
 export function ChatProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { data: session } = useSession();
-  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [currentConversationId, setCurrentConversationId] = useState<
+    string | null
+  >(null);
   const [messages, setMessagesState] = useState<Message[]>([]);
   const [isThinking, setIsThinking] = useState(false);
   const lastMessageCountRef = useRef(0);
 
+  // CC-01: AbortController para race conditions
+  const abortControllerRef = useRef<AbortController | null>(null);
+  // CC-01: Track active conversation para evitar race conditions
+  const activeConversationIdRef = useRef<string | null>(null);
+  // CC-04: Track se esta carregando historico
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
   // SPEC-AGENT-MANAGEMENT-001: Resolver agente efetivo via hierarquia
   // User > Project > Workspace > Tenant > Fallback
-  const { agentId: effectiveAgentId, isLoading: isLoadingAgent } = useEffectiveAgent();
+  const { agentId: effectiveAgentId, isLoading: isLoadingAgent } =
+    useEffectiveAgent();
 
   // GAP-CONTEXT-HEADERS: Gerenciamento centralizado de contexto para headers de API
   // Inclui sessionId, conversationId, threadId, workspaceId, agentId
@@ -143,18 +164,28 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   } = useSessionContext();
 
   // Estado do agente selecionado (dinamico, inicializado pelo effective agent)
-  const [selectedAgentId, setSelectedAgentId] = useState<string | undefined>(undefined);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | undefined>(
+    undefined,
+  );
 
   // Estado local para tracking de eventos AG-UI (Thinking/Steps/Tool Calls/Activities)
-  const [thinking, setThinking] = useState<ThinkingState | undefined>(undefined);
+  const [thinking, setThinking] = useState<ThinkingState | undefined>(
+    undefined,
+  );
   const [steps, setSteps] = useState<StepState[]>([]);
-  const [toolCallsById, setToolCallsById] = useState<Record<string, ToolCallState>>({});
-  const [activitiesById, setActivitiesById] = useState<Record<string, ActivityState>>({});
+  const [toolCallsById, setToolCallsById] = useState<
+    Record<string, ToolCallState>
+  >({});
+  const [activitiesById, setActivitiesById] = useState<
+    Record<string, ActivityState>
+  >({});
   const [isConnected, setIsConnected] = useState(true);
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
 
   // GAP-IMP-01: Tracking de persistência de mensagens
-  const [pendingPersistence, setPendingPersistence] = useState<Set<string>>(new Set());
+  const [pendingPersistence, setPendingPersistence] = useState<Set<string>>(
+    new Set(),
+  );
   const [lastMessageCount, setLastMessageCount] = useState(0);
 
   // GAP-CRIT-06: Hook de rate limiting conectado ao backend (AC-012/RU-005)
@@ -163,15 +194,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const wasRunningRef = useRef(false);
 
   const toolCalls = useMemo(() => {
-    return Object.values(toolCallsById).sort((a, b) => a.startedAt - b.startedAt);
+    return Object.values(toolCallsById).sort(
+      (a, b) => a.startedAt - b.startedAt,
+    );
   }, [toolCallsById]);
 
   const activities = useMemo(() => {
-    return Object.values(activitiesById).sort((a, b) => a.updatedAt - b.updatedAt);
+    return Object.values(activitiesById).sort(
+      (a, b) => a.updatedAt - b.updatedAt,
+    );
   }, [activitiesById]);
 
   const currentTool = useMemo(() => {
-    return toolCalls.find((toolCall) => toolCall.status === "running")?.toolCallName;
+    return toolCalls.find((toolCall) => toolCall.status === "running")
+      ?.toolCallName;
   }, [toolCalls]);
 
   const thinkingState = useMemo(() => {
@@ -184,7 +220,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // SPEC-AGENT-MANAGEMENT-001: Sincronizar com agente efetivo quando disponivel
   useEffect(() => {
     if (effectiveAgentId && !selectedAgentId) {
-      console.info(`[ChatContext] Agente efetivo resolvido: ${effectiveAgentId}`);
+      console.info(
+        `[ChatContext] Agente efetivo resolvido: ${effectiveAgentId}`,
+      );
       setSelectedAgentId(effectiveAgentId);
     }
   }, [effectiveAgentId, selectedAgentId]);
@@ -227,13 +265,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setActivitiesById({});
   }, []);
 
-  const getToolStepName = useCallback((toolCallName?: string, toolCallId?: string) => {
-    const safeName = toolCallName ? toolCallName.replace(/[\s:]+/g, "_") : "tool";
-    if (!toolCallId) {
-      return `tool:${safeName}`;
-    }
-    return `tool:${safeName}:${toolCallId}`;
-  }, []);
+  const getToolStepName = useCallback(
+    (toolCallName?: string, toolCallId?: string) => {
+      const safeName = toolCallName
+        ? toolCallName.replace(/[\s:]+/g, "_")
+        : "tool";
+      if (!toolCallId) {
+        return `tool:${safeName}`;
+      }
+      return `tool:${safeName}:${toolCallId}`;
+    },
+    [],
+  );
 
   const cloneValue = useCallback((value: unknown) => {
     if (typeof structuredClone === "function") {
@@ -255,15 +298,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       prev.map((step) =>
         step.status === "running"
           ? { ...step, status: "completed", endedAt: step.endedAt ?? now }
-          : step
-      )
+          : step,
+      ),
     );
 
     setToolCallsById((prev) => {
       const next = { ...prev };
       for (const [id, toolCall] of Object.entries(next)) {
         if (toolCall.status === "running") {
-          next[id] = { ...toolCall, status: "completed", endedAt: toolCall.endedAt ?? now };
+          next[id] = {
+            ...toolCall,
+            status: "completed",
+            endedAt: toolCall.endedAt ?? now,
+          };
         }
       }
       return next;
@@ -297,7 +344,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
         // Erros HTTP genéricos
         if (status >= 400) {
-          toast.error(`❌ Erro ${status}: ${error.message || "Erro de comunicação"}`);
+          toast.error(
+            `❌ Erro ${status}: ${error.message || "Erro de comunicação"}`,
+          );
           return;
         }
 
@@ -321,9 +370,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         // GAP-IMP-01: Validar persistência após finalização
         if (pendingPersistence.size > 0) {
           console.error(
-            `[ChatContext] ❌ Falha na persistência: ${pendingPersistence.size} mensagens não confirmadas`
+            `[ChatContext] ❌ Falha na persistência: ${pendingPersistence.size} mensagens não confirmadas`,
           );
-          toast.error("Algumas mensagens podem não ter sido salvas. Tente reenviar.");
+          toast.error(
+            "Algumas mensagens podem não ter sido salvas. Tente reenviar.",
+          );
 
           // Limpar tracking para próxima execução
           setPendingPersistence(new Set());
@@ -333,13 +384,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       onStepStartedEvent: ({ event }) => {
         const startedAt = event.timestamp ?? Date.now();
         setSteps((prev) => {
-          const existingIndex = prev.findIndex((step) => step.stepName === event.stepName);
+          const existingIndex = prev.findIndex(
+            (step) => step.stepName === event.stepName,
+          );
           if (existingIndex >= 0) {
             const next = [...prev];
-            next[existingIndex] = { ...next[existingIndex], status: "running", startedAt };
+            next[existingIndex] = {
+              ...next[existingIndex],
+              status: "running",
+              startedAt,
+            };
             return next;
           }
-          return [...prev, { stepName: event.stepName, status: "running", startedAt }];
+          return [
+            ...prev,
+            { stepName: event.stepName, status: "running", startedAt },
+          ];
         });
       },
 
@@ -347,15 +407,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         const endedAt = event.timestamp ?? Date.now();
         setSteps((prev) =>
           prev.map((step) =>
-            step.stepName === event.stepName ? { ...step, status: "completed", endedAt } : step
-          )
+            step.stepName === event.stepName
+              ? { ...step, status: "completed", endedAt }
+              : step,
+          ),
         );
       },
 
       onToolCallStartEvent: ({ event }) => {
         const startedAt = event.timestamp ?? Date.now();
         const eventAny = event as any;
-        const stepName = getToolStepName(eventAny.toolCallName, eventAny.toolCallId);
+        const stepName = getToolStepName(
+          eventAny.toolCallName,
+          eventAny.toolCallId,
+        );
         setToolCallsById((prev) => ({
           ...prev,
           [eventAny.toolCallId]: {
@@ -368,10 +433,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           },
         }));
         setSteps((prev) => {
-          const existingIndex = prev.findIndex((step) => step.stepName === stepName);
+          const existingIndex = prev.findIndex(
+            (step) => step.stepName === stepName,
+          );
           if (existingIndex >= 0) {
             const next = [...prev];
-            next[existingIndex] = { ...next[existingIndex], status: "running", startedAt };
+            next[existingIndex] = {
+              ...next[existingIndex],
+              status: "running",
+              startedAt,
+            };
             return next;
           }
           return [...prev, { stepName, status: "running", startedAt }];
@@ -403,25 +474,37 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       onToolCallEndEvent: ({ event }) => {
         const endedAt = event.timestamp ?? Date.now();
         const eventAny = event as any;
-        const stepName = getToolStepName(eventAny.toolCallName, eventAny.toolCallId);
+        const stepName = getToolStepName(
+          eventAny.toolCallName,
+          eventAny.toolCallId,
+        );
         setToolCallsById((prev) => {
           const existing = prev[eventAny.toolCallId];
           if (!existing) return prev;
           return {
             ...prev,
-            [eventAny.toolCallId]: { ...existing, status: "completed", endedAt },
+            [eventAny.toolCallId]: {
+              ...existing,
+              status: "completed",
+              endedAt,
+            },
           };
         });
         setSteps((prev) =>
           prev.map((step) =>
-            step.stepName === stepName ? { ...step, status: "completed", endedAt } : step
-          )
+            step.stepName === stepName
+              ? { ...step, status: "completed", endedAt }
+              : step,
+          ),
         );
       },
 
       onToolCallResultEvent: ({ event }) => {
         const eventAny = event as any;
-        const stepName = getToolStepName(eventAny.toolCallName, eventAny.toolCallId);
+        const stepName = getToolStepName(
+          eventAny.toolCallName,
+          eventAny.toolCallId,
+        );
         setToolCallsById((prev) => {
           const existing = prev[eventAny.toolCallId];
           if (!existing) return prev;
@@ -438,8 +521,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           prev.map((step) =>
             step.stepName === stepName
               ? { ...step, status: "completed", endedAt: Date.now() }
-              : step
-          )
+              : step,
+          ),
         );
       },
 
@@ -469,7 +552,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               cloneValue(existing.content ?? {}),
               event.patch,
               true,
-              false
+              false,
             );
             return {
               ...prev,
@@ -480,7 +563,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               },
             };
           } catch (error) {
-            console.warn("[ChatContext] Falha ao aplicar patch de activity:", error);
+            console.warn(
+              "[ChatContext] Falha ao aplicar patch de activity:",
+              error,
+            );
             return prev;
           }
         });
@@ -494,7 +580,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
         if (event.type === "THINKING_START") {
           setSteps((prev) => {
-            const existingIndex = prev.findIndex((step) => step.stepName === "reasoning");
+            const existingIndex = prev.findIndex(
+              (step) => step.stepName === "reasoning",
+            );
             if (existingIndex >= 0) {
               const next = [...prev];
               next[existingIndex] = {
@@ -504,7 +592,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               };
               return next;
             }
-            return [...prev, { stepName: "reasoning", status: "running", startedAt: timestamp }];
+            return [
+              ...prev,
+              {
+                stepName: "reasoning",
+                status: "running",
+                startedAt: timestamp,
+              },
+            ];
           });
           setThinking((prev) => ({
             status: "active",
@@ -516,7 +611,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
         if (event.type === "THINKING_TEXT_MESSAGE_START") {
           setSteps((prev) => {
-            const existingIndex = prev.findIndex((step) => step.stepName === "reasoning");
+            const existingIndex = prev.findIndex(
+              (step) => step.stepName === "reasoning",
+            );
             if (existingIndex >= 0) {
               const next = [...prev];
               next[existingIndex] = {
@@ -526,7 +623,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               };
               return next;
             }
-            return [...prev, { stepName: "reasoning", status: "running", startedAt: timestamp }];
+            return [
+              ...prev,
+              {
+                stepName: "reasoning",
+                status: "running",
+                startedAt: timestamp,
+              },
+            ];
           });
           setThinking((prev) => ({
             status: "active",
@@ -545,13 +649,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           }));
         }
 
-        if (event.type === "THINKING_TEXT_MESSAGE_END" || event.type === "THINKING_END") {
+        if (
+          event.type === "THINKING_TEXT_MESSAGE_END" ||
+          event.type === "THINKING_END"
+        ) {
           setSteps((prev) =>
             prev.map((step) =>
               step.stepName === "reasoning"
-                ? { ...step, status: "completed", endedAt: step.endedAt ?? timestamp }
-                : step
-            )
+                ? {
+                    ...step,
+                    status: "completed",
+                    endedAt: step.endedAt ?? timestamp,
+                  }
+                : step,
+            ),
           );
           setThinking((prev) => {
             if (!prev) {
@@ -590,7 +701,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       onMessagesChanged: ({ messages }) => {
         // GAP-IMP-01: Validar persistência de mensagens
         // Quando backend retorna mensagens via SSE, indica que foram persistidas
-        console.debug(`[ChatContext] Mensagens atualizadas: ${messages.length}`);
+        console.debug(
+          `[ChatContext] Mensagens atualizadas: ${messages.length}`,
+        );
 
         // Se recebemos mais mensagens do que tínhamos, persistência confirmada
         if (messages.length > lastMessageCount) {
@@ -599,7 +712,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           // Limpar IDs de mensagens pendentes (backend confirmou persistência)
           setPendingPersistence(new Set());
 
-          console.info(`[ChatContext] ✅ Persistência confirmada: ${messages.length} mensagens`);
+          console.info(
+            `[ChatContext] ✅ Persistência confirmada: ${messages.length} mensagens`,
+          );
         }
       },
     });
@@ -680,21 +795,26 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       if (status === 403) {
         // Sem permissão (tenant não selecionado ou permissões insuficientes)
-        toast.error("Sem permissão. Verifique suas permissões ou selecione um tenant.");
+        toast.error(
+          "Sem permissão. Verifique suas permissões ou selecione um tenant.",
+        );
         router.push("/dashboard");
         return true;
       }
 
       return false;
     },
-    [router]
+    [router],
   );
 
   // Converter mensagens do AG-UI para formato local
   // Ignora mensagens "tool/system/developer" para evitar vazamento de payloads de tools na UI.
   const copilotMessages = agent.messages as unknown as AGUIMessage[];
-  const messages: Message[] = copilotMessages
-    .filter((msg) => (msg as any).role === "user" || (msg as any).role === "assistant")
+  const convertedMessages: Message[] = copilotMessages
+    .filter(
+      (msg) =>
+        (msg as any).role === "user" || (msg as any).role === "assistant",
+    )
     .map((msg) => ({
       id: (msg as any).id,
       role: (msg as any).role as "user" | "assistant",
@@ -706,14 +826,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // GAP-IMP-02: Retry automático com backoff exponencial (RE-004/RO-005)
   const runAgentInternal = async (
     message: string,
-    options: { appendUserMessage?: boolean } = {}
+    options: { appendUserMessage?: boolean } = {},
   ) => {
     const MAX_RETRIES = 3;
     const RETRY_DELAY = 2000; // 2 segundos
     const appendUserMessage = options.appendUserMessage ?? true;
 
     // Helper para sleep
-    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    const sleep = (ms: number) =>
+      new Promise((resolve) => setTimeout(resolve, ms));
 
     // Adicionar mensagem antes de tentar executar
     if (appendUserMessage) {
@@ -753,17 +874,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             {},
             {
               context: apiContext,
-            }
+            },
           );
         } catch (trackError) {
           // Nao bloquear por erro de tracking (nao-critico)
-          console.warn("[ChatContext] Erro ao registrar uso de agente:", trackError);
+          console.warn(
+            "[ChatContext] Erro ao registrar uso de agente:",
+            trackError,
+          );
         }
 
         // Sucesso - retornar imediatamente
         return;
       } catch (error) {
-        console.error(`Erro ao executar agente (tentativa ${attempt}/${MAX_RETRIES}):`, error);
+        console.error(
+          `Erro ao executar agente (tentativa ${attempt}/${MAX_RETRIES}):`,
+          error,
+        );
 
         // Interceptar erros de autenticação/autorização (401/403) - não faz retry
         const wasHandled = handleApiError(error);
@@ -787,7 +914,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
         // Se não é a última tentativa, aguardar backoff e tentar novamente
         if (attempt < MAX_RETRIES) {
-          toast.info(`🔄 Tentativa ${attempt}/${MAX_RETRIES} falhou. Tentando novamente...`);
+          toast.info(
+            `🔄 Tentativa ${attempt}/${MAX_RETRIES} falhou. Tentando novamente...`,
+          );
           await sleep(RETRY_DELAY * 2 ** (attempt - 1)); // Backoff exponencial: 2s → 4s → 8s
         } else {
           // Última tentativa falhou - mostrar erro fatal
@@ -807,121 +936,131 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     await runAgentInternal(message, { appendUserMessage: true });
   };
 
-  // Métodos legados para backward compatibility
-  // GAP-IMP-03: Carregar histórico ordenado (AC-008/RE-005)
-  const loadConversation = async (conversationId: string) => {
-    setCurrentConversationId(conversationId);
-
-    try {
-      // Verificar sessao valida
-      if (!session?.user) {
-        toast.error("Sessão inválida. Faça login novamente.");
-        router.push("/api/auth/login");
-        return;
+  // GAP-IMP-03: Carregar historico ordenado (AC-008/RE-005)
+  // CC-01: AbortController para race conditions
+  // CC-03: Anti-loop guard robusto
+  // CC-04: Lazy loading (apenas 50 msgs iniciais)
+  const loadConversation = useCallback(
+    async (conversationId: string) => {
+      // CC-01: Cancelar requisicao anterior se houver
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
       }
 
-      // AC-008: Carregar histórico completo da API com headers obrigatórios
-      // GAP-CONTEXT-HEADERS: Incluir contexto completo nos headers
-      // Backend exige X-Tenant-ID, X-User-ID + contexto (conversationId, sessionId, etc.)
-      const response = await authGet<
-        Array<{
-          id: string;
-          role: "user" | "assistant";
-          content: string;
-          created_at: string; // Backend retorna created_at, não timestamp
-          created_at_ts?: number;
-        }>
-      >(`/api/v1/conversations/${conversationId}/messages`, session, {
-        context: {
-          ...apiContext,
-          conversationId, // Usar conversationId do parametro (mais atual)
-        },
-      });
+      // CC-01: Nova AbortController para esta requisicao
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      activeConversationIdRef.current = conversationId;
 
-      // Mapear created_at para timestamp (compatibilidade com Message interface)
-      const messages: Message[] = response.map((msg) => ({
-        id: msg.id,
-        role: msg.role,
-        content: msg.content,
-        timestamp: new Date(msg.created_at), // Mapear created_at → timestamp
-      }));
+      setCurrentConversationId(conversationId);
+      setIsLoadingHistory(true);
 
-      // RE-005: Ordenar em ordem cronológica (antigo → recente)
-      const sortedMessages = messages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      try {
+        // Verificar sessao valida
+        if (!session?.user) {
+          toast.error("Sessao invalida. Faca login novamente.");
+          router.push("/api/auth/login");
+          return;
+        }
 
-      // CC-03: Hidratar histórico com agent.setMessages() + propagação de threadId
-      agent.setMessages(
-        sortedMessages.map((msg) => ({
+        // CC-01: Verificar se ainda e a conversa ativa
+        if (activeConversationIdRef.current !== conversationId) {
+          console.debug(`[ChatContext] Requisicao cancelada - conversa mudou`);
+          return;
+        }
+
+        // CC-04: Carregar apenas 50 mensagens iniciais (lazy loading)
+        const response = await authGet<{
+          items: Array<{
+            id: string;
+            role: "user" | "assistant";
+            content: string;
+            created_at: string;
+            created_at_ts: number;
+          }>;
+          has_more: boolean;
+          next_cursor: number | null;
+        }>(
+          `/api/v1/conversations/${conversationId}/messages?limit=50`,
+          session,
+          {
+            context: {
+              ...apiContext,
+              conversationId,
+            },
+          },
+        );
+
+        // CC-01: Verificar se a requisicao foi abortada
+        if (controller.signal.aborted) {
+          console.debug(`[ChatContext] Requisicao abortada`);
+          return;
+        }
+
+        // CC-01: Verificar se ainda e a conversa ativa (double-check)
+        if (activeConversationIdRef.current !== conversationId) {
+          console.debug(`[ChatContext] Conversa mudou durante fetch`);
+          return;
+        }
+
+        // Mapear mensagens - suporta tanto array direto quanto objeto paginado
+        const rawMessages = Array.isArray(response) ? response : response.items;
+        const hasMore = Array.isArray(response) ? false : response.has_more;
+
+        const mappedMessages: Message[] = rawMessages.map((msg) => ({
           id: msg.id,
           role: msg.role,
           content: msg.content,
-          createdAt: msg.timestamp,
-        }))
-      );
+          timestamp: new Date(msg.created_at),
+        }));
 
-      // Propagar threadId para sincronização (conforme CC-03)
-      if (agent.threadId !== conversationId) {
-        // threadId é readonly, atualizar via setState se disponível
-        console.info(`[ChatContext] Histórico carregado: ${sortedMessages.length} mensagens`);
+        // RE-005: Ordenar em ordem cronologica (antigo -> recente)
+        const sortedMessages = mappedMessages.sort(
+          (a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
+        );
+
+        // Hidratar o contexto do AG-UI
+        agent.setMessages(
+          sortedMessages.map((msg) => ({
+            id: msg.id,
+            role: msg.role,
+            content: msg.content,
+            createdAt: msg.timestamp,
+          })),
+        );
+
+        console.info(
+          `[ChatContext] Historico carregado: ${sortedMessages.length} mensagens${hasMore ? " (mais disponiveis)" : ""}`,
+        );
+      } catch (error) {
+        // Ignorar erros de abort
+        if ((error as Error).name === "AbortError") {
+          return;
+        }
+
+        console.error("Erro ao carregar historico:", error);
+        const wasHandled = handleApiError(error);
+        if (!wasHandled) {
+          toast.error("Erro ao carregar historico. Tente novamente.");
+        }
+      } finally {
+        setIsLoadingHistory(false);
       }
-
-      // Toast removido - carregamento de histórico não precisa de notificação
-      console.info(`[ChatContext] Histórico carregado: ${sortedMessages.length} mensagens`);
-    } catch (error) {
-      console.error("Erro ao carregar histórico:", error);
-
-      // Interceptar erros de autenticação/autorização (401/403)
-      const wasHandled = handleApiError(error);
-
-      // Se não foi um erro de auth, mostrar mensagem genérica
-      if (!wasHandled) {
-        toast.error("Erro ao carregar histórico. Tente novamente.");
-      }
-    }
-  };
-
-    try {
-      // Buscar historico de mensagens do backend via API proxy
-      const response = await fetch(`/api/conversations/${conversationId}/messages`);
-
-      if (!response.ok) {
-        console.error("[ChatContext] Erro ao carregar historico:", response.status);
-        setMessagesState([]);
-        lastMessageCountRef.current = 0;
-        return;
-      }
-
-      const historyMessages = await response.json();
-
-      // Converter mensagens do backend para o formato do contexto
-      const formattedMessages: Message[] = historyMessages.map(
-        (msg: { id: string; role: string; content: string; created_at?: string }) => ({
-          id: msg.id,
-          role: msg.role as "user" | "assistant" | "system",
-          content: msg.content,
-          timestamp: msg.created_at ? new Date(msg.created_at) : new Date(),
-          status: "sent" as const,
-        })
-      );
-
-      // Hidratar o contexto com o historico
-      setMessagesState(formattedMessages);
-      lastMessageCountRef.current = formattedMessages.length;
-
-      console.log(`[ChatContext] Historico carregado: ${formattedMessages.length} mensagens`);
-    } catch (error) {
-      console.error("[ChatContext] Erro ao carregar historico:", error);
-      setMessagesState([]);
-      lastMessageCountRef.current = 0;
-    }
-  }, []);
+    },
+    [session, router, apiContext, agent, handleApiError],
+  );
 
   // Inicia nova conversa
   const startNewConversation = useCallback(() => {
+    // CC-01: Cancelar qualquer requisicao pendente
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    activeConversationIdRef.current = null;
     setCurrentConversationId(null);
     agent.setMessages([]);
     resetRunVisualization();
-  };
+  }, [agent, resetRunVisualization]);
 
   const applyMessages = useCallback(
     (newMessages: Message[]) => {
@@ -931,10 +1070,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           role: msg.role,
           content: msg.content,
           createdAt: msg.timestamp,
-        }))
+        })),
       );
     },
-    [agent]
+    [agent],
   );
 
   const addMessage = (message: Message) => {
@@ -956,18 +1095,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const assistantIndex = messages.findIndex((message) => message.id === assistantMessageId);
+    const assistantIndex = convertedMessages.findIndex(
+      (message) => message.id === assistantMessageId,
+    );
     if (assistantIndex === -1) {
       toast.error("Não foi possível localizar a resposta para regenerar.");
       return;
     }
 
-    if (assistantIndex !== messages.length - 1) {
+    if (assistantIndex !== convertedMessages.length - 1) {
       toast.info("Regeneração disponível apenas para a última resposta.");
       return;
     }
 
-    const userIndex = [...messages]
+    const userIndex = [...convertedMessages]
       .slice(0, assistantIndex)
       .reverse()
       .findIndex((message) => message.role === "user");
@@ -977,19 +1118,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const originalUserMessage = messages[assistantIndex - 1 - userIndex];
+    const originalUserMessage = convertedMessages[assistantIndex - 1 - userIndex];
 
     // Remove a última resposta antes de regenerar para evitar duplicidade visual.
-    applyMessages(messages.slice(0, assistantIndex));
+    applyMessages(convertedMessages.slice(0, assistantIndex));
 
-    await runAgentInternal(originalUserMessage.content, { appendUserMessage: false });
+    await runAgentInternal(originalUserMessage.content, {
+      appendUserMessage: false,
+    });
   };
 
   // Handler para mudar agente selecionado
   const handleSetSelectedAgentId = useCallback(
     (agentId: string) => {
       if (agentId !== selectedAgentId) {
-        console.info(`[ChatContext] Agente alterado: ${selectedAgentId} → ${agentId}`);
+        console.info(
+          `[ChatContext] Agente alterado: ${selectedAgentId} → ${agentId}`,
+        );
         setSelectedAgentId(agentId);
         // Limpar mensagens ao trocar de agente (nova conversa)
         agent.setMessages([]);
@@ -997,14 +1142,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         resetRunVisualization();
       }
     },
-    [selectedAgentId, agent, resetRunVisualization]
+    [selectedAgentId, agent, resetRunVisualization],
   );
 
   return (
     <ChatContext.Provider
       value={{
         // Estado do agente (via useAgent)
-        messages,
+        messages: convertedMessages,
         isRunning: agent.isRunning,
         isConnected,
         reconnectAttempt,
@@ -1029,97 +1174,47 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
         // Backward compatibility
         currentConversationId,
+        isLoading: agent.isRunning,
+        isThinking,
+        isLoadingHistory,
         loadConversation,
         startNewConversation,
+        sendMessage: runAgent,
         addMessage,
         setMessages,
+        regenerateLastResponse: async () => {
+          const lastUserMessage = [...convertedMessages]
+            .reverse()
+            .find((m) => m.role === "user");
+          if (lastUserMessage) {
+            await runAgentInternal(lastUserMessage.content, {
+              appendUserMessage: false,
+            });
+          }
+        },
+        stopGeneration: () => {
+          // AG-UI v2 nao expoe stop diretamente, mas podemos limpar estado
+          setIsThinking(false);
+        },
+        retryMessage: async (messageId: string, content: string) => {
+          // Remove a mensagem antiga com erro e reenvia
+          agent.setMessages(
+            (agent.messages as unknown as AGUIMessage[])
+              .filter((msg) => (msg as any).id !== messageId)
+              .map((msg) => ({
+                id: (msg as any).id,
+                role: (msg as any).role,
+                content: (msg as any).content,
+                createdAt: (msg as any).createdAt,
+              })),
+          );
+          await runAgent(content);
+        },
       }}
     >
       {children}
     </ChatContext.Provider>
   );
-
-  /**
-   * AC-018: Retenta envio de mensagem com erro
-   */
-  const retryMessage = useCallback(
-    async (messageId: string, content: string) => {
-      // Remove a mensagem antiga com erro
-      setMessagesState((prev) => prev.filter((msg) => msg.id !== messageId));
-
-      // Reenvia a mensagem
-      await sendMessage(content);
-    },
-    [sendMessage]
-  );
-
-  // Adiciona mensagem manualmente (para compatibilidade)
-  const addMessage = useCallback((message: Message) => {
-    setMessagesState((prev) => [...prev, message]);
-  }, []);
-
-  // Define mensagens diretamente
-  const setMessages = useCallback((newMessages: Message[]) => {
-    setMessagesState(newMessages);
-    lastMessageCountRef.current = 0;
-  }, []);
-
-  // Regenera ultima resposta
-  const regenerateLastResponse = useCallback(async () => {
-    const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
-    if (lastUserMessage) {
-      // Remove ultima resposta do assistente
-      setMessagesState((prev) => {
-        const lastAssistantIndex = prev.findLastIndex((m) => m.role === "assistant");
-        if (lastAssistantIndex > -1) {
-          return prev.slice(0, lastAssistantIndex);
-        }
-        return prev;
-      });
-
-      // Reenvia a mensagem
-      await sendMessage(lastUserMessage.content, lastUserMessage.agentId);
-    }
-  }, [messages, sendMessage]);
-
-  // Para geracao
-  const stopGeneration = useCallback(() => {
-    copilotStopGeneration();
-    setIsThinking(false);
-  }, [copilotStopGeneration]);
-
-  const value = useMemo(
-    () => ({
-      messages,
-      currentConversationId,
-      isLoading,
-      isThinking,
-      loadConversation,
-      startNewConversation,
-      sendMessage,
-      addMessage,
-      setMessages,
-      regenerateLastResponse,
-      stopGeneration,
-      retryMessage,
-    }),
-    [
-      messages,
-      currentConversationId,
-      isLoading,
-      isThinking,
-      loadConversation,
-      startNewConversation,
-      sendMessage,
-      addMessage,
-      setMessages,
-      regenerateLastResponse,
-      stopGeneration,
-      retryMessage,
-    ]
-  );
-
-  return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
 }
 
 /**

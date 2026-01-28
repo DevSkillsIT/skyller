@@ -510,3 +510,93 @@ export async function authPost<T, D = unknown>(
     },
   });
 }
+
+/**
+ * Faz uma requisicao PUT autenticada para a API
+ *
+ * @param endpoint - Endpoint da API (ex: "/api/v1/conversations/123")
+ * @param session - Session do NextAuth
+ * @param data - Dados a enviar
+ * @param options - Opcoes adicionais do fetch (inclui context para headers extras)
+ * @returns Response da API
+ * @throws {ApiError} Quando a requisicao falha
+ *
+ * @spec SPEC-CHAT-HISTORY-INTEGRATION-001
+ *
+ * @example
+ * // Renomear conversa
+ * await authPut('/api/v1/conversations/123', session, { title: 'Novo titulo' });
+ */
+export async function authPut<T, D = unknown>(
+  endpoint: string,
+  session: AuthSession | null,
+  data?: D,
+  options?: AuthRequestOptions
+): Promise<T> {
+  const { context, ...fetchOptions } = options || {};
+  const authHeaders = createAuthHeaders(session, context);
+
+  const response = await fetch(`${getApiBaseUrl()}${endpoint}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders,
+      ...fetchOptions?.headers,
+    },
+    body: data ? JSON.stringify(data) : undefined,
+    ...fetchOptions,
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      handleUnauthorized();
+      throw new ApiError(response.status, "Session expired - redirecting to login", response);
+    }
+    throw new ApiError(response.status, response.statusText, response);
+  }
+
+  return response.json();
+}
+
+/**
+ * Faz uma requisicao DELETE autenticada para a API
+ *
+ * @param endpoint - Endpoint da API (ex: "/api/v1/conversations/123")
+ * @param session - Session do NextAuth
+ * @param options - Opcoes adicionais do fetch (inclui context para headers extras)
+ * @returns void (DELETE retorna 204 No Content)
+ * @throws {ApiError} Quando a requisicao falha
+ *
+ * @spec SPEC-CHAT-HISTORY-INTEGRATION-001
+ *
+ * @example
+ * // Deletar conversa
+ * await authDelete('/api/v1/conversations/123', session);
+ */
+export async function authDelete(
+  endpoint: string,
+  session: AuthSession | null,
+  options?: AuthRequestOptions
+): Promise<void> {
+  const { context, ...fetchOptions } = options || {};
+  const authHeaders = createAuthHeaders(session, context);
+
+  const response = await fetch(`${getApiBaseUrl()}${endpoint}`, {
+    method: "DELETE",
+    headers: {
+      ...authHeaders,
+      ...fetchOptions?.headers,
+    },
+    ...fetchOptions,
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      handleUnauthorized();
+      throw new ApiError(response.status, "Session expired - redirecting to login", response);
+    }
+    throw new ApiError(response.status, response.statusText, response);
+  }
+
+  // DELETE retorna 204 No Content - nao ha body para parsear
+}

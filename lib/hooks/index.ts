@@ -1,6 +1,7 @@
 /**
  * Hooks do Skyller
  * @spec SPEC-COPILOT-INTEGRATION-001
+ * @spec SPEC-CHAT-HISTORY-INTEGRATION-001
  */
 
 export {
@@ -27,3 +28,11 @@ export {
   type UseAgentEventsReturn,
   useAgentEvents,
 } from "./use-agent-events";
+export {
+  type ConversationSummary,
+  type ConversationListResponse,
+  type MessageItem,
+  type MessageListResponse,
+  type UseConversationsReturn,
+  useConversations,
+} from "./use-conversations";
