@@ -99,7 +99,7 @@ export default function KanbanPage() {
     })
   );
 
-  const taskIds = useMemo(() => {
+  const _taskIds = useMemo(() => {
     return columns.flatMap((col) => col.tasks.map((task) => task.id));
   }, [columns]);
 

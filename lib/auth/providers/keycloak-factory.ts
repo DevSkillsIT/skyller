@@ -40,7 +40,7 @@ const KEYCLOAK_BASE_URL = process.env.KEYCLOAK_BASE_URL || "https://idp.servidor
  * Habilitar white-label auth (usuario permanece no subdominio)
  * Quando true, authorization URLs usam /auth/ path do subdominio
  */
-const WHITE_LABEL_AUTH = process.env.WHITE_LABEL_AUTH !== "false";
+const _WHITE_LABEL_AUTH = process.env.WHITE_LABEL_AUTH !== "false";
 
 /**
  * Default tenant for development and fallback

@@ -7,30 +7,26 @@
  * Separa agentes em globais (is_default=true) e da empresa (tenant-specific).
  */
 
-import { useState, useEffect, useCallback } from "react";
-import { useSession } from "next-auth/react";
-import { authGet } from "@/lib/api-client";
 import type { LucideIcon } from "lucide-react";
 import {
-  Bot,
   BarChart3,
+  Bot,
+  Brain,
   Code2,
-  FileText,
+  Database,
   DollarSign,
+  FileText,
+  Globe,
+  Palette,
   Scale,
   Search,
-  Palette,
-  Sparkles,
-  Building2,
-  Globe,
-  Database,
-  Wrench,
   Shield,
-  MessageSquare,
-  Lightbulb,
-  Brain,
-  Cpu,
+  Sparkles,
+  Wrench,
 } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { useCallback, useEffect, useState } from "react";
+import { authGet } from "@/lib/api-client";
 
 // ==============================================================================
 // Types
@@ -100,34 +96,34 @@ export interface UseAgentsState {
  */
 const iconMap: Record<string, LucideIcon> = {
   // Por agent_id
-  "general": Bot,
+  general: Bot,
   "assistant-default": Bot,
-  "skyller": Brain,
+  skyller: Brain,
   "data-analyst": BarChart3,
   "code-assistant": Code2,
   "doc-analyst": FileText,
-  "financial": DollarSign,
+  financial: DollarSign,
   "web-researcher": Search,
-  "legal": Scale,
+  legal: Scale,
   "legal-compliance": Scale,
   "brand-designer": Palette,
   "custom-ai": Sparkles,
   "dns-specialist": Globe,
   "glpi-helper": Wrench,
-  "security": Shield,
-  "database": Database,
+  security: Shield,
+  database: Database,
   // Fallback por categoria (em português para match com getCategoryFromAgent)
-  "dados": BarChart3,
-  "desenvolvimento": Code2,
-  "documentos": FileText,
-  "financas": DollarSign,
+  dados: BarChart3,
+  desenvolvimento: Code2,
+  documentos: FileText,
+  financas: DollarSign,
   // "legal" já existe acima (agent_id) - não duplicar
-  "design": Palette,
-  "pesquisa": Search,
-  "seguranca": Shield,
-  "geral": Bot,
-  "infraestrutura": Globe,
-  "suporte": Wrench,
+  design: Palette,
+  pesquisa: Search,
+  seguranca: Shield,
+  geral: Bot,
+  infraestrutura: Globe,
+  suporte: Wrench,
 };
 
 /**

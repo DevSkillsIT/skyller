@@ -72,7 +72,7 @@ function requireEnv(key: string, value: string | undefined): string {
 /**
  * Obtem uma variavel de ambiente opcional com valor padrao
  */
-function optionalEnv(key: string, value: string | undefined, defaultValue: string): string {
+function optionalEnv(_key: string, value: string | undefined, defaultValue: string): string {
   return value && value.trim() !== "" ? value : defaultValue;
 }
 

@@ -26,12 +26,14 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { toast } from "sonner";
-import { authPost } from "@/lib/api-client";
+import { authGet, authPost } from "@/lib/api-client";
 import { useEffectiveAgent } from "@/lib/hooks/use-effective-agent";
 import { useRateLimit } from "@/lib/hooks/use-rate-limit";
+import { useSessionContext } from "@/lib/hooks/use-session-context";
 import type { Message } from "@/lib/mock/data";
 import type { ActivityState, StepState, ThinkingState, ToolCallState } from "@/lib/types/agui";
 
@@ -88,6 +90,7 @@ interface ChatContextType {
 
   // Métodos para controle do agente
   runAgent: (message: string) => Promise<void>;
+  regenerateAssistantResponse: (assistantMessageId: string) => Promise<void>;
 
   // Métodos legados (backward compatibility)
   currentConversationId: string | null;
@@ -130,6 +133,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // User > Project > Workspace > Tenant > Fallback
   const { agentId: effectiveAgentId, isLoading: isLoadingAgent } = useEffectiveAgent();
 
+  // GAP-CONTEXT-HEADERS: Gerenciamento centralizado de contexto para headers de API
+  // Inclui sessionId, conversationId, threadId, workspaceId, agentId
+  const {
+    apiContext,
+    setConversationId: setSessionConversationId,
+    setThreadId: setSessionThreadId,
+    setAgentId: setSessionAgentId,
+  } = useSessionContext();
+
   // Estado do agente selecionado (dinamico, inicializado pelo effective agent)
   const [selectedAgentId, setSelectedAgentId] = useState<string | undefined>(undefined);
 
@@ -148,6 +160,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // GAP-CRIT-06: Hook de rate limiting conectado ao backend (AC-012/RU-005)
   // Extrai headers X-RateLimit-* para sincronizar com 30 RPM do backend
   const rateLimit = useRateLimit();
+  const wasRunningRef = useRef(false);
 
   const toolCalls = useMemo(() => {
     return Object.values(toolCallsById).sort((a, b) => a.startedAt - b.startedAt);
@@ -176,6 +189,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [effectiveAgentId, selectedAgentId]);
 
+  // GAP-CONTEXT-HEADERS: Sincronizar contexto de sessao com IDs atuais
+  // Propaga conversationId e agentId para headers de API
+  useEffect(() => {
+    setSessionConversationId(currentConversationId);
+  }, [currentConversationId, setSessionConversationId]);
+
+  useEffect(() => {
+    setSessionAgentId(selectedAgentId || FALLBACK_AGENT_ID);
+  }, [selectedAgentId, setSessionAgentId]);
+
   // GAP-CRIT-01: Hook useAgent v2 com acesso completo a eventos AG-UI
   // Conforme documentação: https://docs.copilotkit.ai/reference/hooks/useAgent
   // SPEC-AGENT-MANAGEMENT-001: CopilotKit Runtime usa "skyller" como proxy fixo
@@ -189,6 +212,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       UseAgentUpdate.OnRunStatusChanged,
     ],
   });
+
+  // GAP-CONTEXT-HEADERS: Sincronizar threadId do AG-UI com contexto de sessao
+  useEffect(() => {
+    if (agent.threadId) {
+      setSessionThreadId(agent.threadId);
+    }
+  }, [agent.threadId, setSessionThreadId]);
 
   const resetRunVisualization = useCallback(() => {
     setThinking(undefined);
@@ -248,7 +278,40 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         resetRunVisualization();
       },
 
+      // GAP-IMP-06: Handler para erros de transporte HTTP (401/403/5xx)
+      // onRunFailed é chamado pelo AG-UI quando runHttpRequest falha
+      onRunFailed: ({ error }) => {
+        const status = (error as any)?.status;
+
+        if (status === 401) {
+          toast.error("Sessão expirada. Redirecionando para login...");
+          router.push("/api/auth/signin");
+          return;
+        }
+
+        if (status === 403) {
+          toast.error("Sem permissão. Verifique suas permissões.");
+          router.push("/dashboard");
+          return;
+        }
+
+        // Erros HTTP genéricos
+        if (status >= 400) {
+          toast.error(`❌ Erro ${status}: ${error.message || "Erro de comunicação"}`);
+          return;
+        }
+
+        toast.error(`❌ Erro: ${error.message || "Erro desconhecido"}`);
+      },
+
+      // RUN_ERROR via SSE (erros do backend durante execução)
       onRunErrorEvent: ({ event }) => {
+        const eventAny = event as any;
+        if (eventAny.code === "401" || event.message?.includes("401")) {
+          toast.error("Sessão expirada. Redirecionando para login...");
+          router.push("/api/auth/signin");
+          return;
+        }
         toast.error(`❌ Erro: ${event.message || "Erro desconhecido"}`);
       },
 
@@ -552,6 +615,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     resetRunVisualization,
   ]);
 
+  // Fallback: garantir finalização da visualização quando isRunning cair
+  useEffect(() => {
+    if (wasRunningRef.current && !agent.isRunning) {
+      finalizeRunVisualization();
+    }
+    wasRunningRef.current = agent.isRunning;
+  }, [agent.isRunning, finalizeRunVisualization]);
+
   // GAP-CRIT-05: Reconexão SSE automática
   // useAgent já gerencia SSE connection com backoff exponencial
   // Subscription para eventos de conexão
@@ -633,24 +704,30 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Método para executar o agente com nova mensagem
   // GAP-IMP-02: Retry automático com backoff exponencial (RE-004/RO-005)
-  const runAgent = async (message: string) => {
+  const runAgentInternal = async (
+    message: string,
+    options: { appendUserMessage?: boolean } = {}
+  ) => {
     const MAX_RETRIES = 3;
     const RETRY_DELAY = 2000; // 2 segundos
+    const appendUserMessage = options.appendUserMessage ?? true;
 
     // Helper para sleep
     const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
     // Adicionar mensagem antes de tentar executar
-    const messageId = crypto.randomUUID();
-    (agent.addMessage as any)({
-      id: messageId,
-      role: "user",
-      content: message,
-      createdAt: new Date(),
-    });
+    if (appendUserMessage) {
+      const messageId = crypto.randomUUID();
+      (agent.addMessage as any)({
+        id: messageId,
+        role: "user",
+        content: message,
+        createdAt: new Date(),
+      });
 
-    // GAP-IMP-01: Marcar mensagem como pendente de persistência
-    setPendingPersistence(new Set([messageId]));
+      // GAP-IMP-01: Marcar mensagem como pendente de persistência
+      setPendingPersistence(new Set([messageId]));
+    }
 
     // Loop de retry
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -667,9 +744,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         });
 
         // SPEC-AGENT-MANAGEMENT-001: Registrar uso do agente apos sucesso
+        // GAP-CONTEXT-HEADERS: Incluir contexto completo nos headers
         const usedAgentId = selectedAgentId || FALLBACK_AGENT_ID;
         try {
-          await authPost(`/api/v1/agents/${usedAgentId}/track-usage`, session, {});
+          await authPost(
+            `/api/v1/agents/${usedAgentId}/track-usage`,
+            session,
+            {},
+            {
+              context: apiContext,
+            }
+          );
         } catch (trackError) {
           // Nao bloquear por erro de tracking (nao-critico)
           console.warn("[ChatContext] Erro ao registrar uso de agente:", trackError);
@@ -718,18 +803,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const runAgent = async (message: string) => {
+    await runAgentInternal(message, { appendUserMessage: true });
+  };
+
   // Métodos legados para backward compatibility
   // GAP-IMP-03: Carregar histórico ordenado (AC-008/RE-005)
   const loadConversation = async (conversationId: string) => {
     setCurrentConversationId(conversationId);
 
     try {
-      // Importar dependências dinamicamente para evitar problemas de SSR
-      const { apiGet } = await import("@/lib/api-client");
-      const { getSession } = await import("next-auth/react");
-
-      // Obter session para extrair tenant_id e user_id (headers obrigatórios)
-      const session = await getSession();
+      // Verificar sessao valida
       if (!session?.user) {
         toast.error("Sessão inválida. Faça login novamente.");
         router.push("/api/auth/login");
@@ -737,8 +821,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
 
       // AC-008: Carregar histórico completo da API com headers obrigatórios
-      // Backend exige X-Tenant-ID e X-User-ID (conforme contrato da API)
-      const response = await apiGet<
+      // GAP-CONTEXT-HEADERS: Incluir contexto completo nos headers
+      // Backend exige X-Tenant-ID, X-User-ID + contexto (conversationId, sessionId, etc.)
+      const response = await authGet<
         Array<{
           id: string;
           role: "user" | "assistant";
@@ -746,10 +831,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           created_at: string; // Backend retorna created_at, não timestamp
           created_at_ts?: number;
         }>
-      >(`/api/v1/conversations/${conversationId}/messages`, {
-        headers: {
-          "X-Tenant-ID": session.user.tenant_id,
-          "X-User-ID": session.user.id,
+      >(`/api/v1/conversations/${conversationId}/messages`, session, {
+        context: {
+          ...apiContext,
+          conversationId, // Usar conversationId do parametro (mais atual)
         },
       });
 
@@ -838,6 +923,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     resetRunVisualization();
   };
 
+  const applyMessages = useCallback(
+    (newMessages: Message[]) => {
+      agent.setMessages(
+        newMessages.map((msg) => ({
+          id: msg.id,
+          role: msg.role,
+          content: msg.content,
+          createdAt: msg.timestamp,
+        }))
+      );
+    },
+    [agent]
+  );
+
   const addMessage = (message: Message) => {
     (agent.addMessage as any)({
       id: message.id,
@@ -848,14 +947,42 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   };
 
   const setMessages = (newMessages: Message[]) => {
-    agent.setMessages(
-      newMessages.map((msg) => ({
-        id: msg.id,
-        role: msg.role,
-        content: msg.content,
-        createdAt: msg.timestamp,
-      }))
-    );
+    applyMessages(newMessages);
+  };
+
+  const regenerateAssistantResponse = async (assistantMessageId: string) => {
+    if (agent.isRunning) {
+      toast.info("Aguarde a resposta atual finalizar antes de regenerar.");
+      return;
+    }
+
+    const assistantIndex = messages.findIndex((message) => message.id === assistantMessageId);
+    if (assistantIndex === -1) {
+      toast.error("Não foi possível localizar a resposta para regenerar.");
+      return;
+    }
+
+    if (assistantIndex !== messages.length - 1) {
+      toast.info("Regeneração disponível apenas para a última resposta.");
+      return;
+    }
+
+    const userIndex = [...messages]
+      .slice(0, assistantIndex)
+      .reverse()
+      .findIndex((message) => message.role === "user");
+
+    if (userIndex === -1) {
+      toast.error("Não foi possível localizar a mensagem original.");
+      return;
+    }
+
+    const originalUserMessage = messages[assistantIndex - 1 - userIndex];
+
+    // Remove a última resposta antes de regenerar para evitar duplicidade visual.
+    applyMessages(messages.slice(0, assistantIndex));
+
+    await runAgentInternal(originalUserMessage.content, { appendUserMessage: false });
   };
 
   // Handler para mudar agente selecionado
@@ -898,6 +1025,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
         // Métodos
         runAgent,
+        regenerateAssistantResponse,
 
         // Backward compatibility
         currentConversationId,

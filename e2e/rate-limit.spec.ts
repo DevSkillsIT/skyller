@@ -8,7 +8,7 @@
  * - Banner desaparece após reset do rate limit
  */
 
-import { test, expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 test.describe("Rate Limiting - GAP-CRIT-06 (AC-012/RU-005)", () => {
   test.beforeEach(async ({ page }) => {
@@ -19,9 +19,7 @@ test.describe("Rate Limiting - GAP-CRIT-06 (AC-012/RU-005)", () => {
     await page.waitForLoadState("networkidle");
   });
 
-  test("deve respeitar rate limit de 30 RPM e exibir banner de bloqueio", async ({
-    page,
-  }) => {
+  test("deve respeitar rate limit de 30 RPM e exibir banner de bloqueio", async ({ page }) => {
     // Enviar 31 mensagens rapidamente para exceder o limite de 30 RPM
     for (let i = 1; i <= 31; i++) {
       const input = page.locator('[data-testid="chat-input"]');
@@ -51,9 +49,7 @@ test.describe("Rate Limiting - GAP-CRIT-06 (AC-012/RU-005)", () => {
     await expect(rateLimitBanner).toContainText(/\d+[ms]/);
   });
 
-  test("deve desabilitar botão de envio quando rate limit atingido", async ({
-    page,
-  }) => {
+  test("deve desabilitar botão de envio quando rate limit atingido", async ({ page }) => {
     // Configurar interceptação de requisições para simular 429 imediatamente
     await page.route("**/api/copilot/**", (route) => {
       route.fulfill({
@@ -83,9 +79,7 @@ test.describe("Rate Limiting - GAP-CRIT-06 (AC-012/RU-005)", () => {
     await expect(sendButton).toBeDisabled();
   });
 
-  test("deve exibir countdown que decrementa a cada segundo", async ({
-    page,
-  }) => {
+  test("deve exibir countdown que decrementa a cada segundo", async ({ page }) => {
     // Configurar interceptação para retornar 429 com reset em 10 segundos
     await page.route("**/api/copilot/**", (route) => {
       route.fulfill({
@@ -130,9 +124,7 @@ test.describe("Rate Limiting - GAP-CRIT-06 (AC-012/RU-005)", () => {
     expect(updatedSeconds).toBeLessThan(initialSeconds);
   });
 
-  test("deve remover banner e reabilitar envio após reset", async ({
-    page,
-  }) => {
+  test("deve remover banner e reabilitar envio após reset", async ({ page }) => {
     // Configurar interceptação para retornar 429 com reset curto (3 segundos)
     let requestCount = 0;
     await page.route("**/api/copilot/**", (route) => {
@@ -209,7 +201,7 @@ test.describe("Rate Limiting - GAP-CRIT-06 (AC-012/RU-005)", () => {
     // Aguardar indicador de aviso aparecer
     // Nota: O componente RateLimitIndicator usa Alert com className mb-4
     // mas sem data-testid específico para estado de aviso
-    const warningAlert = page.locator('.border-yellow-500\\/50');
+    const warningAlert = page.locator(".border-yellow-500\\/50");
 
     await expect(warningAlert).toBeVisible({ timeout: 5000 });
 
@@ -261,7 +253,7 @@ test.describe("Rate Limiting - GAP-CRIT-06 (AC-012/RU-005)", () => {
     }
 
     // Agora remaining deve ser <= 5, o aviso deve aparecer
-    const warningAlert = page.locator('.border-yellow-500\\/50');
+    const warningAlert = page.locator(".border-yellow-500\\/50");
     await expect(warningAlert).toBeVisible({ timeout: 5000 });
   });
 });

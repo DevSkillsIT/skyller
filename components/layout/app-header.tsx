@@ -2,8 +2,8 @@
 
 import { Bell, HelpCircle, Settings } from "lucide-react";
 import Link from "next/link";
-import React from "react";
 import { useSession } from "next-auth/react";
+import { SignOutButton } from "@/components/auth/sign-out-button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +14,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { SignOutButton } from "@/components/auth/sign-out-button";
 
 interface AppHeaderProps {
   onOpenPanel: (content: "artifact" | "knowledge" | "settings") => void;
@@ -22,13 +21,13 @@ interface AppHeaderProps {
 
 export function AppHeader({ onOpenPanel }: AppHeaderProps) {
   const { data: session } = useSession();
-  
+
   // Extrair dados do usuário da sessão do NextAuth
   const user = session?.user;
   const userName = user?.name || "Usuário";
   const userEmail = user?.email || "usuario@exemplo.com";
   const userImage = user?.image;
-  
+
   // Gerar iniciais para avatar fallback
   const getInitials = (name: string) => {
     return name
@@ -65,9 +64,7 @@ export function AppHeader({ onOpenPanel }: AppHeaderProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-8 w-8 rounded-full p-0 ml-1">
               <Avatar className="h-8 w-8">
-                {userImage ? (
-                  <AvatarImage src={userImage} alt={userName} />
-                ) : null}
+                {userImage ? <AvatarImage src={userImage} alt={userName} /> : null}
                 <AvatarFallback className="bg-accent text-accent-foreground text-sm">
                   {getInitials(userName)}
                 </AvatarFallback>
@@ -78,9 +75,7 @@ export function AppHeader({ onOpenPanel }: AppHeaderProps) {
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-1">
                 <p className="text-sm font-medium leading-none">{userName}</p>
-                <p className="text-xs leading-none text-muted-foreground">
-                  {userEmail}
-                </p>
+                <p className="text-xs leading-none text-muted-foreground">{userEmail}</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />

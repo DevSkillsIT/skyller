@@ -30,7 +30,12 @@ function formatStepName(stepName: string) {
   return stepName.replace(/[_-]+/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function formatDuration(startedAt: number, endedAt?: number) {
+function formatDuration(startedAt: number, endedAt?: number, isRunning?: boolean) {
+  // Se não está rodando e não tem endedAt, não calcular com Date.now()
+  // Isso evita que o timer continue "rodando" após conclusão
+  if (!isRunning && !endedAt) {
+    return null;
+  }
   const end = endedAt ?? Date.now();
   const elapsed = Math.max(end - startedAt, 0);
   if (elapsed < 1000) {
@@ -40,18 +45,33 @@ function formatDuration(startedAt: number, endedAt?: number) {
 }
 
 export function StepIndicator({ steps }: StepIndicatorProps) {
-  if (!steps.length) {
-    return null;
-  }
-
   const [open, setOpen] = useState(false);
+  const [userToggled, setUserToggled] = useState(false);
   const hasRunningStep = useMemo(() => steps.some((step) => step.status === "running"), [steps]);
+  const allStepsComplete = useMemo(
+    () => steps.length > 0 && steps.every((step) => step.status === "completed"),
+    [steps]
+  );
 
   useEffect(() => {
     if (hasRunningStep) {
       setOpen(true);
+      setUserToggled(false);
+    } else if (allStepsComplete && !userToggled) {
+      // Auto-collapse após 2s quando todos steps terminarem (só se usuário não abriu manualmente)
+      const timer = setTimeout(() => setOpen(false), 2000);
+      return () => clearTimeout(timer);
     }
-  }, [hasRunningStep]);
+  }, [hasRunningStep, allStepsComplete, userToggled]);
+
+  const handleToggle = (newOpen: boolean) => {
+    setOpen(newOpen);
+    setUserToggled(true);
+  };
+
+  if (!steps.length) {
+    return null;
+  }
 
   const handleStepClick = (stepName: string) => {
     if (!stepName.startsWith("tool:")) return;
@@ -67,7 +87,7 @@ export function StepIndicator({ steps }: StepIndicatorProps) {
   return (
     <Collapsible
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={handleToggle}
       className="rounded-lg border border-border bg-muted/30 px-3 py-2"
     >
       <div className="flex items-center justify-between">
@@ -106,9 +126,11 @@ export function StepIndicator({ steps }: StepIndicatorProps) {
                   <CheckCircle2 className="h-3 w-3 text-green-500" />
                 )}
                 <span className="font-medium">{formatStepName(step.stepName)}</span>
-                <span className="text-[10px] text-muted-foreground">
-                  {formatDuration(step.startedAt, step.endedAt)}
-                </span>
+                {formatDuration(step.startedAt, step.endedAt, isRunning) && (
+                  <span className="text-[10px] text-muted-foreground">
+                    {formatDuration(step.startedAt, step.endedAt, isRunning)}
+                  </span>
+                )}
               </StepTag>
             );
           })}

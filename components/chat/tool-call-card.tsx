@@ -28,8 +28,11 @@ function tryParseJson(value?: string) {
   }
 }
 
-function formatDuration(startedAt: number, endedAt?: number) {
+function formatDuration(startedAt: number, endedAt?: number, isRunning?: boolean) {
   if (!startedAt) return null;
+  // Se não está rodando e não tem endedAt, não usar Date.now()
+  // Evita timer "rodando" após conclusão
+  if (!isRunning && !endedAt) return null;
   const end = endedAt ?? Date.now();
   const elapsed = Math.max(end - startedAt, 0);
   if (elapsed < 1000) {
@@ -41,16 +44,20 @@ function formatDuration(startedAt: number, endedAt?: number) {
 export function ToolCallCard({ toolCall }: ToolCallCardProps) {
   const [open, setOpen] = useState(false);
   const [userToggled, setUserToggled] = useState(false);
+  const [showFullResult, setShowFullResult] = useState(false);
 
   useEffect(() => {
     if (!userToggled) {
       setOpen(false);
     }
-  }, [toolCall.status, userToggled]);
+  }, [userToggled]);
 
   const argsJson = useMemo(() => tryParseJson(toolCall.args), [toolCall.args]);
   const resultJson = useMemo(() => tryParseJson(toolCall.result), [toolCall.result]);
-  const duration = toolCall.startedAt ? formatDuration(toolCall.startedAt, toolCall.endedAt) : null;
+  const isRunning = toolCall.status === "running";
+  const duration = toolCall.startedAt
+    ? formatDuration(toolCall.startedAt, toolCall.endedAt, isRunning)
+    : null;
   const hasDetails = Boolean(toolCall.args || toolCall.result);
 
   const statusBadge =
@@ -105,20 +112,52 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
               <div>
                 <div className="text-xs font-medium text-muted-foreground mb-1">Resultado</div>
                 {resultJson ? (
-                  <pre className="text-xs bg-muted/50 rounded-md p-2 overflow-auto">
+                  <pre className="text-xs bg-muted/50 rounded-md p-2 overflow-auto max-h-60">
                     {JSON.stringify(resultJson, null, 2)}
                   </pre>
                 ) : (
-                  <Streamdown
-                    plugins={STREAMDOWN_PLUGINS}
-                    controls={STREAMDOWN_CONTROLS}
-                    remend={STREAMDOWN_REMEND}
-                    shikiTheme={STREAMDOWN_SHIKI_THEMES}
-                    mermaid={STREAMDOWN_MERMAID}
-                    mode="static"
-                  >
-                    {toolCall.result}
-                  </Streamdown>
+                  (() => {
+                    // Considera "grande" se > 1000 chars OU > 20 linhas
+                    const lines = toolCall.result.split("\n");
+                    const isTruncated = toolCall.result.length > 1000 || lines.length > 20;
+                    const previewLines = lines.slice(0, 20).join("\n");
+                    const previewText =
+                      previewLines.length > 1000
+                        ? `${previewLines.slice(0, 1000)}...`
+                        : previewLines;
+                    const shouldShowPreview = isTruncated && !showFullResult;
+
+                    return (
+                      <>
+                        {shouldShowPreview ? (
+                          <pre className="text-xs bg-muted/50 rounded-md p-2 overflow-auto max-h-60 whitespace-pre-wrap">
+                            {previewText}
+                          </pre>
+                        ) : (
+                          <Streamdown
+                            plugins={STREAMDOWN_PLUGINS}
+                            controls={STREAMDOWN_CONTROLS}
+                            remend={STREAMDOWN_REMEND}
+                            shikiTheme={STREAMDOWN_SHIKI_THEMES}
+                            mermaid={STREAMDOWN_MERMAID}
+                            mode="static"
+                          >
+                            {toolCall.result}
+                          </Streamdown>
+                        )}
+                        {isTruncated && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="mt-2 h-7 text-xs"
+                            onClick={() => setShowFullResult(!showFullResult)}
+                          >
+                            {showFullResult ? "Ver menos" : "Ver completo"}
+                          </Button>
+                        )}
+                      </>
+                    );
+                  })()
                 )}
               </div>
             )}

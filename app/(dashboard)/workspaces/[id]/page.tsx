@@ -12,7 +12,6 @@ import {
   Github,
   Globe,
   Lock,
-  MessageSquare,
   MoreHorizontal,
   Paperclip,
   Plus,

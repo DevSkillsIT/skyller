@@ -3,18 +3,7 @@
 // Forçar renderização dinâmica (não pré-renderizar durante build)
 export const dynamic = "force-dynamic";
 
-import {
-  Bot,
-  Check,
-  ChevronDown,
-  Lock,
-  RefreshCw,
-  Save,
-  Settings,
-  Shield,
-  Trash2,
-  Users,
-} from "lucide-react";
+import { Bot, RefreshCw, Save, Settings, Shield, Trash2, Users } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";

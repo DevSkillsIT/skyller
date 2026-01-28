@@ -4,7 +4,6 @@ import {
   BarChart3,
   Bookmark,
   Check,
-  ChevronDown,
   Code2,
   Copy,
   Download,
@@ -35,10 +34,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { usePanel } from "@/lib/contexts/panel-context";
-import { cn } from "@/lib/utils";
 
 interface ArtifactPanelProps {
   content: "artifact" | "knowledge" | "settings";
@@ -90,7 +88,7 @@ As vendas do Q4 2025 atingiram **R$ 4.2 milhoes**, representando um crescimento 
   createdAt: new Date(),
 };
 
-const mockCodeArtifact = {
+const _mockCodeArtifact = {
   id: "a2",
   type: "code" as const,
   title: "auth-utils.ts",

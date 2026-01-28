@@ -17,7 +17,7 @@ const mockAgent = {
 let lastSubscriber: any = null;
 
 // Mock do CopilotKit v2
-vi.mock("@copilotkit/react-core/v2", () => ({
+vi.mock("@copilotkitnext/react", () => ({
   useAgent: vi.fn(() => ({ agent: mockAgent })),
   UseAgentUpdate: {
     OnMessagesChanged: "OnMessagesChanged",

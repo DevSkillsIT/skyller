@@ -47,6 +47,7 @@ export async function sessionCallback({ session, token }: SessionCallbackParams)
 
   // Expor access token para API calls (BFF pattern)
   session.accessToken = token.accessToken as string;
+  session.idToken = token.idToken as string | undefined; // Para logout no Keycloak
   session.error = token.error as string | undefined;
 
   return session;

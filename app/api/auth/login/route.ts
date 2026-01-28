@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
         /NEXT_REDIRECT;[^;]*;([^;]+);/
       );
 
-      if (digestMatch && digestMatch[1]) {
+      if (digestMatch?.[1]) {
         let redirectUrl = decodeURIComponent(digestMatch[1]);
 
         console.log(`[Auth Login] Original redirect URL: ${redirectUrl}`);

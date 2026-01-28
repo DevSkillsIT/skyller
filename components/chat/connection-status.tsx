@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, WifiOff, Wifi } from "lucide-react";
+import { Loader2, Wifi, WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -101,14 +101,9 @@ export function ConnectionStatus({
         aria-live="assertive"
       >
         <div className="flex items-start gap-3">
-          <WifiOff
-            className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5"
-            aria-hidden="true"
-          />
+          <WifiOff className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5" aria-hidden="true" />
           <div className="flex-1">
-            <p className="text-sm font-medium text-red-800 dark:text-red-200">
-              Conexão perdida
-            </p>
+            <p className="text-sm font-medium text-red-800 dark:text-red-200">Conexão perdida</p>
             <p className="text-xs text-red-600 dark:text-red-400 mt-1">
               Não foi possível reconectar ao servidor após {maxRetries} tentativas.
             </p>

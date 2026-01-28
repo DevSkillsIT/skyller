@@ -326,7 +326,7 @@ describe("useRateLimit - GAP-CRIT-06 (AC-012/RU-005)", () => {
   it("deve restaurar fetch original ao desmontar", () => {
     const { unmount } = renderHook(() => useRateLimit());
 
-    const fetchAfterMount = window.fetch;
+    const _fetchAfterMount = window.fetch;
 
     unmount();
 

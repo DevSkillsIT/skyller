@@ -53,17 +53,20 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* Chat Messages */}
-      <ChatMessages
-        messages={messages}
-        isLoading={isRunning}
-        selectedAgentId={selectedAgentId}
-        thinking={thinking}
-        steps={steps}
-        toolCalls={toolCalls}
-        activities={activities}
-      />
+      {/* IMPORTANTE: manter overflow-hidden aqui evita segundo scroller. */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        <ChatMessages
+          messages={messages}
+          isLoading={isRunning}
+          selectedAgentId={selectedAgentId}
+          thinking={thinking}
+          steps={steps}
+          toolCalls={toolCalls}
+          activities={activities}
+        />
+      </div>
 
       {/* Chat Input */}
       <ChatInput

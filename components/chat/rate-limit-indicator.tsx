@@ -31,11 +31,7 @@ export function RateLimitIndicator() {
   // Estado de bloqueio (429 recebido)
   if (isLimited) {
     return (
-      <Alert
-        variant="destructive"
-        className="mb-4"
-        data-testid="rate-limit-banner"
-      >
+      <Alert variant="destructive" className="mb-4" data-testid="rate-limit-banner">
         <AlertCircle className="h-4 w-4" />
         <AlertTitle>Limite de requisições atingido</AlertTitle>
         <AlertDescription>
@@ -60,12 +56,13 @@ export function RateLimitIndicator() {
       </AlertTitle>
       <AlertDescription className="text-yellow-800 dark:text-yellow-200">
         <p>
-          Você tem <strong>{remaining} de {limit} requisições</strong> restantes
-          nesta janela de tempo.
+          Você tem{" "}
+          <strong>
+            {remaining} de {limit} requisições
+          </strong>{" "}
+          restantes nesta janela de tempo.
         </p>
-        <p className="text-xs mt-1 opacity-80">
-          O limite será resetado em breve.
-        </p>
+        <p className="text-xs mt-1 opacity-80">O limite será resetado em breve.</p>
       </AlertDescription>
     </Alert>
   );

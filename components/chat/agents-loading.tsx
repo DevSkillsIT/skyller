@@ -31,7 +31,7 @@ export function WelcomeMessageSkeleton() {
       </div>
       <Skeleton className="h-6 w-48 mx-auto mb-2 rounded" />
       <Skeleton className="h-4 w-64 mx-auto mb-6 rounded" />
-      
+
       {/* Conversation Suggestions Skeleton */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-xl mx-auto">
         {[1, 2, 3, 4].map((i) => (

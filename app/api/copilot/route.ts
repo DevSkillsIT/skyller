@@ -2,9 +2,10 @@
 // Integração Skyller ↔ Nexus Core via AG-UI Protocol (Agno)
 // MIGRADO: @copilotkit/runtime → @copilotkitnext/runtime (JSON-RPC)
 // FIX: Headers dinâmicos com token JWT do usuário autenticado
+// GAP-CONTEXT-HEADERS: Encaminha headers de contexto (session, conversation, etc.)
 
 import { AgnoAgent } from "@ag-ui/agno";
-import { CopilotRuntime, createCopilotEndpointSingleRoute } from "@copilotkitnext/runtime";
+import { CopilotRuntime, createCopilotEndpoint } from "@copilotkitnext/runtime";
 import { handle } from "hono/vercel";
 import type { NextRequest } from "next/server";
 import { auth } from "../../../auth";
@@ -14,30 +15,73 @@ const NEXUS_AGUI_URL = process.env.NEXUS_API_URL
   ? `${process.env.NEXUS_API_URL}/agui`
   : "http://localhost:8000/agui";
 
+// Headers de contexto que devem ser encaminhados ao backend
+const CONTEXT_HEADERS = [
+  "x-session-id",
+  "x-conversation-id",
+  "x-thread-id",
+  "x-workspace-id",
+  "x-agent-id",
+] as const;
+
 /**
- * Cria AgnoAgent dinamicamente com headers de autenticação.
+ * Extrai headers de contexto do request do cliente.
+ *
+ * GAP-CONTEXT-HEADERS: O CopilotKit envia headers customizados
+ * configurados no CopilotKitProvider. Esta funcao extrai esses
+ * headers para encaminhar ao backend.
+ */
+function extractContextHeaders(req: NextRequest): Record<string, string> {
+  const contextHeaders: Record<string, string> = {};
+
+  for (const headerName of CONTEXT_HEADERS) {
+    const value = req.headers.get(headerName);
+    if (value) {
+      // Converter para formato padrao (X-Header-Name)
+      const normalizedName = headerName
+        .split("-")
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join("-");
+      contextHeaders[normalizedName] = value;
+    }
+  }
+
+  return contextHeaders;
+}
+
+/**
+ * Cria AgnoAgent dinamicamente com headers de autenticação e contexto.
  *
  * O backend Nexus Core (/agui) exige autenticação via:
  * - Authorization: Bearer <jwt_token>
  * - X-Tenant-ID: tenant slug
  * - X-User-ID: user id
  *
+ * GAP-CONTEXT-HEADERS: Tambem encaminha headers de contexto:
+ * - X-Session-ID: ID unico da sessao do navegador
+ * - X-Conversation-ID: ID da conversa atual
+ * - X-Thread-ID: Thread ID do AG-UI (alternativa ao conversation_id)
+ * - X-Workspace-ID: ID do workspace atual
+ * - X-Agent-ID: ID do agente sendo usado
+ *
  * Essa função cria o AgnoAgent com os headers corretos extraídos
- * da sessão do usuário autenticado via NextAuth.
+ * da sessão do usuário autenticado via NextAuth e do request do cliente.
  */
 function createAuthenticatedAgent(
   accessToken: string | undefined,
   tenantId: string,
-  userId: string
+  userId: string,
+  contextHeaders: Record<string, string> = {}
 ) {
   const headers: Record<string, string> = {
     "X-Tenant-ID": tenantId,
     "X-User-ID": userId,
+    ...contextHeaders,
   };
 
   // Adicionar token JWT se disponível
   if (accessToken) {
-    headers["Authorization"] = `Bearer ${accessToken}`;
+    headers.Authorization = `Bearer ${accessToken}`;
   }
 
   return new AgnoAgent({
@@ -47,8 +91,10 @@ function createAuthenticatedAgent(
   }) as any;
 }
 
-// Endpoint POST para CopilotKit (JSON-RPC via Hono)
-export const POST = async (req: NextRequest) => {
+/**
+ * Cria runtime e app Hono com AgnoAgent autenticado
+ */
+async function createCopilotApp(req: NextRequest) {
   // Obter sessão do usuário autenticado via NextAuth
   const session = await auth();
 
@@ -57,6 +103,9 @@ export const POST = async (req: NextRequest) => {
   const tenantId = session?.user?.tenant_id || "default";
   const userId = session?.user?.id || "anonymous";
 
+  // GAP-CONTEXT-HEADERS: Extrair headers de contexto do request
+  const contextHeaders = extractContextHeaders(req);
+
   // Log para debug (remover em produção)
   if (process.env.NODE_ENV === "development") {
     console.log("[Copilot Route] Auth context:", {
@@ -64,11 +113,17 @@ export const POST = async (req: NextRequest) => {
       hasToken: !!accessToken,
       tenantId,
       userId,
+      contextHeaders,
     });
   }
 
-  // Criar AgnoAgent com headers de autenticação dinâmicos
-  const authenticatedAgent = createAuthenticatedAgent(accessToken, tenantId, userId);
+  // Criar AgnoAgent com headers de autenticação + contexto
+  const authenticatedAgent = createAuthenticatedAgent(
+    accessToken,
+    tenantId,
+    userId,
+    contextHeaders
+  );
 
   // Criar runtime com o agente autenticado
   const runtime = new CopilotRuntime({
@@ -77,13 +132,23 @@ export const POST = async (req: NextRequest) => {
     },
   });
 
-  // Criar endpoint Hono com single-route (JSON-RPC)
-  const app = createCopilotEndpointSingleRoute({
+  // Criar endpoint Hono com multi-route (inclui /info, /agent/:agentId/run, etc.)
+  return createCopilotEndpoint({
     runtime,
     basePath: "/api/copilot",
   });
+}
 
-  // Adaptar Hono para Next.js App Router
+// Endpoint GET para runtime info (/api/copilot/info)
+export const GET = async (req: NextRequest) => {
+  const app = await createCopilotApp(req);
+  const handler = handle(app);
+  return handler(req);
+};
+
+// Endpoint POST para CopilotKit (JSON-RPC via Hono)
+export const POST = async (req: NextRequest) => {
+  const app = await createCopilotApp(req);
   const handler = handle(app);
   return handler(req);
 };

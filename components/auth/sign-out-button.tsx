@@ -71,28 +71,27 @@ export function SignOutButton({
   };
 
   return (
-    <form action={handleSignOut}>
-      <Button
-        type="submit"
-        variant={variant}
-        size={size}
-        className={cn("gap-2", className)}
-        disabled={isPending}
-        aria-label={isPending ? "Saindo..." : "Sair da plataforma"}
-      >
-        {isPending ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            <span>Saindo...</span>
-          </>
-        ) : (
-          <>
-            <LogOut className="h-4 w-4" aria-hidden="true" />
-            <span>{children || "Sair"}</span>
-          </>
-        )}
-      </Button>
-    </form>
+    <Button
+      type="button"
+      onClick={handleSignOut}
+      variant={variant}
+      size={size}
+      className={cn("gap-2", className)}
+      disabled={isPending}
+      aria-label={isPending ? "Saindo..." : "Sair da plataforma"}
+    >
+      {isPending ? (
+        <>
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          <span>Saindo...</span>
+        </>
+      ) : (
+        <>
+          <LogOut className="h-4 w-4" aria-hidden="true" />
+          <span>{children || "Sair"}</span>
+        </>
+      )}
+    </Button>
   );
 }
 

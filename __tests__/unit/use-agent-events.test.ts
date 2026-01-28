@@ -12,9 +12,14 @@
  * - AC-027: Erros processados corretamente
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
-import { useAgentEvents, useToolCallMessage, type Agent, type AgentEvent } from "@/lib/hooks/use-agent-events";
+import { act, renderHook } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  type Agent,
+  type AgentEvent,
+  useAgentEvents,
+  useToolCallMessage,
+} from "@/lib/hooks/use-agent-events";
 
 describe("useAgentEvents Hook", () => {
   let mockAgent: Agent;
@@ -236,10 +241,9 @@ describe("useAgentEvents Hook", () => {
     });
 
     it("deve reinscrever se agente mudar", () => {
-      const { rerender } = renderHook(
-        ({ agent }) => useAgentEvents(agent),
-        { initialProps: { agent: mockAgent } }
-      );
+      const { rerender } = renderHook(({ agent }) => useAgentEvents(agent), {
+        initialProps: { agent: mockAgent },
+      });
 
       expect(mockAgent.subscribe).toHaveBeenCalledTimes(1);
 

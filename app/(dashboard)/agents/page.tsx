@@ -5,10 +5,8 @@ export const dynamic = "force-dynamic";
 
 import {
   Activity,
-  AlertCircle,
   ArrowRight,
   BarChart3,
-  Bot,
   CheckCircle2,
   Clock,
   Code,
@@ -27,7 +25,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
 // Mock agents data
@@ -193,7 +190,7 @@ function AgentNode({
   );
 }
 
-function ConnectionLine({
+function _ConnectionLine({
   from,
   to,
   active = false,
@@ -214,7 +211,7 @@ function ConnectionLine({
 
 export default function MultiAgentPage() {
   const [isRunning, setIsRunning] = useState(true);
-  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [_selectedAgent, _setSelectedAgent] = useState<string | null>(null);
 
   const router = mockAgents.find((a) => a.id === "router");
   const otherAgents = mockAgents.filter((a) => a.id !== "router");

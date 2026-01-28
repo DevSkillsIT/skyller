@@ -1,15 +1,6 @@
 "use client";
 
-import {
-  Bot,
-  FileText,
-  FolderKanban,
-  LayoutDashboard,
-  MessageSquare,
-  Presentation,
-  Search,
-  Settings,
-} from "lucide-react";
+import { FileText, FolderKanban, LayoutDashboard, MessageSquare, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
