@@ -43,6 +43,17 @@ export async function jwtCallback({
       const decoded = jwtDecode<KeycloakToken>(account.access_token || "");
 
       // ════════════════════════════════════════════════════════════════════
+      // GAP-CRIT-01 FIX: Garantir consistência do user_id com access_token
+      // ════════════════════════════════════════════════════════════════════
+      // O backend extrai user_id do claim 'sub' do access_token.
+      // NextAuth define token.sub automaticamente do profile/id_token.
+      // Para garantir que X-User-ID header corresponda ao JWT do backend,
+      // definimos explicitamente token.sub do access_token decodificado.
+      if (decoded.sub) {
+        token.sub = decoded.sub;
+      }
+
+      // ════════════════════════════════════════════════════════════════════
       // SPEC-ORGS-001: Multi-Organization Support
       // ════════════════════════════════════════════════════════════════════
       // Extrai organization[] claim do JWT (Keycloak Organizations)

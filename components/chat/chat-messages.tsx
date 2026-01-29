@@ -31,6 +31,12 @@ interface ChatMessagesProps {
   steps?: StepState[];
   toolCalls?: ToolCallState[];
   activities?: ActivityState[];
+  /** GAP-CRIT-02: Indica se há mensagens mais antigas para carregar */
+  hasOlderMessages?: boolean;
+  /** GAP-CRIT-02: Indica se está carregando mensagens mais antigas */
+  isLoadingOlder?: boolean;
+  /** GAP-CRIT-02: Função para carregar mensagens mais antigas */
+  onLoadOlder?: () => void;
 }
 
 export function ChatMessages({
@@ -41,6 +47,9 @@ export function ChatMessages({
   steps,
   toolCalls,
   activities,
+  hasOlderMessages,
+  isLoadingOlder,
+  onLoadOlder,
 }: ChatMessagesProps) {
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
   const { regenerateAssistantResponse } = useChat();
@@ -75,11 +84,30 @@ export function ChatMessages({
           auto-scroll e o scroll manual travam. */}
       <StickToBottom.Content
         data-testid="chat-scroll"
+        data-chat-messages
         scrollClassName="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4"
         className="min-h-full"
       >
         {/* Espaçamento inferior mínimo para evitar "buraco" visual. */}
         <div className="max-w-3xl mx-auto py-4 pb-4 md:pb-6 space-y-4">
+          {/* GAP-CRIT-02: Botão para carregar mensagens anteriores */}
+          {hasOlderMessages && onLoadOlder && (
+            <button
+              onClick={onLoadOlder}
+              disabled={isLoadingOlder}
+              className="w-full py-2 text-sm text-muted-foreground hover:bg-accent/50 rounded-lg transition-colors disabled:opacity-50"
+            >
+              {isLoadingOlder ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Carregando...
+                </span>
+              ) : (
+                "Carregar mensagens anteriores"
+              )}
+            </button>
+          )}
+
           {/* Welcome Message if no messages */}
           {messages.length === 0 && (
             <div className="text-center py-8">

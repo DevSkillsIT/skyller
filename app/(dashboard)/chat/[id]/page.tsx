@@ -7,13 +7,13 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { ChatScreen } from "@/components/chat/chat-screen";
 import { useChat } from "@/lib/contexts/chat-context";
 
 export default function ChatHistoryPage() {
   const params = useParams();
   const router = useRouter();
-  const { loadConversation, currentConversationId, isLoadingHistory } =
-    useChat();
+  const { loadConversation, currentConversationId, isLoadingHistory, messages } = useChat();
 
   const conversationId = params.id as string;
 
@@ -28,21 +28,17 @@ export default function ChatHistoryPage() {
     }
   }, [conversationId, currentConversationId, loadConversation, router]);
 
-  // Mostrar loading enquanto carrega historico
-  if (isLoadingHistory) {
+  // Mostrar loading enquanto carrega historico inicial
+  if (isLoadingHistory && messages.length === 0) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-center">
           <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" />
-          <p className="mt-4 text-sm text-muted-foreground">
-            Carregando conversa...
-          </p>
+          <p className="mt-4 text-sm text-muted-foreground">Carregando conversa...</p>
         </div>
       </div>
     );
   }
 
-  // A UI do chat e renderizada pelo layout pai
-  // Esta pagina apenas carrega a conversa e mostra loading
-  return null;
+  return <ChatScreen />;
 }

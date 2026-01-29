@@ -41,6 +41,7 @@ interface ChatInputProps {
   onSend: () => void;
   onStop?: () => void;
   isLoading: boolean;
+  isLoadingHistory?: boolean;
   rateLimit: {
     isLimited: boolean;
     remaining: number;
@@ -58,6 +59,7 @@ export function ChatInput({
   onSend,
   onStop,
   isLoading,
+  isLoadingHistory = false,
   rateLimit,
   selectedAgentId,
   setSelectedAgentId,
@@ -65,6 +67,7 @@ export function ChatInput({
   setIsAgentsGalleryOpen,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isHistoryLoading = isLoadingHistory;
 
   // Auto-resize textarea
   useEffect(() => {
@@ -117,9 +120,11 @@ export function ChatInput({
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Digite sua mensagem..."
+                  placeholder={
+                    isHistoryLoading ? "Carregando histórico..." : "Digite sua mensagem..."
+                  }
                   className="min-h-[44px] max-h-[200px] resize-none border-0 bg-transparent focus-visible:ring-0 shadow-none py-1.5 px-2"
-                  disabled={isLoading || rateLimit.isLimited}
+                  disabled={isLoading || isHistoryLoading || rateLimit.isLimited}
                   data-testid="chat-input"
                 />
               </div>
@@ -133,6 +138,7 @@ export function ChatInput({
                     ? false
                     : !input.trim() ||
                       isLoading ||
+                      isHistoryLoading ||
                       rateLimit.isLimited ||
                       rateLimit.remaining === 0 ||
                       input.trim().length > 10000

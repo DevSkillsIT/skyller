@@ -29,7 +29,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       return unauthorized();
     }
 
-    if (!session.user?.tenant_id || !session.accessToken) {
+    if (!session.user?.tenant_id || !session.user?.id || !session.accessToken) {
       return forbidden("Tenant nao selecionado");
     }
 
@@ -39,6 +39,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${session.accessToken}`,
         "X-Tenant-ID": session.user.tenant_id,
+        "X-User-ID": session.user.id,
       },
     });
 
@@ -74,7 +75,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       return unauthorized();
     }
 
-    if (!session.user?.tenant_id || !session.accessToken) {
+    if (!session.user?.tenant_id || !session.user?.id || !session.accessToken) {
       return forbidden("Tenant nao selecionado");
     }
 
@@ -86,6 +87,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${session.accessToken}`,
         "X-Tenant-ID": session.user.tenant_id,
+        "X-User-ID": session.user.id,
       },
       body: JSON.stringify(body),
     });
@@ -119,7 +121,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
       return unauthorized();
     }
 
-    if (!session.user?.tenant_id || !session.accessToken) {
+    if (!session.user?.tenant_id || !session.user?.id || !session.accessToken) {
       return forbidden("Tenant nao selecionado");
     }
 
@@ -129,6 +131,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${session.accessToken}`,
         "X-Tenant-ID": session.user.tenant_id,
+        "X-User-ID": session.user.id,
       },
     });
 

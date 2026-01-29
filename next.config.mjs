@@ -1,4 +1,10 @@
 /** @type {import('next').NextConfig} */
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
@@ -8,6 +14,10 @@ const nextConfig = {
   },
   // Transpilacao de pacotes ES modules
   transpilePackages: ["use-stick-to-bottom"],
+
+  turbopack: {
+    root: __dirname,
+  },
 
   // Permitir todos os subdominios skyller.ai para server actions
   experimental: {

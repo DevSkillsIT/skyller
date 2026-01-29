@@ -22,21 +22,48 @@ import { type ConversationSummary, useConversations } from "@/lib/hooks/use-conv
 
 interface ConversationHistoryListProps {
   limit?: number;
+  /** GAP-IMP-06: Mostrar apenas N conversas inicialmente */
+  visibleLimit?: number;
+  /** GAP-IMP-06: Exibir botão "Ver mais" quando há mais conversas */
+  showExpandButton?: boolean;
   onSelect?: (conversationId: string) => void;
+  onNewConversation?: () => void;
   selectedId?: string | null;
   className?: string;
+  /** GAP-IMP-07: Layout compacto para sidebar */
+  compact?: boolean;
+  /** GAP-IMP-05: ID do workspace para filtrar conversas */
+  workspaceId?: string;
+  /** GAP-IMP-05: ID do projeto para filtrar conversas */
+  projectId?: string;
 }
 
 export function ConversationHistoryList({
-  limit = 15,
+  limit = 50, // BUG-IMP-01: Corrigido de 15 para 50 conforme SPEC
+  visibleLimit, // GAP-IMP-06: Mostrar apenas N conversas inicialmente
+  showExpandButton = false, // GAP-IMP-06: Exibir botão "Ver mais"
   onSelect,
+  onNewConversation,
   selectedId,
   className,
+  compact = false, // GAP-IMP-07: Layout compacto para sidebar
+  workspaceId, // GAP-IMP-05: Filtro de workspace
+  projectId, // GAP-IMP-05: Filtro de projeto
 }: ConversationHistoryListProps) {
   const router = useRouter();
-  const { conversations, isLoading, error, rename, remove, refresh } = useConversations(limit);
+  // GAP-IMP-05: Passar filtros de workspace/project para o hook
+  const { conversations, isLoading, error, rename, remove, refresh } = useConversations({
+    limit,
+    workspaceId,
+    projectId,
+  });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
+  const [expanded, setExpanded] = useState(false); // GAP-IMP-06: Estado de expansão
+
+  // GAP-IMP-06: Calcular conversas visíveis baseado em visibleLimit e estado de expansão
+  const visibleConversations =
+    expanded || !visibleLimit ? conversations : conversations.slice(0, visibleLimit);
 
   // Formata tempo relativo
   const formatRelativeTime = (dateStr: string | null) => {
@@ -70,6 +97,9 @@ export function ConversationHistoryList({
 
   const handleDelete = async (id: string) => {
     await remove(id);
+    if (selectedId === id) {
+      onNewConversation?.();
+    }
   };
 
   const startEdit = (conversation: ConversationSummary) => {
@@ -119,7 +149,7 @@ export function ConversationHistoryList({
 
   return (
     <SidebarMenu className={className}>
-      {conversations.map((conversation) => {
+      {visibleConversations.map((conversation) => {
         const isSelected = selectedId === conversation.id;
         const isEditing = editingId === conversation.id;
 
@@ -128,7 +158,7 @@ export function ConversationHistoryList({
             <SidebarMenuButton
               onClick={() => !isEditing && handleSelect(conversation)}
               isActive={isSelected}
-              className="group h-auto py-1.5"
+              className={`group h-auto ${compact ? "py-1" : "py-1.5"}`}
             >
               {/* Icon */}
               <div className="flex-shrink-0">
@@ -164,9 +194,12 @@ export function ConversationHistoryList({
                         {formatRelativeTime(conversation.created_at)}
                       </span>
                     </div>
-                    <div className="text-[10px] text-muted-foreground truncate">
-                      {conversation.message_count} mensagens
-                    </div>
+                    {/* GAP-IMP-07: Ocultar contador em modo compacto */}
+                    {!compact && (
+                      <div className="text-[10px] text-muted-foreground truncate">
+                        {conversation.message_count} mensagens
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -208,6 +241,20 @@ export function ConversationHistoryList({
           </SidebarMenuItem>
         );
       })}
+
+      {/* GAP-IMP-06: Botão "Ver mais" quando há conversas ocultas */}
+      {showExpandButton && !expanded && visibleLimit && conversations.length > visibleLimit && (
+        <SidebarMenuItem>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setExpanded(true)}
+            className="w-full justify-center text-xs text-muted-foreground hover:text-foreground"
+          >
+            Ver mais ({conversations.length - visibleLimit})
+          </Button>
+        </SidebarMenuItem>
+      )}
     </SidebarMenu>
   );
 }

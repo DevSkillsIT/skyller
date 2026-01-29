@@ -10,9 +10,9 @@ import { AppHeader } from "@/components/layout/app-header";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { ArtifactPanel } from "@/components/layout/artifact-panel";
 import { MobileNav } from "@/components/layout/mobile-nav";
+import { CopilotProvider } from "@/components/providers/copilot-provider";
 import { Button } from "@/components/ui/button";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
-import { CopilotProvider } from "@/components/providers/copilot-provider";
 import { ChatProvider, useChat } from "@/lib/contexts/chat-context";
 import { PanelProvider, usePanel } from "@/lib/contexts/panel-context";
 import { mockProjects, mockWorkspaces } from "@/lib/mock/data";
@@ -40,6 +40,12 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   const { isPanelOpen, panelContent, isPanelExpanded, setPanelContent, setIsPanelOpen } =
     usePanel();
   const { open, toggleSidebar } = useSidebar();
+
+  // GAP-IMP-04: Wrapper para "Nova Conversa" que limpa o chat e navega para /
+  const handleNewConversation = useCallback(() => {
+    startNewConversation();
+    router.push("/");
+  }, [startNewConversation, router]);
 
   // Persist workspace to localStorage
   const handleWorkspaceChange = useCallback((workspace: (typeof mockWorkspaces)[0] | null) => {
@@ -77,7 +83,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     return null;
   }
 
-  const isChatRoute = pathname === "/" || pathname === "/suporte";
+  const isChatRoute = pathname === "/" || pathname === "/suporte" || pathname.startsWith("/chat/");
 
   return (
     <div className="flex h-screen w-full bg-background pb-16 md:pb-0">
@@ -91,7 +97,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           currentProject={currentProject}
           onProjectChange={setCurrentProject}
           onConversationSelect={loadConversation}
-          onNewConversation={startNewConversation}
+          onNewConversation={handleNewConversation}
           onSearchOpen={() => setIsSearchOpen(true)}
         />
       </Suspense>

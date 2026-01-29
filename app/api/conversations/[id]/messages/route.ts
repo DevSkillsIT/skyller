@@ -22,16 +22,10 @@ interface RouteParams {
  * Obtem historico de mensagens de uma conversa
  *
  * Query params:
- * - page: numero da pagina (default: 1)
+ * - after: cursor timestamp (ms) para paginação (opcional)
  * - limit: itens por pagina (default: 50)
  *
- * Response: Array de mensagens no formato:
- * {
- *   id: string;
- *   role: "user" | "assistant" | "system";
- *   content: string;
- *   created_at: string;
- * }
+ * Response: MessageListResponse do backend (items, total, next_cursor, has_more)
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
@@ -42,22 +36,29 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return unauthorized();
     }
 
-    if (!session.user?.tenant_id || !session.accessToken) {
+    if (!session.user?.tenant_id || !session.user?.id || !session.accessToken) {
       return forbidden("Tenant nao selecionado");
     }
 
     const { searchParams } = new URL(request.url);
-    const page = searchParams.get("page") || "1";
+    const after = searchParams.get("after");
     const limit = searchParams.get("limit") || "50";
 
+    const params = new URLSearchParams();
+    params.set("limit", limit);
+    if (after) {
+      params.set("after", after);
+    }
+
     const response = await fetch(
-      `${getBackendBaseUrl()}/api/v1/conversations/${id}/messages?page=${page}&limit=${limit}`,
+      `${getBackendBaseUrl()}/api/v1/conversations/${id}/messages?${params.toString()}`,
       {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.accessToken}`,
           "X-Tenant-ID": session.user.tenant_id,
+          "X-User-ID": session.user.id,
         },
       }
     );
@@ -68,12 +69,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     const data = await response.json();
-
-    // Normalizar resposta para formato esperado pelo frontend
-    // Backend pode retornar { data: [...], total: N } ou array direto
-    const messages = Array.isArray(data) ? data : data.data || [];
-
-    return NextResponse.json(messages);
+    return NextResponse.json(data);
   } catch (error) {
     const { id } = await params;
     return handleApiError(error, {

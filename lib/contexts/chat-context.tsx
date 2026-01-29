@@ -15,13 +15,9 @@
  */
 "use client";
 
-import {
-  type Message as AGUIMessage,
-  UseAgentUpdate,
-  useAgent,
-} from "@copilotkitnext/react";
+import { type Message as AGUIMessage, UseAgentUpdate, useAgent } from "@copilotkitnext/react";
 import { applyPatch } from "fast-json-patch";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   createContext,
@@ -38,19 +34,21 @@ import { authGet, authPost } from "@/lib/api-client";
 import { useEffectiveAgent } from "@/lib/hooks/use-effective-agent";
 import { useRateLimit } from "@/lib/hooks/use-rate-limit";
 import { useSessionContext } from "@/lib/hooks/use-session-context";
-import type { Message } from "@/lib/mock/data";
-import type {
-  ActivityState,
-  StepState,
-  ThinkingState,
-  ToolCallState,
-} from "@/lib/types/agui";
+import type { Artifact } from "@/lib/mock/data";
+import type { ActivityState, StepState, ThinkingState, ToolCallState } from "@/lib/types/agui";
 
 // Re-export do tipo Artifact para uso externo
 export type { Artifact };
 
 // Status de envio da mensagem para optimistic updates
 export type MessageStatus = "pending" | "sent" | "error";
+
+// GAP-CRIT-02: Estado para lazy loading de mensagens anteriores
+interface LoadState {
+  hasOlderMessages: boolean;
+  olderCursor: number | null;
+  isLoadingOlder: boolean;
+}
 
 // Tipo de mensagem unificado
 export interface Message {
@@ -125,6 +123,12 @@ interface ChatContextType {
   stopGeneration: () => void;
   /** AC-018: Retenta envio de mensagem com erro */
   retryMessage: (messageId: string, content: string) => Promise<void>;
+  /** GAP-CRIT-02: Carrega mensagens mais antigas */
+  loadOlderMessages: () => Promise<void>;
+  /** GAP-CRIT-02: Indica se há mensagens mais antigas para carregar */
+  hasOlderMessages: boolean;
+  /** GAP-CRIT-02: Indica se está carregando mensagens mais antigas */
+  isLoadingOlder: boolean;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -134,10 +138,9 @@ const FALLBACK_AGENT_ID = "skyller";
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname(); // GAP-IMP-01: Para atualizar URL após 1ª mensagem
   const { data: session } = useSession();
-  const [currentConversationId, setCurrentConversationId] = useState<
-    string | null
-  >(null);
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [messages, setMessagesState] = useState<Message[]>([]);
   const [isThinking, setIsThinking] = useState(false);
   const lastMessageCountRef = useRef(0);
@@ -149,10 +152,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // CC-04: Track se esta carregando historico
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
+  // GAP-CRIT-02: Estado para lazy loading de mensagens anteriores
+  const [loadState, setLoadState] = useState<LoadState>({
+    hasOlderMessages: false,
+    olderCursor: null,
+    isLoadingOlder: false,
+  });
+
+  // GAP-IMP-03: Anti-loop guards para lazy loading
+  const loadIterationsRef = useRef(0);
+  const seenCursorsRef = useRef<Set<number>>(new Set());
+
   // SPEC-AGENT-MANAGEMENT-001: Resolver agente efetivo via hierarquia
   // User > Project > Workspace > Tenant > Fallback
-  const { agentId: effectiveAgentId, isLoading: isLoadingAgent } =
-    useEffectiveAgent();
+  const { agentId: effectiveAgentId, isLoading: isLoadingAgent } = useEffectiveAgent();
 
   // GAP-CONTEXT-HEADERS: Gerenciamento centralizado de contexto para headers de API
   // Inclui sessionId, conversationId, threadId, workspaceId, agentId
@@ -164,28 +177,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   } = useSessionContext();
 
   // Estado do agente selecionado (dinamico, inicializado pelo effective agent)
-  const [selectedAgentId, setSelectedAgentId] = useState<string | undefined>(
-    undefined,
-  );
+  const [selectedAgentId, setSelectedAgentId] = useState<string | undefined>(undefined);
 
   // Estado local para tracking de eventos AG-UI (Thinking/Steps/Tool Calls/Activities)
-  const [thinking, setThinking] = useState<ThinkingState | undefined>(
-    undefined,
-  );
+  const [thinking, setThinking] = useState<ThinkingState | undefined>(undefined);
   const [steps, setSteps] = useState<StepState[]>([]);
-  const [toolCallsById, setToolCallsById] = useState<
-    Record<string, ToolCallState>
-  >({});
-  const [activitiesById, setActivitiesById] = useState<
-    Record<string, ActivityState>
-  >({});
+  const [toolCallsById, setToolCallsById] = useState<Record<string, ToolCallState>>({});
+  const [activitiesById, setActivitiesById] = useState<Record<string, ActivityState>>({});
   const [isConnected, setIsConnected] = useState(true);
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
 
   // GAP-IMP-01: Tracking de persistência de mensagens
-  const [pendingPersistence, setPendingPersistence] = useState<Set<string>>(
-    new Set(),
-  );
+  const [pendingPersistence, setPendingPersistence] = useState<Set<string>>(new Set());
   const [lastMessageCount, setLastMessageCount] = useState(0);
 
   // GAP-CRIT-06: Hook de rate limiting conectado ao backend (AC-012/RU-005)
@@ -194,20 +197,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const wasRunningRef = useRef(false);
 
   const toolCalls = useMemo(() => {
-    return Object.values(toolCallsById).sort(
-      (a, b) => a.startedAt - b.startedAt,
-    );
+    return Object.values(toolCallsById).sort((a, b) => a.startedAt - b.startedAt);
   }, [toolCallsById]);
 
   const activities = useMemo(() => {
-    return Object.values(activitiesById).sort(
-      (a, b) => a.updatedAt - b.updatedAt,
-    );
+    return Object.values(activitiesById).sort((a, b) => a.updatedAt - b.updatedAt);
   }, [activitiesById]);
 
   const currentTool = useMemo(() => {
-    return toolCalls.find((toolCall) => toolCall.status === "running")
-      ?.toolCallName;
+    return toolCalls.find((toolCall) => toolCall.status === "running")?.toolCallName;
   }, [toolCalls]);
 
   const thinkingState = useMemo(() => {
@@ -220,9 +218,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // SPEC-AGENT-MANAGEMENT-001: Sincronizar com agente efetivo quando disponivel
   useEffect(() => {
     if (effectiveAgentId && !selectedAgentId) {
-      console.info(
-        `[ChatContext] Agente efetivo resolvido: ${effectiveAgentId}`,
-      );
+      console.info(`[ChatContext] Agente efetivo resolvido: ${effectiveAgentId}`);
       setSelectedAgentId(effectiveAgentId);
     }
   }, [effectiveAgentId, selectedAgentId]);
@@ -265,18 +261,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setActivitiesById({});
   }, []);
 
-  const getToolStepName = useCallback(
-    (toolCallName?: string, toolCallId?: string) => {
-      const safeName = toolCallName
-        ? toolCallName.replace(/[\s:]+/g, "_")
-        : "tool";
-      if (!toolCallId) {
-        return `tool:${safeName}`;
-      }
-      return `tool:${safeName}:${toolCallId}`;
-    },
-    [],
-  );
+  const getToolStepName = useCallback((toolCallName?: string, toolCallId?: string) => {
+    const safeName = toolCallName ? toolCallName.replace(/[\s:]+/g, "_") : "tool";
+    if (!toolCallId) {
+      return `tool:${safeName}`;
+    }
+    return `tool:${safeName}:${toolCallId}`;
+  }, []);
 
   const cloneValue = useCallback((value: unknown) => {
     if (typeof structuredClone === "function") {
@@ -298,8 +289,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       prev.map((step) =>
         step.status === "running"
           ? { ...step, status: "completed", endedAt: step.endedAt ?? now }
-          : step,
-      ),
+          : step
+      )
     );
 
     setToolCallsById((prev) => {
@@ -321,8 +312,25 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // Conforme AC-023, AC-024, AC-027
   useEffect(() => {
     const { unsubscribe } = agent.subscribe({
-      onRunStartedEvent: () => {
+      onRunStartedEvent: ({ event }) => {
         resetRunVisualization();
+
+        // GAP-CRIT-03: Capturar conversationId do evento RUN_STARTED
+        const eventAny = event as any;
+        const conversationIdFromEvent: string | undefined =
+          eventAny?.conversationId || eventAny?.conversation_id;
+
+        if (conversationIdFromEvent) {
+          setCurrentConversationId(conversationIdFromEvent);
+          activeConversationIdRef.current = conversationIdFromEvent;
+          console.info(
+            `[ChatContext] conversationId capturado via SSE: ${conversationIdFromEvent}`
+          );
+          if (pathname === "/") {
+            router.replace(`/chat/${conversationIdFromEvent}`, { scroll: false });
+            console.info(`[ChatContext] URL atualizada para /chat/${conversationIdFromEvent}`);
+          }
+        }
       },
 
       // GAP-IMP-06: Handler para erros de transporte HTTP (401/403/5xx)
@@ -344,9 +352,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
         // Erros HTTP genéricos
         if (status >= 400) {
-          toast.error(
-            `❌ Erro ${status}: ${error.message || "Erro de comunicação"}`,
-          );
+          toast.error(`❌ Erro ${status}: ${error.message || "Erro de comunicação"}`);
           return;
         }
 
@@ -367,14 +373,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       onRunFinalized: () => {
         finalizeRunVisualization();
 
-        // GAP-IMP-01: Validar persistência após finalização
+        // GAP-IMP-01: Atualizar URL se estiver na home após primeira mensagem
+        if (pathname === "/" && currentConversationId) {
+          router.replace(`/chat/${currentConversationId}`, { scroll: false });
+          console.info(`[ChatContext] URL atualizada para /chat/${currentConversationId}`);
+        }
+
+        // Validar persistência após finalização
         if (pendingPersistence.size > 0) {
           console.error(
-            `[ChatContext] ❌ Falha na persistência: ${pendingPersistence.size} mensagens não confirmadas`,
+            `[ChatContext] ❌ Falha na persistência: ${pendingPersistence.size} mensagens não confirmadas`
           );
-          toast.error(
-            "Algumas mensagens podem não ter sido salvas. Tente reenviar.",
-          );
+          toast.error("Algumas mensagens podem não ter sido salvas. Tente reenviar.");
 
           // Limpar tracking para próxima execução
           setPendingPersistence(new Set());
@@ -384,9 +394,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       onStepStartedEvent: ({ event }) => {
         const startedAt = event.timestamp ?? Date.now();
         setSteps((prev) => {
-          const existingIndex = prev.findIndex(
-            (step) => step.stepName === event.stepName,
-          );
+          const existingIndex = prev.findIndex((step) => step.stepName === event.stepName);
           if (existingIndex >= 0) {
             const next = [...prev];
             next[existingIndex] = {
@@ -396,10 +404,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             };
             return next;
           }
-          return [
-            ...prev,
-            { stepName: event.stepName, status: "running", startedAt },
-          ];
+          return [...prev, { stepName: event.stepName, status: "running", startedAt }];
         });
       },
 
@@ -407,20 +412,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         const endedAt = event.timestamp ?? Date.now();
         setSteps((prev) =>
           prev.map((step) =>
-            step.stepName === event.stepName
-              ? { ...step, status: "completed", endedAt }
-              : step,
-          ),
+            step.stepName === event.stepName ? { ...step, status: "completed", endedAt } : step
+          )
         );
       },
 
       onToolCallStartEvent: ({ event }) => {
         const startedAt = event.timestamp ?? Date.now();
         const eventAny = event as any;
-        const stepName = getToolStepName(
-          eventAny.toolCallName,
-          eventAny.toolCallId,
-        );
+        const stepName = getToolStepName(eventAny.toolCallName, eventAny.toolCallId);
         setToolCallsById((prev) => ({
           ...prev,
           [eventAny.toolCallId]: {
@@ -433,9 +433,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           },
         }));
         setSteps((prev) => {
-          const existingIndex = prev.findIndex(
-            (step) => step.stepName === stepName,
-          );
+          const existingIndex = prev.findIndex((step) => step.stepName === stepName);
           if (existingIndex >= 0) {
             const next = [...prev];
             next[existingIndex] = {
@@ -474,10 +472,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       onToolCallEndEvent: ({ event }) => {
         const endedAt = event.timestamp ?? Date.now();
         const eventAny = event as any;
-        const stepName = getToolStepName(
-          eventAny.toolCallName,
-          eventAny.toolCallId,
-        );
+        const stepName = getToolStepName(eventAny.toolCallName, eventAny.toolCallId);
         setToolCallsById((prev) => {
           const existing = prev[eventAny.toolCallId];
           if (!existing) return prev;
@@ -492,19 +487,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         });
         setSteps((prev) =>
           prev.map((step) =>
-            step.stepName === stepName
-              ? { ...step, status: "completed", endedAt }
-              : step,
-          ),
+            step.stepName === stepName ? { ...step, status: "completed", endedAt } : step
+          )
         );
       },
 
       onToolCallResultEvent: ({ event }) => {
         const eventAny = event as any;
-        const stepName = getToolStepName(
-          eventAny.toolCallName,
-          eventAny.toolCallId,
-        );
+        const stepName = getToolStepName(eventAny.toolCallName, eventAny.toolCallId);
         setToolCallsById((prev) => {
           const existing = prev[eventAny.toolCallId];
           if (!existing) return prev;
@@ -521,8 +511,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           prev.map((step) =>
             step.stepName === stepName
               ? { ...step, status: "completed", endedAt: Date.now() }
-              : step,
-          ),
+              : step
+          )
         );
       },
 
@@ -552,7 +542,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               cloneValue(existing.content ?? {}),
               event.patch,
               true,
-              false,
+              false
             );
             return {
               ...prev,
@@ -563,10 +553,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               },
             };
           } catch (error) {
-            console.warn(
-              "[ChatContext] Falha ao aplicar patch de activity:",
-              error,
-            );
+            console.warn("[ChatContext] Falha ao aplicar patch de activity:", error);
             return prev;
           }
         });
@@ -580,9 +567,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
         if (event.type === "THINKING_START") {
           setSteps((prev) => {
-            const existingIndex = prev.findIndex(
-              (step) => step.stepName === "reasoning",
-            );
+            const existingIndex = prev.findIndex((step) => step.stepName === "reasoning");
             if (existingIndex >= 0) {
               const next = [...prev];
               next[existingIndex] = {
@@ -611,9 +596,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
         if (event.type === "THINKING_TEXT_MESSAGE_START") {
           setSteps((prev) => {
-            const existingIndex = prev.findIndex(
-              (step) => step.stepName === "reasoning",
-            );
+            const existingIndex = prev.findIndex((step) => step.stepName === "reasoning");
             if (existingIndex >= 0) {
               const next = [...prev];
               next[existingIndex] = {
@@ -649,10 +632,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           }));
         }
 
-        if (
-          event.type === "THINKING_TEXT_MESSAGE_END" ||
-          event.type === "THINKING_END"
-        ) {
+        if (event.type === "THINKING_TEXT_MESSAGE_END" || event.type === "THINKING_END") {
           setSteps((prev) =>
             prev.map((step) =>
               step.stepName === "reasoning"
@@ -661,8 +641,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     status: "completed",
                     endedAt: step.endedAt ?? timestamp,
                   }
-                : step,
-            ),
+                : step
+            )
           );
           setThinking((prev) => {
             if (!prev) {
@@ -701,9 +681,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       onMessagesChanged: ({ messages }) => {
         // GAP-IMP-01: Validar persistência de mensagens
         // Quando backend retorna mensagens via SSE, indica que foram persistidas
-        console.debug(
-          `[ChatContext] Mensagens atualizadas: ${messages.length}`,
-        );
+        console.debug(`[ChatContext] Mensagens atualizadas: ${messages.length}`);
 
         // Se recebemos mais mensagens do que tínhamos, persistência confirmada
         if (messages.length > lastMessageCount) {
@@ -712,9 +690,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           // Limpar IDs de mensagens pendentes (backend confirmou persistência)
           setPendingPersistence(new Set());
 
-          console.info(
-            `[ChatContext] ✅ Persistência confirmada: ${messages.length} mensagens`,
-          );
+          console.info(`[ChatContext] ✅ Persistência confirmada: ${messages.length} mensagens`);
         }
       },
     });
@@ -795,26 +771,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       if (status === 403) {
         // Sem permissão (tenant não selecionado ou permissões insuficientes)
-        toast.error(
-          "Sem permissão. Verifique suas permissões ou selecione um tenant.",
-        );
+        toast.error("Sem permissão. Verifique suas permissões ou selecione um tenant.");
         router.push("/dashboard");
         return true;
       }
 
       return false;
     },
-    [router],
+    [router]
   );
 
   // Converter mensagens do AG-UI para formato local
   // Ignora mensagens "tool/system/developer" para evitar vazamento de payloads de tools na UI.
   const copilotMessages = agent.messages as unknown as AGUIMessage[];
   const convertedMessages: Message[] = copilotMessages
-    .filter(
-      (msg) =>
-        (msg as any).role === "user" || (msg as any).role === "assistant",
-    )
+    .filter((msg) => (msg as any).role === "user" || (msg as any).role === "assistant")
     .map((msg) => ({
       id: (msg as any).id,
       role: (msg as any).role as "user" | "assistant",
@@ -826,15 +797,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // GAP-IMP-02: Retry automático com backoff exponencial (RE-004/RO-005)
   const runAgentInternal = async (
     message: string,
-    options: { appendUserMessage?: boolean } = {},
+    options: { appendUserMessage?: boolean } = {}
   ) => {
     const MAX_RETRIES = 3;
     const RETRY_DELAY = 2000; // 2 segundos
     const appendUserMessage = options.appendUserMessage ?? true;
 
     // Helper para sleep
-    const sleep = (ms: number) =>
-      new Promise((resolve) => setTimeout(resolve, ms));
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
     // Adicionar mensagem antes de tentar executar
     if (appendUserMessage) {
@@ -874,23 +844,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             {},
             {
               context: apiContext,
-            },
+            }
           );
         } catch (trackError) {
           // Nao bloquear por erro de tracking (nao-critico)
-          console.warn(
-            "[ChatContext] Erro ao registrar uso de agente:",
-            trackError,
-          );
+          console.warn("[ChatContext] Erro ao registrar uso de agente:", trackError);
         }
 
         // Sucesso - retornar imediatamente
         return;
       } catch (error) {
-        console.error(
-          `Erro ao executar agente (tentativa ${attempt}/${MAX_RETRIES}):`,
-          error,
-        );
+        console.error(`Erro ao executar agente (tentativa ${attempt}/${MAX_RETRIES}):`, error);
 
         // Interceptar erros de autenticação/autorização (401/403) - não faz retry
         const wasHandled = handleApiError(error);
@@ -914,9 +878,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
         // Se não é a última tentativa, aguardar backoff e tentar novamente
         if (attempt < MAX_RETRIES) {
-          toast.info(
-            `🔄 Tentativa ${attempt}/${MAX_RETRIES} falhou. Tentando novamente...`,
-          );
+          toast.info(`🔄 Tentativa ${attempt}/${MAX_RETRIES} falhou. Tentando novamente...`);
           await sleep(RETRY_DELAY * 2 ** (attempt - 1)); // Backoff exponencial: 2s → 4s → 8s
         } else {
           // Última tentativa falhou - mostrar erro fatal
@@ -954,6 +916,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       setCurrentConversationId(conversationId);
       setIsLoadingHistory(true);
+      // CC-01: Limpar mensagens antes de carregar nova conversa
+      agent.setMessages([]);
+      // Resetar estado de lazy loading enquanto carrega
+      setLoadState({
+        hasOlderMessages: false,
+        olderCursor: null,
+        isLoadingOlder: false,
+      });
 
       try {
         // Verificar sessao valida
@@ -980,16 +950,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           }>;
           has_more: boolean;
           next_cursor: number | null;
-        }>(
-          `/api/v1/conversations/${conversationId}/messages?limit=50`,
-          session,
-          {
-            context: {
-              ...apiContext,
-              conversationId,
-            },
+        }>(`/api/v1/conversations/${conversationId}/messages?limit=50`, session, {
+          context: {
+            ...apiContext,
+            conversationId,
           },
-        );
+          signal: controller.signal,
+        });
 
         // CC-01: Verificar se a requisicao foi abortada
         if (controller.signal.aborted) {
@@ -1006,6 +973,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         // Mapear mensagens - suporta tanto array direto quanto objeto paginado
         const rawMessages = Array.isArray(response) ? response : response.items;
         const hasMore = Array.isArray(response) ? false : response.has_more;
+        const nextCursor = Array.isArray(response) ? null : response.next_cursor;
 
         const mappedMessages: Message[] = rawMessages.map((msg) => ({
           id: msg.id,
@@ -1016,7 +984,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
         // RE-005: Ordenar em ordem cronologica (antigo -> recente)
         const sortedMessages = mappedMessages.sort(
-          (a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
+          (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
         );
 
         // Hidratar o contexto do AG-UI
@@ -1026,11 +994,33 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             role: msg.role,
             content: msg.content,
             createdAt: msg.timestamp,
-          })),
+          }))
         );
 
+        // GAP-CRIT-02: Atualizar estado de lazy loading
+        setLoadState({
+          hasOlderMessages: hasMore,
+          olderCursor: nextCursor,
+          isLoadingOlder: false,
+        });
+
+        // Scroll para a última mensagem após hidratação
+        requestAnimationFrame(() => {
+          const chatContainer = document.querySelector("[data-chat-messages]");
+          if (chatContainer && "scrollHeight" in chatContainer) {
+            (chatContainer as HTMLElement).scrollTo({
+              top: (chatContainer as HTMLElement).scrollHeight,
+              behavior: "smooth",
+            });
+          }
+        });
+
+        // GAP-IMP-03: Resetar guards anti-loop para nova conversa
+        loadIterationsRef.current = 0;
+        seenCursorsRef.current.clear();
+
         console.info(
-          `[ChatContext] Historico carregado: ${sortedMessages.length} mensagens${hasMore ? " (mais disponiveis)" : ""}`,
+          `[ChatContext] Historico carregado: ${sortedMessages.length} mensagens${hasMore ? " (mais disponiveis)" : ""}`
         );
       } catch (error) {
         // Ignorar erros de abort
@@ -1044,10 +1034,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           toast.error("Erro ao carregar historico. Tente novamente.");
         }
       } finally {
-        setIsLoadingHistory(false);
+        if (activeConversationIdRef.current === conversationId) {
+          setIsLoadingHistory(false);
+        }
       }
     },
-    [session, router, apiContext, agent, handleApiError],
+    [session, router, apiContext, agent, handleApiError]
   );
 
   // Inicia nova conversa
@@ -1058,9 +1050,148 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
     activeConversationIdRef.current = null;
     setCurrentConversationId(null);
+    // Gerar novo thread_id para isolar nova conversa
+    const newThreadId =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `thread_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    agent.threadId = newThreadId;
+    setSessionThreadId(newThreadId);
     agent.setMessages([]);
     resetRunVisualization();
-  }, [agent, resetRunVisualization]);
+    // GAP-CRIT-02: Resetar estado de lazy loading
+    setLoadState({
+      hasOlderMessages: false,
+      olderCursor: null,
+      isLoadingOlder: false,
+    });
+    // GAP-IMP-03: Resetar guards anti-loop
+    loadIterationsRef.current = 0;
+    seenCursorsRef.current.clear();
+  }, [agent, resetRunVisualization, setSessionThreadId]);
+
+  // GAP-CRIT-02: Carrega mensagens mais antigas (lazy loading)
+  // GAP-IMP-03: Anti-loop guards para prevenir loops infinitos
+  const loadOlderMessages = useCallback(async () => {
+    // GAP-IMP-03: Constantes de protecao anti-loop
+    const MAX_ITERATIONS = 100;
+    const TIMEOUT_MS = 30000;
+
+    if (!loadState.olderCursor || loadState.isLoadingOlder || !currentConversationId) {
+      return;
+    }
+
+    // GAP-IMP-03: Anti-loop guard - limite de iteracoes
+    if (loadIterationsRef.current >= MAX_ITERATIONS) {
+      console.error("[ChatContext] Max iterations reached for loading older messages");
+      toast.error("Limite de carregamento atingido. Recarregue a página.");
+      return;
+    }
+
+    // GAP-IMP-03: Anti-loop guard - deteccao de ciclo de cursor
+    if (seenCursorsRef.current.has(loadState.olderCursor)) {
+      console.error("[ChatContext] Cursor cycle detected:", loadState.olderCursor);
+      toast.error("Ciclo detectado no carregamento. Recarregue a página.");
+      return;
+    }
+
+    // GAP-IMP-03: Rastrear cursor e incrementar iteracoes
+    seenCursorsRef.current.add(loadState.olderCursor);
+    loadIterationsRef.current++;
+
+    if (!session?.user) {
+      toast.error("Sessão inválida. Faça login novamente.");
+      return;
+    }
+
+    setLoadState((prev) => ({ ...prev, isLoadingOlder: true }));
+
+    // GAP-IMP-03: Timeout wrapper para prevenir requisicoes penduradas
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Timeout")), TIMEOUT_MS)
+    );
+
+    try {
+      const response = await Promise.race([
+        authGet<{
+          items: Array<{
+            id: string;
+            role: "user" | "assistant";
+            content: string;
+            created_at: string;
+            created_at_ts: number;
+          }>;
+          has_more: boolean;
+          next_cursor: number | null;
+        }>(
+          `/api/v1/conversations/${currentConversationId}/messages?after=${loadState.olderCursor}&limit=50`,
+          session,
+          {
+            context: {
+              ...apiContext,
+              conversationId: currentConversationId,
+            },
+          }
+        ),
+        timeoutPromise,
+      ]);
+
+      // Mapear mensagens antigas
+      const olderMessages: Message[] = response.items.map((msg) => ({
+        id: msg.id,
+        role: msg.role,
+        content: msg.content,
+        timestamp: new Date(msg.created_at),
+      }));
+
+      // Ordenar cronologicamente
+      const sortedOlder = olderMessages.sort(
+        (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
+      );
+
+      // Prepend mensagens antigas ao contexto existente
+      const currentMessages = convertedMessages;
+      const allMessages = [...sortedOlder, ...currentMessages];
+
+      agent.setMessages(
+        allMessages.map((msg) => ({
+          id: msg.id,
+          role: msg.role,
+          content: msg.content,
+          createdAt: msg.timestamp,
+        }))
+      );
+
+      // Atualizar estado de lazy loading
+      setLoadState({
+        hasOlderMessages: response.has_more,
+        olderCursor: response.next_cursor,
+        isLoadingOlder: false,
+      });
+
+      console.info(
+        `[ChatContext] Carregadas ${sortedOlder.length} mensagens antigas${response.has_more ? " (mais disponíveis)" : ""} [iteracao ${loadIterationsRef.current}]`
+      );
+    } catch (error) {
+      // GAP-IMP-03: Tratamento especifico para timeout
+      if ((error as Error).message === "Timeout") {
+        console.error("[ChatContext] Timeout loading older messages");
+        toast.error("Timeout ao carregar mensagens. Tente novamente.");
+      } else {
+        console.error("[ChatContext] Erro ao carregar mensagens antigas:", error);
+        toast.error("Erro ao carregar mensagens anteriores.");
+      }
+      setLoadState((prev) => ({ ...prev, isLoadingOlder: false }));
+    }
+  }, [
+    loadState.olderCursor,
+    loadState.isLoadingOlder,
+    currentConversationId,
+    session,
+    apiContext,
+    agent,
+    convertedMessages,
+  ]);
 
   const applyMessages = useCallback(
     (newMessages: Message[]) => {
@@ -1070,10 +1201,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           role: msg.role,
           content: msg.content,
           createdAt: msg.timestamp,
-        })),
+        }))
       );
     },
-    [agent],
+    [agent]
   );
 
   const addMessage = (message: Message) => {
@@ -1096,7 +1227,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
 
     const assistantIndex = convertedMessages.findIndex(
-      (message) => message.id === assistantMessageId,
+      (message) => message.id === assistantMessageId
     );
     if (assistantIndex === -1) {
       toast.error("Não foi possível localizar a resposta para regenerar.");
@@ -1132,9 +1263,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const handleSetSelectedAgentId = useCallback(
     (agentId: string) => {
       if (agentId !== selectedAgentId) {
-        console.info(
-          `[ChatContext] Agente alterado: ${selectedAgentId} → ${agentId}`,
-        );
+        console.info(`[ChatContext] Agente alterado: ${selectedAgentId} → ${agentId}`);
         setSelectedAgentId(agentId);
         // Limpar mensagens ao trocar de agente (nova conversa)
         agent.setMessages([]);
@@ -1142,7 +1271,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         resetRunVisualization();
       }
     },
-    [selectedAgentId, agent, resetRunVisualization],
+    [selectedAgentId, agent, resetRunVisualization]
   );
 
   return (
@@ -1183,9 +1312,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         addMessage,
         setMessages,
         regenerateLastResponse: async () => {
-          const lastUserMessage = [...convertedMessages]
-            .reverse()
-            .find((m) => m.role === "user");
+          const lastUserMessage = [...convertedMessages].reverse().find((m) => m.role === "user");
           if (lastUserMessage) {
             await runAgentInternal(lastUserMessage.content, {
               appendUserMessage: false,
@@ -1206,10 +1333,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 role: (msg as any).role,
                 content: (msg as any).content,
                 createdAt: (msg as any).createdAt,
-              })),
+              }))
           );
           await runAgent(content);
         },
+        // GAP-CRIT-02: Lazy loading de mensagens anteriores
+        loadOlderMessages,
+        hasOlderMessages: loadState.hasOlderMessages,
+        isLoadingOlder: loadState.isLoadingOlder,
       }}
     >
       {children}

@@ -8,9 +8,9 @@
  */
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { authGet, authPut, authDelete } from "@/lib/api-client";
+import { useCallback, useEffect, useState } from "react";
+import { authDelete, authGet, authPut } from "@/lib/api-client";
 
 // ==============================================================================
 // Types
@@ -88,9 +88,22 @@ export interface UseConversationsReturn {
 // ==============================================================================
 
 /**
+ * Opcoes de filtro para conversas
+ * GAP-IMP-05: Preparacao para filtros de workspace/project
+ */
+export interface UseConversationsOptions {
+  /** Numero maximo de conversas a buscar (default: 50) */
+  limit?: number;
+  /** ID do workspace para filtrar conversas (GAP-IMP-05) */
+  workspaceId?: string;
+  /** ID do projeto para filtrar conversas (GAP-IMP-05) */
+  projectId?: string;
+}
+
+/**
  * Hook para gerenciamento de conversas
  *
- * @param limit - Numero maximo de conversas a buscar (default: 20)
+ * @param options - Opcoes de configuracao do hook (limit, workspaceId, projectId)
  * @returns Estado e funcoes para gerenciar conversas
  *
  * @example
@@ -103,6 +116,13 @@ export interface UseConversationsReturn {
  *   remove,
  *   loadMessages
  * } = useConversations();
+ *
+ * // Com filtros de workspace/project (GAP-IMP-05)
+ * const { conversations } = useConversations({
+ *   limit: 20,
+ *   workspaceId: currentWorkspace?.id,
+ *   projectId: currentProject?.id,
+ * });
  *
  * // Listar conversas
  * conversations.map(c => <ConversationItem key={c.id} conversation={c} />)
@@ -117,7 +137,9 @@ export interface UseConversationsReturn {
  * const messages = await loadMessages(conversationId);
  * const moreMessages = await loadMessages(conversationId, messages.next_cursor);
  */
-export function useConversations(limit = 20): UseConversationsReturn {
+export function useConversations(options: UseConversationsOptions = {}): UseConversationsReturn {
+  // GAP-IMP-05: Extrair opcoes com defaults
+  const { limit = 50, workspaceId, projectId } = options;
   const { data: session } = useSession();
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [total, setTotal] = useState(0);
@@ -128,7 +150,19 @@ export function useConversations(limit = 20): UseConversationsReturn {
    * Busca lista de conversas da API
    */
   const fetchConversations = useCallback(async () => {
+    // DEBUG: Log session state
+    console.log("[useConversations] fetchConversations chamado", {
+      hasSession: !!session,
+      userId: session?.user?.id,
+      tenantId: (session?.user as { tenant_id?: string })?.tenant_id,
+      hasToken: !!(session as { accessToken?: string })?.accessToken,
+      // GAP-IMP-05: Log filtros de workspace/project
+      workspaceId,
+      projectId,
+    });
+
     if (!session) {
+      console.log("[useConversations] EARLY EXIT: session is null/undefined");
       setIsLoading(false);
       return;
     }
@@ -137,10 +171,25 @@ export function useConversations(limit = 20): UseConversationsReturn {
     setError(null);
 
     try {
-      const response = await authGet<ConversationListResponse>(
-        `/api/v1/conversations?limit=${limit}`,
-        session
-      );
+      // GAP-IMP-05: Construir URL com filtros opcionais de workspace/project
+      // TODO: Backend ainda nao suporta workspace_id e project_id - implementar em SPEC futura
+      // Quando o backend suportar, os filtros serao aplicados automaticamente
+      const params = new URLSearchParams();
+      params.set("limit", String(limit));
+      if (workspaceId) {
+        params.set("workspace_id", workspaceId);
+      }
+      if (projectId) {
+        params.set("project_id", projectId);
+      }
+      const url = `/api/v1/conversations?${params.toString()}`;
+
+      console.log("[useConversations] Fazendo GET", url);
+      const response = await authGet<ConversationListResponse>(url, session);
+      console.log("[useConversations] Resposta recebida:", {
+        total: response.total,
+        itemsCount: response.items?.length,
+      });
       setConversations(response.items);
       setTotal(response.total);
     } catch (err) {
@@ -149,7 +198,7 @@ export function useConversations(limit = 20): UseConversationsReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [session, limit]);
+  }, [session, limit, workspaceId, projectId]);
 
   // Buscar conversas ao montar ou quando session/limit mudar
   useEffect(() => {

@@ -78,7 +78,7 @@ export function AppSidebar({
   currentWorkspace,
   onWorkspaceChange,
   projects,
-  currentProject,
+  currentProject, // GAP-IMP-05: Adicionado para filtro de conversas
   onProjectChange,
   onConversationSelect,
   onNewConversation,
@@ -125,6 +125,7 @@ export function AppSidebar({
                 onClick={() => {
                   onNewConversation?.();
                   setSelectedConversation(null);
+                  router.push("/");
                 }}
               >
                 <Plus className="h-4 w-4" />
@@ -156,6 +157,7 @@ export function AppSidebar({
                     onClick={() => {
                       onNewConversation?.();
                       setSelectedConversation(null);
+                      router.push("/");
                     }}
                   >
                     <Plus className="h-4 w-4" />
@@ -219,7 +221,7 @@ export function AppSidebar({
                         <>
                           <DropdownMenuItem
                             onClick={() => {
-                              onWorkspaceChange(null as any);
+                              onWorkspaceChange(null);
                               onProjectChange(null);
                             }}
                             className="text-muted-foreground"
@@ -414,13 +416,24 @@ export function AppSidebar({
                   </div>
                   <CollapsibleContent>
                     <SidebarGroupContent>
+                      {/* GAP-IMP-05: Passar filtros de workspace/project */}
                       <ConversationHistoryList
-                        limit={15}
+                        limit={50}
+                        visibleLimit={5}
+                        showExpandButton={true}
+                        compact={true}
                         onSelect={(id) => {
                           setSelectedConversation(id);
                           onConversationSelect?.(id);
                         }}
+                        onNewConversation={() => {
+                          onNewConversation?.();
+                          setSelectedConversation(null);
+                          router.push("/");
+                        }}
                         selectedId={selectedConversation}
+                        workspaceId={currentWorkspace?.id}
+                        projectId={currentProject?.id}
                       />
                     </SidebarGroupContent>
                   </CollapsibleContent>

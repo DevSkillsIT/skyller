@@ -17,9 +17,10 @@ import { forbidden, handleApiError, unauthorized } from "@/lib/error-handling";
  * Lista conversas do usuario autenticado
  *
  * Query params:
- * - page: numero da pagina (default: 1)
+ * - offset: deslocamento (default: 0)
  * - limit: itens por pagina (default: 20)
  * - workspace_id: filtrar por workspace (opcional)
+ * - project_id: filtrar por projeto (opcional)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -29,29 +30,42 @@ export async function GET(request: NextRequest) {
       return unauthorized();
     }
 
-    if (!session.user?.tenant_id || !session.accessToken) {
+    if (!session.user?.tenant_id || !session.user?.id || !session.accessToken) {
       return forbidden("Tenant nao selecionado");
     }
 
     const { searchParams } = new URL(request.url);
-    const page = searchParams.get("page") || "1";
     const limit = searchParams.get("limit") || "20";
+    const offsetParam = searchParams.get("offset");
+    const page = searchParams.get("page");
     const workspaceId = searchParams.get("workspace_id");
+    const projectId = searchParams.get("project_id");
 
-    // Construir query string
-    let queryString = `page=${page}&limit=${limit}`;
+    // Construir query string (offset preferencial, page como fallback)
+    const offset = offsetParam ?? (page ? String((Number(page) - 1) * Number(limit)) : "0");
+    const params = new URLSearchParams({
+      limit,
+      offset,
+    });
     if (workspaceId) {
-      queryString += `&workspace_id=${workspaceId}`;
+      params.set("workspace_id", workspaceId);
+    }
+    if (projectId) {
+      params.set("project_id", projectId);
     }
 
-    const response = await fetch(`${getBackendBaseUrl()}/api/v1/conversations?${queryString}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${session.accessToken}`,
-        "X-Tenant-ID": session.user.tenant_id,
-      },
-    });
+    const response = await fetch(
+      `${getBackendBaseUrl()}/api/v1/conversations?${params.toString()}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.accessToken}`,
+          "X-Tenant-ID": session.user.tenant_id,
+          "X-User-ID": session.user.id,
+        },
+      }
+    );
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
@@ -83,7 +97,7 @@ export async function POST(request: NextRequest) {
       return unauthorized();
     }
 
-    if (!session.user?.tenant_id || !session.accessToken) {
+    if (!session.user?.tenant_id || !session.user?.id || !session.accessToken) {
       return forbidden("Tenant nao selecionado");
     }
 
@@ -95,6 +109,7 @@ export async function POST(request: NextRequest) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${session.accessToken}`,
         "X-Tenant-ID": session.user.tenant_id,
+        "X-User-ID": session.user.id,
       },
       body: JSON.stringify(body),
     });
