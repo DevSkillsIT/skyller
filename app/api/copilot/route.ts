@@ -9,6 +9,7 @@ import { CopilotRuntime, createCopilotEndpoint } from "@copilotkitnext/runtime";
 import { handle } from "hono/vercel";
 import type { NextRequest } from "next/server";
 import { auth } from "../../../auth";
+import { forbidden, unauthorized } from "@/lib/error-handling";
 
 // URL do backend Nexus Core (AG-UI Protocol)
 const NEXUS_AGUI_URL = process.env.NEXUS_API_URL
@@ -54,7 +55,7 @@ function extractContextHeaders(req: NextRequest): Record<string, string> {
  *
  * O backend Nexus Core (/agui) exige autenticação via:
  * - Authorization: Bearer <jwt_token>
- * - X-Tenant-ID: tenant slug
+ * - X-Tenant-ID: tenant UUID
  * - X-User-ID: user id
  *
  * GAP-CONTEXT-HEADERS: Tambem encaminha headers de contexto:
@@ -94,14 +95,13 @@ function createAuthenticatedAgent(
 /**
  * Cria runtime e app Hono com AgnoAgent autenticado
  */
-async function createCopilotApp(req: NextRequest) {
-  // Obter sessão do usuário autenticado via NextAuth
-  const session = await auth();
+async function createCopilotApp(req: NextRequest, session: Awaited<ReturnType<typeof auth>>) {
+  // Sessão já validada no handler
 
   // Extrair dados de autenticação da sessão
   const accessToken = session?.accessToken;
-  const tenantId = session?.user?.tenant_id || "default";
-  const userId = session?.user?.id || "anonymous";
+  const tenantId = session?.user?.tenant_id || "";
+  const userId = session?.user?.id || "";
 
   // GAP-CONTEXT-HEADERS: Extrair headers de contexto do request
   const contextHeaders = extractContextHeaders(req);
@@ -141,14 +141,28 @@ async function createCopilotApp(req: NextRequest) {
 
 // Endpoint GET para runtime info (/api/copilot/info)
 export const GET = async (req: NextRequest) => {
-  const app = await createCopilotApp(req);
+  const session = await auth();
+  if (!session) {
+    return unauthorized();
+  }
+  if (!session.user?.tenant_id || !session.user?.id || !session.accessToken) {
+    return forbidden("Tenant nao selecionado");
+  }
+  const app = await createCopilotApp(req, session);
   const handler = handle(app);
   return handler(req);
 };
 
 // Endpoint POST para CopilotKit (JSON-RPC via Hono)
 export const POST = async (req: NextRequest) => {
-  const app = await createCopilotApp(req);
+  const session = await auth();
+  if (!session) {
+    return unauthorized();
+  }
+  if (!session.user?.tenant_id || !session.user?.id || !session.accessToken) {
+    return forbidden("Tenant nao selecionado");
+  }
+  const app = await createCopilotApp(req, session);
   const handler = handle(app);
   return handler(req);
 };

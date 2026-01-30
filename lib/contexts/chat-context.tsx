@@ -149,6 +149,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const abortControllerRef = useRef<AbortController | null>(null);
   // CC-01: Track active conversation para evitar race conditions
   const activeConversationIdRef = useRef<string | null>(null);
+  // GAP-IMP-01: Evitar criacao duplicada de conversa em runs concorrentes
+  const creatingConversationRef = useRef<Promise<string> | null>(null);
   // CC-04: Track se esta carregando historico
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
@@ -199,6 +201,26 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const toolCalls = useMemo(() => {
     return Object.values(toolCallsById).sort((a, b) => a.startedAt - b.startedAt);
   }, [toolCallsById]);
+
+  const extractConversationIdFromEvent = useCallback((event: unknown): string | undefined => {
+    const eventAny = event as {
+      conversationId?: string;
+      conversation_id?: string;
+      data?: { conversationId?: string; conversation_id?: string };
+      detail?: { conversationId?: string; conversation_id?: string };
+      payload?: { conversationId?: string; conversation_id?: string };
+    };
+    return (
+      eventAny?.conversationId ||
+      eventAny?.conversation_id ||
+      eventAny?.data?.conversationId ||
+      eventAny?.data?.conversation_id ||
+      eventAny?.detail?.conversationId ||
+      eventAny?.detail?.conversation_id ||
+      eventAny?.payload?.conversationId ||
+      eventAny?.payload?.conversation_id
+    );
+  }, []);
 
   const activities = useMemo(() => {
     return Object.values(activitiesById).sort((a, b) => a.updatedAt - b.updatedAt);
@@ -316,9 +338,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         resetRunVisualization();
 
         // GAP-CRIT-03: Capturar conversationId do evento RUN_STARTED
-        const eventAny = event as any;
-        const conversationIdFromEvent: string | undefined =
-          eventAny?.conversationId || eventAny?.conversation_id;
+        const conversationIdFromEvent = extractConversationIdFromEvent(event);
 
         if (conversationIdFromEvent) {
           setCurrentConversationId(conversationIdFromEvent);
@@ -699,6 +719,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [
     agent,
     cloneValue,
+    extractConversationIdFromEvent,
     finalizeRunVisualization,
     getToolStepName,
     lastMessageCount,
@@ -806,6 +827,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // Helper para sleep
     const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+    if (!session?.user) {
+      toast.error("Sessão inválida. Faça login novamente.");
+      router.push("/api/auth/login");
+      return;
+    }
+
     // Adicionar mensagem antes de tentar executar
     if (appendUserMessage) {
       const messageId = crypto.randomUUID();
@@ -823,13 +850,53 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     // Loop de retry
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
+        // Garantir que temos conversation_id antes de rodar o agente
+        let conversationIdForRun = currentConversationId;
+        if (!conversationIdForRun && session?.user) {
+          if (!creatingConversationRef.current) {
+            const usedAgentId = selectedAgentId || FALLBACK_AGENT_ID;
+            const createPromise = authPost<{ id: string }>(
+              "/api/v1/conversations",
+              session,
+              {
+                agent_id: usedAgentId,
+                initial_message: message,
+              },
+              {
+                context: {
+                  ...apiContext,
+                  agentId: usedAgentId,
+                },
+              }
+            )
+              .then((data) => {
+                const newConversationId = data.id;
+                setCurrentConversationId(newConversationId);
+                activeConversationIdRef.current = newConversationId;
+                if (pathname === "/") {
+                  router.replace(`/chat/${newConversationId}`, { scroll: false });
+                  console.info(
+                    `[ChatContext] URL atualizada para /chat/${newConversationId} (pre-create)`
+                  );
+                }
+                return newConversationId;
+              })
+              .finally(() => {
+                creatingConversationRef.current = null;
+              });
+            creatingConversationRef.current = createPromise;
+          }
+
+          conversationIdForRun = await creatingConversationRef.current;
+        }
+
         // Executar agente (dispara processamento backend)
         // SPEC-AGENT-MANAGEMENT-001: Passar agente real via forwardedProps
         // CopilotKit usa "skyller" como proxy, backend usa agentId real
         await agent.runAgent({
           forwardedProps: {
             message,
-            conversationId: currentConversationId,
+            conversationId: conversationIdForRun,
             agent_id: selectedAgentId || FALLBACK_AGENT_ID, // Agente real para backend (snake_case)
           },
         });

@@ -7,6 +7,7 @@ import { CopilotRuntime, createCopilotEndpoint } from "@copilotkitnext/runtime";
 import { handle } from "hono/vercel";
 import type { NextRequest } from "next/server";
 import { auth } from "../../../../auth";
+import { forbidden, unauthorized } from "@/lib/error-handling";
 
 // URL do backend Nexus Core (AG-UI Protocol)
 const NEXUS_AGUI_URL = process.env.NEXUS_API_URL
@@ -71,11 +72,13 @@ function createAuthenticatedAgent(
 /**
  * Cria runtime e app Hono com AgnoAgent autenticado
  */
-async function createCopilotApp(_req: NextRequest) {
-  const session = await auth();
+async function createCopilotApp(
+  _req: NextRequest,
+  session: Awaited<ReturnType<typeof auth>>
+) {
   const accessToken = session?.accessToken;
-  const tenantId = session?.user?.tenant_id || "default";
-  const userId = session?.user?.id || "anonymous";
+  const tenantId = session?.user?.tenant_id || "";
+  const userId = session?.user?.id || "";
 
   if (process.env.NODE_ENV === "development") {
     console.log("[Copilot Route] Auth context:", {
@@ -108,14 +111,28 @@ async function createCopilotApp(_req: NextRequest) {
 
 // Endpoint GET para /info e outras rotas GET
 export const GET = async (req: NextRequest) => {
-  const app = await createCopilotApp(req);
+  const session = await auth();
+  if (!session) {
+    return unauthorized();
+  }
+  if (!session.user?.tenant_id || !session.user?.id || !session.accessToken) {
+    return forbidden("Tenant nao selecionado");
+  }
+  const app = await createCopilotApp(req, session);
   const handler = handle(app);
   return handler(req);
 };
 
 // Endpoint POST para JSON-RPC e outras rotas POST
 export const POST = async (req: NextRequest) => {
-  const app = await createCopilotApp(req);
+  const session = await auth();
+  if (!session) {
+    return unauthorized();
+  }
+  if (!session.user?.tenant_id || !session.user?.id || !session.accessToken) {
+    return forbidden("Tenant nao selecionado");
+  }
+  const app = await createCopilotApp(req, session);
   const handler = handle(app);
   return handler(req);
 };

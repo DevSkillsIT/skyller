@@ -10,6 +10,7 @@ export interface AuthUser {
   email: string | null;
   image?: string | null;
   tenant_id: string;
+  tenant_slug?: string;
   tenant_name?: string;
   roles: string[];
   permissions?: string[];
@@ -121,13 +122,18 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     return null;
   }
 
+  if (!session.user.tenant_id) {
+    return null;
+  }
+
   // Mapear campos da sessao para AuthUser com type safety
   return {
     id: session.user.id || "",
     name: session.user.name || null,
     email: session.user.email || null,
     image: session.user.image,
-    tenant_id: (session.user as AuthUser).tenant_id || "default",
+    tenant_id: (session.user as AuthUser).tenant_id,
+    tenant_slug: (session.user as AuthUser).tenant_slug,
     tenant_name: (session.user as AuthUser).tenant_name,
     roles: (session.user as AuthUser).roles || [],
     permissions: (session.user as AuthUser).permissions,

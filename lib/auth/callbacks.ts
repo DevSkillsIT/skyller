@@ -6,7 +6,7 @@
  *
  * SPEC-ORGS-001: Multi-Organization Support
  * - Extrai organization[] claim do JWT
- * - Mapeia organization[0] para tenant_id (compatibilidade)
+ * - Mantem tenant_id como UUID (sem fallback para slug)
  * - Suporta usuários multi-org (organization.length > 1)
  */
 
@@ -14,6 +14,13 @@ import { jwtDecode } from "jwt-decode";
 import type { Account, Profile, Session, User } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import type { KeycloakToken } from "@/lib/auth/types";
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string | undefined | null): value is string {
+  return !!value && UUID_REGEX.test(value);
+}
 
 /**
  * JWT callback - Processa tokens do Keycloak e extrai claims customizados.
@@ -62,15 +69,22 @@ export async function jwtCallback({
       // - organization: [] ou undefined para usuários sem organization
       const organization = decoded.organization || [];
 
-      // Mapear organization[0] para tenant_id (compatibilidade)
-      // Se organization[] está vazio, usar tenant_id direto do token
-      const tenant_id = organization[0] || decoded.tenant_id || "default";
+      const tenant_uuid = isUuid((decoded as KeycloakToken & { tenant_uuid?: string }).tenant_uuid)
+        ? (decoded as KeycloakToken & { tenant_uuid?: string }).tenant_uuid
+        : isUuid(decoded.tenant_id)
+          ? decoded.tenant_id
+          : undefined;
+      const tenant_slug = decoded.tenant_slug || organization[0] || "";
+      const tenant_id = tenant_uuid;
 
       // Armazenar no token JWT
       token.organization = organization;
       token.tenant_id = tenant_id;
-      token.tenant_slug = decoded.tenant_slug || tenant_id;
-      token.tenant_name = decoded.tenant_name || tenant_id;
+      token.tenant_slug = tenant_slug;
+      token.tenant_name = decoded.tenant_name || tenant_slug;
+      if (!tenant_id) {
+        token.error = "MissingTenantUUID";
+      }
 
       // ════════════════════════════════════════════════════════════════════
       // Authorization Claims
@@ -120,15 +134,19 @@ export async function jwtCallback({
 
   // Login via user object (fallback quando account não está disponível)
   if (user && !token.tenant_id) {
-    token.tenant_id = user.tenant_id || "default";
-    token.tenant_slug = user.tenant_slug || user.tenant_id || "default";
-    token.tenant_name = user.tenant_name || user.tenant_id || "default";
+    const candidate = isUuid(user.tenant_id) ? user.tenant_id : undefined;
+    token.tenant_id = candidate;
+    token.tenant_slug = user.tenant_slug || "";
+    token.tenant_name = user.tenant_name || token.tenant_slug || "";
     token.organization = user.organization || [];
     token.roles = user.roles || [];
     token.groups = user.groups || [];
     token.department = user.department || "";
     token.company = user.company || "";
     token.clientId = user.clientId || "skyller";
+    if (!token.tenant_id) {
+      token.error = "MissingTenantUUID";
+    }
   }
 
   // TODO: Token refresh quando expiresAt se aproxima
@@ -157,9 +175,9 @@ export async function sessionCallback({
   // Mapear dados do JWT para a session
   if (token && session.user) {
     session.user.id = token.sub || "";
-    session.user.tenant_id = token.tenant_id || "default";
-    session.user.tenant_slug = token.tenant_slug || "default";
-    session.user.tenant_name = token.tenant_name || "default";
+    session.user.tenant_id = token.tenant_id || "";
+    session.user.tenant_slug = token.tenant_slug || "";
+    session.user.tenant_name = token.tenant_name || "";
 
     // ════════════════════════════════════════════════════════════════════
     // SPEC-ORGS-001: Expor organization array na session

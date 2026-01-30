@@ -75,10 +75,16 @@ export const proxy = auth((req) => {
     }
   }
 
-  // Usuario autenticado - adicionar X-Tenant-ID header e continuar
-  const response = NextResponse.next();
-  response.headers.set("X-Tenant-ID", subdomain);
-  return response;
+  // Usuario autenticado - adicionar X-Tenant-ID (UUID) no request e continuar
+  const requestHeaders = new Headers(req.headers);
+  if (req.auth?.user?.tenant_id) {
+    requestHeaders.set("X-Tenant-ID", req.auth.user.tenant_id);
+  }
+  return NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
 });
 
 /**

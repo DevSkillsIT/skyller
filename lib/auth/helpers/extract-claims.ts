@@ -8,6 +8,13 @@
 import type { Profile } from "next-auth";
 import type { KeycloakResourceAccess, KeycloakToken } from "../types";
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string | undefined | null): value is string {
+  return !!value && UUID_REGEX.test(value);
+}
+
 /**
  * Extract a claim from profile with fallback value.
  *
@@ -105,9 +112,9 @@ export function extractOrganization(profile: Profile | undefined): string[] {
 /**
  * Extract tenant information from Keycloak token.
  *
- * SPEC-ORGS-001: Compatibilidade com multi-org
- * - Se organization[] existir, usa organization[0] como tenant_id
- * - Caso contrário, usa tenant_id direto do token
+ * SPEC-ORGS-001: UUID canonical sem fallback
+ * - Usa tenant_uuid (ou tenant_id se for UUID)
+ * - Mantem tenant_slug a partir de organization[0] ou tenant_slug
  *
  * @param profile - The Keycloak profile object
  * @returns Tenant information object
@@ -117,11 +124,21 @@ export function extractTenant(profile: Profile | undefined): {
   tenant_slug: string;
   tenant_name: string;
 } {
-  // SPEC-ORGS-001: Priorizar organization[0] sobre tenant_id
   const organization = extractOrganization(profile);
-  const tenant_id = organization[0] || extractClaim(profile, "tenant_id", "default");
-  const tenant_slug = extractClaim(profile, "tenant_slug", tenant_id);
-  const tenant_name = extractClaim(profile, "tenant_name", tenant_id);
+  const rawTenantId = extractClaim(profile, "tenant_id", "");
+  const rawTenantUuid = extractClaim(profile, "tenant_uuid", "");
+  const tenant_uuid = isUuid(rawTenantUuid)
+    ? rawTenantUuid
+    : isUuid(rawTenantId)
+      ? rawTenantId
+      : "";
+  const tenant_slug = extractClaim(
+    profile,
+    "tenant_slug",
+    organization[0] || "default"
+  );
+  const tenant_name = extractClaim(profile, "tenant_name", tenant_slug);
+  const tenant_id = tenant_uuid;
 
   return {
     tenant_id,

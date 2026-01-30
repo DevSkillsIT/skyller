@@ -10,8 +10,21 @@
 import { jwtDecode } from "jwt-decode";
 import type { Account, Profile } from "next-auth";
 import type { JWT } from "next-auth/jwt";
-import { extractClaim, extractGroups, extractRoles } from "@/lib/auth/helpers/extract-claims";
+import {
+  extractClaim,
+  extractGroups,
+  extractRoles,
+  extractTenant,
+} from "@/lib/auth/helpers/extract-claims";
 import type { OrganizationClaim } from "@/types/next-auth";
+import type { KeycloakToken } from "@/lib/auth/types";
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string | undefined | null): value is string {
+  return !!value && UUID_REGEX.test(value);
+}
 
 interface JWTCallbackParams {
   token: JWT;
@@ -34,9 +47,40 @@ export async function jwtCallback({ token, account, profile }: JWTCallbackParams
   // Apenas processar no primeiro login
   if (account && profile) {
     // Claims essenciais com fallbacks
-    token.tenant_id = extractClaim(profile, "tenant_id", "default");
-    token.tenant_name = extractClaim(profile, "tenant_name", token.tenant_id as string);
-    token.tenant_slug = extractClaim(profile, "tenant_slug", token.tenant_id as string);
+    const tenant = extractTenant(profile);
+    let tenantId = tenant.tenant_id;
+    let tenantSlug = tenant.tenant_slug;
+    let tenantName = tenant.tenant_name;
+
+    if (!tenantId && account?.access_token) {
+      try {
+        const decoded = jwtDecode<KeycloakToken>(account.access_token);
+        const candidateUuid = isUuid(decoded.tenant_uuid)
+          ? decoded.tenant_uuid
+          : isUuid(decoded.tenant_id)
+            ? decoded.tenant_id
+            : "";
+        if (candidateUuid) {
+          tenantId = candidateUuid;
+        }
+        if (!tenantSlug) {
+          const org = decoded.organization || [];
+          tenantSlug = decoded.tenant_slug || org[0] || "";
+        }
+        if (!tenantName) {
+          tenantName = decoded.tenant_name || tenantSlug || "";
+        }
+      } catch (error) {
+        console.error("[JWT Callback] Failed to decode tenant_uuid:", error);
+      }
+    }
+
+    token.tenant_id = tenantId;
+    token.tenant_slug = tenantSlug;
+    token.tenant_name = tenantName;
+    if (!tenantId) {
+      token.error = "MissingTenantUUID";
+    }
 
     // Arrays com fallback para vazio
     token.groups = extractGroups(profile);

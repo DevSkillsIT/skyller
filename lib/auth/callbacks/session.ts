@@ -28,9 +28,9 @@ export async function sessionCallback({ session, token }: SessionCallbackParams)
   session.user = {
     ...session.user,
     id: (token.sub as string) || "",
-    tenant_id: (token.tenant_id as string) || "default",
-    tenant_name: (token.tenant_name as string) || "Default Tenant",
-    tenant_slug: (token.tenant_slug as string) || "default",
+    tenant_id: (token.tenant_id as string) || "",
+    tenant_name: (token.tenant_name as string) || "",
+    tenant_slug: (token.tenant_slug as string) || "",
     groups: (token.groups as string[]) || [],
     roles: (token.roles as string[]) || [],
     department: (token.department as string) || "",

@@ -117,7 +117,7 @@ export async function signOutFromKeycloak(callbackUrl?: string): Promise<void> {
 
   // 2. Invalidar sessao do Keycloak via backchannel (se tiver refresh token)
   if (session?.refreshToken) {
-    await invalidateKeycloakSession(session.refreshToken, session.user?.tenant_id);
+    await invalidateKeycloakSession(session.refreshToken, session.user?.tenant_slug);
   }
 
   // 3. Limpar sessao do Auth.js e redirecionar

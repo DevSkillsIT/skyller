@@ -52,8 +52,10 @@ export interface KeycloakToken {
   picture?: string;
 
   // Custom claims (tenant-specific)
-  /** Tenant ID */
+  /** Tenant UUID (canonical) */
   tenant_id?: string;
+  /** Tenant UUID (canonical) */
+  tenant_uuid?: string;
   /** Tenant slug (URL-friendly) */
   tenant_slug?: string;
   /** Tenant display name */

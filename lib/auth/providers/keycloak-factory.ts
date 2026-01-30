@@ -17,6 +17,13 @@ import { jwtDecode } from "jwt-decode";
 import KeycloakProvider from "next-auth/providers/keycloak";
 import type { KeycloakToken } from "../types";
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string | undefined | null): value is string {
+  return !!value && UUID_REGEX.test(value);
+}
+
 /**
  * Tenant configuration type
  */
@@ -296,7 +303,12 @@ export function createKeycloakProviderForTenant(tenantId: string) {
         }
       }
 
-      const tenant_id = org_alias || decoded?.tenant_id || tenantId;
+      const tenant_uuid = isUuid(decoded?.tenant_uuid)
+        ? decoded?.tenant_uuid
+        : isUuid(decoded?.tenant_id)
+          ? decoded?.tenant_id
+          : "";
+      const tenant_id = tenant_uuid;
 
       return {
         id: profile.sub,
@@ -304,8 +316,8 @@ export function createKeycloakProviderForTenant(tenantId: string) {
         email: profile.email || "",
         image: profile.picture,
         tenant_id,
-        tenant_slug: decoded?.tenant_slug || tenantId,
-        tenant_name: decoded?.tenant_name || config.displayName,
+        tenant_slug: decoded?.tenant_slug || org_alias || tenantId,
+        tenant_name: decoded?.tenant_name || org_alias || config.displayName,
         organization, // Multi-org support (array de aliases)
         org_id, // UUID da organization ativa
         org_alias, // Alias da organization ativa
@@ -414,7 +426,12 @@ export function createKeycloakProvider(clientKey: "skyller" | "nexus-admin") {
         }
       }
 
-      const tenant_id = org_alias || decoded?.tenant_id || "admin";
+      const tenant_uuid = isUuid(decoded?.tenant_uuid)
+        ? decoded?.tenant_uuid
+        : isUuid(decoded?.tenant_id)
+          ? decoded?.tenant_id
+          : "";
+      const tenant_id = tenant_uuid;
 
       return {
         id: profile.sub,
@@ -422,8 +439,8 @@ export function createKeycloakProvider(clientKey: "skyller" | "nexus-admin") {
         email: profile.email || "",
         image: profile.picture,
         tenant_id,
-        tenant_slug: decoded?.tenant_slug || tenant_id,
-        tenant_name: decoded?.tenant_name || "Platform Admin",
+        tenant_slug: decoded?.tenant_slug || org_alias || "admin",
+        tenant_name: decoded?.tenant_name || org_alias || "Platform Admin",
         organization, // Multi-org support (array de aliases)
         org_id, // UUID da organization ativa
         org_alias, // Alias da organization ativa

@@ -65,11 +65,11 @@ export function OrganizationSelector({
         setSelectedOrg(stored);
       } else {
         // Fallback para tenant_id atual (organization[0] da session)
-        const currentTenantId = session?.user?.tenant_id || organizations[0];
-        setSelectedOrg(currentTenantId);
+        const currentTenantSlug = session?.user?.tenant_slug || organizations[0];
+        setSelectedOrg(currentTenantSlug);
       }
     }
-  }, [status, organizations, session?.user?.tenant_id]);
+  }, [status, organizations, session?.user?.tenant_slug]);
 
   // Handler para mudança de organization
   const handleOrganizationChange = (orgAlias: string) => {
@@ -114,7 +114,7 @@ export function OrganizationSelector({
         <div className="mt-2 text-xs text-muted-foreground">
           <p>Organizations: {organizations.join(", ")}</p>
           <p>Selected: {selectedOrg}</p>
-          <p>Session tenant_id: {session?.user?.tenant_id}</p>
+          <p>Session tenant_slug: {session?.user?.tenant_slug}</p>
         </div>
       )}
     </div>

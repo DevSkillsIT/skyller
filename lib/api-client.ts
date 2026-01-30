@@ -343,6 +343,13 @@ interface AuthSession {
   accessToken?: string;
 }
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string | undefined | null): value is string {
+  return !!value && UUID_REGEX.test(value);
+}
+
 /**
  * Contexto adicional para headers de API
  *
@@ -393,7 +400,13 @@ export function createAuthHeaders(session: AuthSession | null, context?: ApiCont
 
   // Headers de contexto multi-tenant (obrigatorios)
   if (session.user.tenant_id) {
-    headers["X-Tenant-ID"] = session.user.tenant_id;
+    if (isUuid(session.user.tenant_id)) {
+      headers["X-Tenant-ID"] = session.user.tenant_id;
+    } else {
+      console.error(
+        `[api-client] tenant_id invalido (nao UUID) recebido na session: ${session.user.tenant_id}`
+      );
+    }
   }
   if (session.user.id) {
     headers["X-User-ID"] = session.user.id;

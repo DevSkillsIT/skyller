@@ -32,8 +32,10 @@ type OrganizationClaim = Record<string, OrganizationMeta>;
  * Claims customizados do Keycloak presentes no token JWT
  */
 interface KeycloakClaims {
-  /** ID unico do tenant no sistema */
+  /** ID unico do tenant no sistema (UUID canônico) */
   tenant_id: string;
+  /** UUID do tenant (claim preferencial) */
+  tenant_uuid?: string;
   /** Slug do tenant para URLs (ex: "ramada", "wink") */
   tenant_slug: string;
   /** Nome amigavel do tenant para exibicao */
@@ -189,8 +191,10 @@ export interface KeycloakToken {
   preferred_username?: string;
   /** Nome completo */
   name?: string;
-  /** ID do tenant customizado */
+  /** ID do tenant customizado (UUID canônico) */
   tenant_id?: string;
+  /** UUID do tenant (claim preferencial) */
+  tenant_uuid?: string;
   /** Slug do tenant */
   tenant_slug?: string;
   /** Nome do tenant */
