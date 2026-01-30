@@ -8,8 +8,15 @@ import { AgnoAgent } from "@ag-ui/agno";
 import { CopilotRuntime, createCopilotEndpoint } from "@copilotkitnext/runtime";
 import { handle } from "hono/vercel";
 import type { NextRequest } from "next/server";
-import { auth } from "../../../auth";
 import { forbidden, unauthorized } from "@/lib/error-handling";
+import { auth } from "../../../auth";
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string | undefined | null): value is string {
+  return !!value && UUID_REGEX.test(value);
+}
 
 // URL do backend Nexus Core (AG-UI Protocol)
 const NEXUS_AGUI_URL = process.env.NEXUS_API_URL
@@ -148,6 +155,16 @@ export const GET = async (req: NextRequest) => {
   if (!session.user?.tenant_id || !session.user?.id || !session.accessToken) {
     return forbidden("Tenant nao selecionado");
   }
+  if (!isUuid(session.user.tenant_id)) {
+    return new Response(
+      JSON.stringify({
+        error: "invalid_tenant_id",
+        message: "tenant_id deve ser UUID valido",
+        spec: "SPEC-TENANT-SLUG-001 REQ-L03",
+      }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
   const app = await createCopilotApp(req, session);
   const handler = handle(app);
   return handler(req);
@@ -161,6 +178,16 @@ export const POST = async (req: NextRequest) => {
   }
   if (!session.user?.tenant_id || !session.user?.id || !session.accessToken) {
     return forbidden("Tenant nao selecionado");
+  }
+  if (!isUuid(session.user.tenant_id)) {
+    return new Response(
+      JSON.stringify({
+        error: "invalid_tenant_id",
+        message: "tenant_id deve ser UUID valido",
+        spec: "SPEC-TENANT-SLUG-001 REQ-L03",
+      }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
   }
   const app = await createCopilotApp(req, session);
   const handler = handle(app);

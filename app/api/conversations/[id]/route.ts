@@ -12,6 +12,13 @@ import { auth } from "@/auth";
 import { getBackendBaseUrl } from "@/lib/env-validation";
 import { forbidden, handleApiError, unauthorized } from "@/lib/error-handling";
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string | undefined | null): value is string {
+  return !!value && UUID_REGEX.test(value);
+}
+
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
@@ -31,6 +38,17 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
     if (!session.user?.tenant_id || !session.user?.id || !session.accessToken) {
       return forbidden("Tenant nao selecionado");
+    }
+
+    if (!isUuid(session.user.tenant_id)) {
+      return NextResponse.json(
+        {
+          error: "invalid_tenant_id",
+          message: "tenant_id deve ser UUID valido",
+          spec: "SPEC-TENANT-SLUG-001 REQ-L03",
+        },
+        { status: 400 }
+      );
     }
 
     const response = await fetch(`${getBackendBaseUrl()}/api/v1/conversations/${id}`, {
@@ -79,6 +97,17 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       return forbidden("Tenant nao selecionado");
     }
 
+    if (!isUuid(session.user.tenant_id)) {
+      return NextResponse.json(
+        {
+          error: "invalid_tenant_id",
+          message: "tenant_id deve ser UUID valido",
+          spec: "SPEC-TENANT-SLUG-001 REQ-L03",
+        },
+        { status: 400 }
+      );
+    }
+
     const body = await request.json();
 
     const response = await fetch(`${getBackendBaseUrl()}/api/v1/conversations/${id}`, {
@@ -123,6 +152,17 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
 
     if (!session.user?.tenant_id || !session.user?.id || !session.accessToken) {
       return forbidden("Tenant nao selecionado");
+    }
+
+    if (!isUuid(session.user.tenant_id)) {
+      return NextResponse.json(
+        {
+          error: "invalid_tenant_id",
+          message: "tenant_id deve ser UUID valido",
+          spec: "SPEC-TENANT-SLUG-001 REQ-L03",
+        },
+        { status: 400 }
+      );
     }
 
     const response = await fetch(`${getBackendBaseUrl()}/api/v1/conversations/${id}`, {

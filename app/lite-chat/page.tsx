@@ -21,7 +21,7 @@ export default function LiteChatPage() {
       <CopilotSidebar
         defaultOpen={true}
         labels={{
-          modalHeaderTitle: "Skyller AI Assistant",
+          modalHeaderTitle: "Skyller",
           chatInputPlaceholder: "Como posso ajudar você hoje?",
         }}
       />

@@ -8,8 +8,7 @@
 import type { Profile } from "next-auth";
 import type { KeycloakResourceAccess, KeycloakToken } from "../types";
 
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function isUuid(value: string | undefined | null): value is string {
   return !!value && UUID_REGEX.test(value);
@@ -132,11 +131,7 @@ export function extractTenant(profile: Profile | undefined): {
     : isUuid(rawTenantId)
       ? rawTenantId
       : "";
-  const tenant_slug = extractClaim(
-    profile,
-    "tenant_slug",
-    organization[0] || "default"
-  );
+  const tenant_slug = extractClaim(profile, "tenant_slug", organization[0] || "default");
   const tenant_name = extractClaim(profile, "tenant_name", tenant_slug);
   const tenant_id = tenant_uuid;
 

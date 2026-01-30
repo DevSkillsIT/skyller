@@ -21,6 +21,13 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { isPublicRoute } from "@/lib/auth/constants";
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string | undefined | null): value is string {
+  return !!value && UUID_REGEX.test(value);
+}
+
 /**
  * Proxy function para Next.js 16
  *
@@ -78,7 +85,14 @@ export const proxy = auth((req) => {
   // Usuario autenticado - adicionar X-Tenant-ID (UUID) no request e continuar
   const requestHeaders = new Headers(req.headers);
   if (req.auth?.user?.tenant_id) {
-    requestHeaders.set("X-Tenant-ID", req.auth.user.tenant_id);
+    if (isUuid(req.auth.user.tenant_id)) {
+      requestHeaders.set("X-Tenant-ID", req.auth.user.tenant_id);
+    } else {
+      console.warn("[proxy] tenant_id invalido (nao UUID) ignorado", {
+        tenant_id: req.auth.user.tenant_id,
+        path: pathname,
+      });
+    }
   }
   return NextResponse.next({
     request: {
