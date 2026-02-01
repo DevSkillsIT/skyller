@@ -55,14 +55,32 @@ fi
 echo "🔨 Fazendo rebuild..."
 pnpm build
 
-# 5. Reiniciar PM2 garantindo cwd/env do ecosystem
+# 5. Verificar se backend está respondendo antes de iniciar
+echo "🔍 Verificando backend (porta 8000)..."
+BACKEND_READY=false
+for i in {1..10}; do
+  HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/ 2>/dev/null)
+  if [ "$HTTP_CODE" = "200" ]; then
+    BACKEND_READY=true
+    echo "   ✅ Backend respondendo (HTTP $HTTP_CODE)"
+    break
+  fi
+  echo "   ⏳ Aguardando backend... ($i/10) - HTTP $HTTP_CODE"
+  sleep 2
+done
+
+if [ "$BACKEND_READY" = false ]; then
+  echo "   ⚠️  Backend não respondeu, mas continuando..."
+fi
+
+# 6. Reiniciar PM2 garantindo cwd/env do ecosystem
 echo "▶️  Reiniciando PM2 (startOrReload com update-env)..."
 pm2 startOrReload ecosystem.config.js --only skyller --update-env
 
-# 6. Salvar configuração PM2
+# 7. Salvar configuração PM2
 pm2 save
 
-# 7. Mostrar status e onde o PM2 está rodando
+# 8. Mostrar status e onde o PM2 está rodando
 echo "📊 Status do PM2:"
 pm2 status
 echo "📍 Detalhes do processo skyller (primeiras linhas):"

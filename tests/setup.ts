@@ -2,6 +2,9 @@ import "@testing-library/jest-dom";
 import type { ReactNode } from "react";
 import { vi } from "vitest";
 
+// Mock para arquivos CSS (katex, etc.)
+vi.mock("katex/dist/katex.min.css", () => ({}));
+
 // Mock ResizeObserver para use-stick-to-bottom
 class ResizeObserverMock {
   observe() {}

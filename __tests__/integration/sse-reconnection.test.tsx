@@ -1,7 +1,5 @@
 import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ConnectionStatus } from "@/components/chat/connection-status";
-import { ChatProvider, useChat } from "@/lib/contexts/chat-context";
 
 const mockAgent = {
   messages: [],
@@ -35,11 +33,46 @@ vi.mock("sonner", () => ({
   },
 }));
 
-// Mock do useRouter
+// Mock do useRouter e usePathname
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: vi.fn(),
+    replace: vi.fn(),
+    refresh: vi.fn(),
   }),
+  usePathname: () => "/",
+}));
+
+// Mock do next-auth
+vi.mock("next-auth/react", () => ({
+  useSession: vi.fn(() => ({
+    data: {
+      user: { id: "user-1", email: "test@test.com", tenant_id: "tenant-1" },
+      accessToken: "mock-token",
+    },
+    status: "authenticated",
+  })),
+}));
+
+// Mock do api-client
+vi.mock("@/lib/api-client", () => ({
+  authGet: vi.fn(async () => ({ items: [], has_more: false, next_cursor: null })),
+  authPost: vi.fn(async () => ({ id: "conv-123" })),
+}));
+
+// Mock do useEffectiveAgent
+vi.mock("@/lib/hooks/use-effective-agent", () => ({
+  useEffectiveAgent: vi.fn(() => ({ agentId: "skyller", isLoading: false })),
+}));
+
+// Mock do useSessionContext
+vi.mock("@/lib/hooks/use-session-context", () => ({
+  useSessionContext: vi.fn(() => ({
+    apiContext: {},
+    setConversationId: vi.fn(),
+    setThreadId: vi.fn(),
+    setAgentId: vi.fn(),
+  })),
 }));
 
 // Mock do useRateLimit
@@ -52,6 +85,10 @@ vi.mock("@/lib/hooks/use-rate-limit", () => ({
     formattedTime: "",
   }),
 }));
+
+// Import after mocks
+import { ConnectionStatus } from "@/components/chat/connection-status";
+import { ChatProvider, useChat } from "@/lib/contexts/chat-context";
 
 // Componente de teste que consome ChatContext
 function TestChatComponent() {

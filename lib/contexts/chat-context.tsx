@@ -394,9 +394,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         finalizeRunVisualization();
 
         // GAP-IMP-01: Atualizar URL se estiver na home após primeira mensagem
-        if (pathname === "/" && currentConversationId) {
-          router.replace(`/chat/${currentConversationId}`, { scroll: false });
-          console.info(`[ChatContext] URL atualizada para /chat/${currentConversationId}`);
+        // Usar activeConversationIdRef (sincrono) em vez de estado React (assincrono)
+        const conversationIdForRedirect = activeConversationIdRef.current;
+        if (pathname === "/" && conversationIdForRedirect) {
+          router.replace(`/chat/${conversationIdForRedirect}`, { scroll: false });
+          console.info(`[ChatContext] URL atualizada para /chat/${conversationIdForRedirect}`);
         }
 
         // Validar persistência após finalização

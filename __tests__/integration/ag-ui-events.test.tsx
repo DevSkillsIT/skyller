@@ -10,10 +10,11 @@
 import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ChatProvider, useChat } from "@/lib/contexts/chat-context";
 
+// Mock do api-client
 vi.mock("@/lib/api-client", () => ({
-  authPost: vi.fn(async () => ({})),
+  authGet: vi.fn(async () => ({ items: [], has_more: false, next_cursor: null })),
+  authPost: vi.fn(async () => ({ id: "conv-123" })),
 }));
 
 const mockAgent = {
@@ -34,6 +35,7 @@ vi.mock("next/navigation", () => ({
     replace: vi.fn(),
     refresh: vi.fn(),
   })),
+  usePathname: vi.fn(() => "/"),
 }));
 
 // Mock do useAgent do CopilotKit v2
@@ -46,6 +48,43 @@ vi.mock("@copilotkitnext/react", () => ({
   },
 }));
 
+// Mock do next-auth
+vi.mock("next-auth/react", () => ({
+  useSession: vi.fn(() => ({
+    data: {
+      user: { id: "user-1", email: "test@test.com", tenant_id: "tenant-1" },
+      accessToken: "mock-token",
+    },
+    status: "authenticated",
+  })),
+}));
+
+// Mock do useEffectiveAgent
+vi.mock("@/lib/hooks/use-effective-agent", () => ({
+  useEffectiveAgent: vi.fn(() => ({ agentId: "skyller", isLoading: false })),
+}));
+
+// Mock do useSessionContext
+vi.mock("@/lib/hooks/use-session-context", () => ({
+  useSessionContext: vi.fn(() => ({
+    apiContext: {},
+    setConversationId: vi.fn(),
+    setThreadId: vi.fn(),
+    setAgentId: vi.fn(),
+  })),
+}));
+
+// Mock do useRateLimit
+vi.mock("@/lib/hooks/use-rate-limit", () => ({
+  useRateLimit: vi.fn(() => ({
+    isLimited: false,
+    remaining: 30,
+    limit: 30,
+    resetAt: null,
+    formattedTime: "",
+  })),
+}));
+
 // Mock do toast
 vi.mock("sonner", () => ({
   toast: {
@@ -54,6 +93,9 @@ vi.mock("sonner", () => ({
     error: vi.fn(),
   },
 }));
+
+// Import after mocks
+import { ChatProvider, useChat } from "@/lib/contexts/chat-context";
 
 describe("Eventos AG-UI - Estrutura do ChatContext", () => {
   const wrapper = ({ children }: { children: ReactNode }) => (

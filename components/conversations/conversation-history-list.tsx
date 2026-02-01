@@ -16,7 +16,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
+import {
+  SidebarMenu,
+  SidebarMenuAction,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type ConversationSummary, useConversations } from "@/lib/hooks/use-conversations";
 
@@ -158,7 +163,7 @@ export function ConversationHistoryList({
             <SidebarMenuButton
               onClick={() => !isEditing && handleSelect(conversation)}
               isActive={isSelected}
-              className={`group h-auto ${compact ? "py-1" : "py-1.5"}`}
+              className={`h-auto ${compact ? "py-1" : "py-1.5"}`}
             >
               {/* Icon */}
               <div className="flex-shrink-0">
@@ -167,7 +172,8 @@ export function ConversationHistoryList({
                 </div>
               </div>
 
-              <div className="flex-1 min-w-0">
+              {/* Content */}
+              <div className="flex-1 min-w-0 overflow-hidden">
                 {isEditing ? (
                   <Input
                     value={editTitle}
@@ -186,11 +192,11 @@ export function ConversationHistoryList({
                   />
                 ) : (
                   <>
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1">
                       <span className="text-sm truncate">
                         {conversation.title || "Nova Conversa"}
                       </span>
-                      <span className="text-[10px] text-muted-foreground flex-shrink-0">
+                      <span className="text-[10px] text-muted-foreground flex-shrink-0 whitespace-nowrap ml-auto">
                         {formatRelativeTime(conversation.created_at)}
                       </span>
                     </div>
@@ -203,41 +209,37 @@ export function ConversationHistoryList({
                   </>
                 )}
               </div>
-
-              {/* Context menu */}
-              {!isEditing && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 opacity-0 group-hover:opacity-100 flex-shrink-0 bg-transparent"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <MoreHorizontal className="h-3.5 w-3.5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-40">
-                    <DropdownMenuItem onClick={() => startEdit(conversation)}>
-                      <Pencil className="h-4 w-4 mr-2" />
-                      Renomear
-                    </DropdownMenuItem>
-                    <DropdownMenuItem disabled>
-                      <Archive className="h-4 w-4 mr-2" />
-                      Arquivar
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      className="text-destructive"
-                      onClick={() => handleDelete(conversation.id)}
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Excluir
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
             </SidebarMenuButton>
+
+            {/* Context menu - usando SidebarMenuAction do Shadcn */}
+            {!isEditing && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <SidebarMenuAction showOnHover>
+                    <MoreHorizontal className="h-4 w-4" />
+                    <span className="sr-only">Mais opcoes</span>
+                  </SidebarMenuAction>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuItem onClick={() => startEdit(conversation)}>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Renomear
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled>
+                    <Archive className="h-4 w-4 mr-2" />
+                    Arquivar
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive"
+                    onClick={() => handleDelete(conversation.id)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Excluir
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </SidebarMenuItem>
         );
       })}

@@ -8,11 +8,104 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ChatProvider, useChat } from "@/lib/contexts/chat-context";
 
 // Mock do fetch global
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
+
+// Mock agent para useAgent do CopilotKit
+// O mock simula o comportamento real do CopilotKit, atualizando messages
+const mockAgent = {
+  messages: [] as any[],
+  isRunning: false,
+  threadId: "thread-1",
+  subscribe: vi.fn(() => ({ unsubscribe: vi.fn() })),
+  addMessage: vi.fn((msg: any) => {
+    // Simula comportamento real do CopilotKit
+    mockAgent.messages = [...mockAgent.messages, msg];
+  }),
+  setMessages: vi.fn((msgs: any[]) => {
+    // Simula comportamento real do CopilotKit
+    mockAgent.messages = [...msgs];
+  }),
+  runAgent: vi.fn(async () => {}),
+  setState: vi.fn(),
+};
+
+// Mock do CopilotKit v2
+vi.mock("@copilotkitnext/react", () => ({
+  useAgent: vi.fn(() => ({ agent: mockAgent })),
+  UseAgentUpdate: {
+    OnMessagesChanged: "OnMessagesChanged",
+    OnStateChanged: "OnStateChanged",
+    OnRunStatusChanged: "OnRunStatusChanged",
+  },
+}));
+
+// Mock do next-auth
+vi.mock("next-auth/react", () => ({
+  useSession: vi.fn(() => ({
+    data: {
+      user: { id: "user-1", email: "test@test.com", tenant_id: "tenant-1" },
+      accessToken: "mock-token",
+    },
+    status: "authenticated",
+  })),
+}));
+
+// Mock do next/navigation
+vi.mock("next/navigation", () => ({
+  useRouter: vi.fn(() => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    refresh: vi.fn(),
+  })),
+  usePathname: vi.fn(() => "/"),
+}));
+
+// Mock do sonner toast
+vi.mock("sonner", () => ({
+  toast: {
+    info: vi.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
+// Mock do api-client
+vi.mock("@/lib/api-client", () => ({
+  authGet: vi.fn(async () => ({ items: [], has_more: false, next_cursor: null })),
+  authPost: vi.fn(async () => ({ id: "conv-123" })),
+}));
+
+// Mock do useEffectiveAgent
+vi.mock("@/lib/hooks/use-effective-agent", () => ({
+  useEffectiveAgent: vi.fn(() => ({ agentId: "skyller", isLoading: false })),
+}));
+
+// Mock do useSessionContext
+vi.mock("@/lib/hooks/use-session-context", () => ({
+  useSessionContext: vi.fn(() => ({
+    apiContext: {},
+    setConversationId: vi.fn(),
+    setThreadId: vi.fn(),
+    setAgentId: vi.fn(),
+  })),
+}));
+
+// Mock do useRateLimit
+vi.mock("@/lib/hooks/use-rate-limit", () => ({
+  useRateLimit: vi.fn(() => ({
+    isLimited: false,
+    remaining: 30,
+    limit: 30,
+    resetAt: null,
+    formattedTime: "",
+  })),
+}));
+
+// Importar apos os mocks
+import { ChatProvider, useChat } from "@/lib/contexts/chat-context";
 
 // Wrapper para prover contexto aos hooks
 const wrapper = ({ children }: { children: ReactNode }) => <ChatProvider>{children}</ChatProvider>;
@@ -20,6 +113,9 @@ const wrapper = ({ children }: { children: ReactNode }) => <ChatProvider>{childr
 describe("ChatContext - Testes de Caracterizacao", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset mockAgent state
+    mockAgent.messages = [];
+    mockAgent.isRunning = false;
     // Setup default fetch mock para retornar array vazio
     mockFetch.mockResolvedValue({
       ok: true,
@@ -169,7 +265,7 @@ describe("ChatContext - Testes de Caracterizacao", () => {
   });
 
   describe("addMessage", () => {
-    it("deve adicionar mensagem ao array existente", async () => {
+    it("deve delegar addMessage para o CopilotKit agent", async () => {
       const { result } = renderHook(() => useChat(), { wrapper });
 
       const novaMensagem = {
@@ -183,10 +279,16 @@ describe("ChatContext - Testes de Caracterizacao", () => {
         result.current.addMessage(novaMensagem);
       });
 
-      expect(result.current.messages).toContainEqual(novaMensagem);
+      // Verifica que delegou para o CopilotKit com formato correto
+      expect(mockAgent.addMessage).toHaveBeenCalledWith({
+        id: novaMensagem.id,
+        role: novaMensagem.role,
+        content: novaMensagem.content,
+        createdAt: novaMensagem.timestamp,
+      });
     });
 
-    it("deve preservar mensagens existentes ao adicionar nova", async () => {
+    it("deve chamar addMessage multiplas vezes ao adicionar varias mensagens", async () => {
       const { result } = renderHook(() => useChat(), { wrapper });
 
       const msg1 = {
@@ -211,14 +313,25 @@ describe("ChatContext - Testes de Caracterizacao", () => {
         result.current.addMessage(msg2);
       });
 
-      expect(result.current.messages).toHaveLength(2);
-      expect(result.current.messages[0]).toEqual(msg1);
-      expect(result.current.messages[1]).toEqual(msg2);
+      // Verifica que o CopilotKit foi chamado duas vezes
+      expect(mockAgent.addMessage).toHaveBeenCalledTimes(2);
+      expect(mockAgent.addMessage).toHaveBeenNthCalledWith(1, {
+        id: msg1.id,
+        role: msg1.role,
+        content: msg1.content,
+        createdAt: msg1.timestamp,
+      });
+      expect(mockAgent.addMessage).toHaveBeenNthCalledWith(2, {
+        id: msg2.id,
+        role: msg2.role,
+        content: msg2.content,
+        createdAt: msg2.timestamp,
+      });
     });
   });
 
   describe("setMessages", () => {
-    it("deve substituir todas as mensagens", async () => {
+    it("deve delegar setMessages para applyMessages interno", async () => {
       const { result } = renderHook(() => useChat(), { wrapper });
 
       const novasMensagens = [
@@ -240,7 +353,9 @@ describe("ChatContext - Testes de Caracterizacao", () => {
         result.current.setMessages(novasMensagens);
       });
 
-      expect(result.current.messages).toEqual(novasMensagens);
+      // Verifica que o CopilotKit agent.setMessages foi chamado
+      // O ChatContext transforma as mensagens antes de passar para o agent
+      expect(mockAgent.setMessages).toHaveBeenCalled();
     });
   });
 
