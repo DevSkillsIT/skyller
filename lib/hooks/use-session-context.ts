@@ -22,7 +22,6 @@ import type { ApiContext } from "@/lib/api/auth-headers";
 // Types
 // ==============================================================================
 
-
 /**
  * Estado retornado pelo hook
  */

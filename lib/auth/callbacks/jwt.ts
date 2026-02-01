@@ -62,7 +62,9 @@ export async function jwtCallback({ token, account, profile }: JWTCallbackParams
 
         // Keycloak 26: tenant_uuid dentro de organization
         // Formato: {"skills": {"tenant_uuid": ["uuid"], "id": "..."}}
-        const orgObj = decoded.organization as Record<string, { tenant_uuid?: string[] }> | undefined;
+        const orgObj = decoded.organization as
+          | Record<string, { tenant_uuid?: string[] }>
+          | undefined;
         if (orgObj && typeof orgObj === "object" && !Array.isArray(orgObj)) {
           const firstAlias = Object.keys(orgObj)[0];
           const orgData = firstAlias ? orgObj[firstAlias] : undefined;

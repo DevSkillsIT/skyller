@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import { signOut, useSession } from "next-auth/react";
+import { useEffect, useRef } from "react";
 import { isUuid } from "@/lib/api/auth-headers";
 
 /**

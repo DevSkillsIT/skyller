@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { SessionProvider } from "next-auth/react";
-import TenantUuidGuard from "@/components/auth/tenant-uuid-guard";
 import type React from "react";
+import TenantUuidGuard from "@/components/auth/tenant-uuid-guard";
 import { CopilotProvider } from "@/components/providers/copilot-provider";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
