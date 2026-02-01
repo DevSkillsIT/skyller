@@ -54,17 +54,30 @@ export async function jwtCallback({ token, account, profile }: JWTCallbackParams
     if (!tenantId && account?.access_token) {
       try {
         const decoded = jwtDecode<KeycloakToken>(account.access_token);
-        const candidateUuid = isUuid(decoded.tenant_uuid)
-          ? decoded.tenant_uuid
-          : isUuid(decoded.tenant_id)
-            ? decoded.tenant_id
-            : "";
-        if (candidateUuid) {
-          tenantId = candidateUuid;
+
+        // Garantir consistencia do user_id com o access_token
+        if (decoded.sub) {
+          token.sub = decoded.sub;
+        }
+
+        // Keycloak 26: tenant_uuid dentro de organization
+        // Formato: {"skills": {"tenant_uuid": ["uuid"], "id": "..."}}
+        const orgObj = decoded.organization as Record<string, { tenant_uuid?: string[] }> | undefined;
+        if (orgObj && typeof orgObj === "object" && !Array.isArray(orgObj)) {
+          const firstAlias = Object.keys(orgObj)[0];
+          const orgData = firstAlias ? orgObj[firstAlias] : undefined;
+          if (orgData?.tenant_uuid?.[0] && isUuid(orgData.tenant_uuid[0])) {
+            tenantId = orgData.tenant_uuid[0];
+            tenantSlug = firstAlias;
+          }
+        }
+
+        // Fallback: claim direto
+        if (!tenantId) {
+          tenantId = isUuid(decoded.tenant_uuid) ? decoded.tenant_uuid : "";
         }
         if (!tenantSlug) {
-          const org = decoded.organization || [];
-          tenantSlug = decoded.tenant_slug || org[0] || "";
+          tenantSlug = decoded.tenant_slug || "";
         }
         if (!tenantName) {
           tenantName = decoded.tenant_name || tenantSlug || "";
@@ -112,15 +125,11 @@ export async function jwtCallback({ token, account, profile }: JWTCallbackParams
         token.organizations = organizationAliases;
         token.organizationObject = orgObject;
         token.activeOrganization = organizationAliases[0] || null;
-
-        // LEGACY: manter compatibilidade com codigo antigo
-        token.organization = organizationAliases;
       } catch (error) {
         console.error("[JWT Callback] Failed to decode organization from access_token:", error);
         token.organizations = [];
         token.organizationObject = {};
         token.activeOrganization = null;
-        token.organization = [];
       }
     }
 

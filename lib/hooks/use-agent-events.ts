@@ -1,5 +1,4 @@
 /**
- * ⚠️ LEGACY HOOK - DESCONTINUADO NO CAMINHO PRINCIPAL
  *
  * Este hook foi descontinuado no caminho principal da aplicação em favor do
  * gerenciamento nativo de eventos fornecido pelo CopilotKit useAgent v2.
@@ -56,7 +55,6 @@
  * - Consolidação de Reauditorias Multi-IA (OBS-02)
  * - _shared/docs/04-REFERENCE/agno-copilotkit/02-hooks-reference.md (agent.subscribe interface)
  *
- * @deprecated Use agent.subscribe() diretamente conforme documentação CopilotKit
  *
  * ---
  *

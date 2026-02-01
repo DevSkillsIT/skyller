@@ -9,6 +9,7 @@ export interface AuthUser {
   name: string | null;
   email: string | null;
   image?: string | null;
+  /** UUID canonico do tenant (nunca slug) */
   tenant_id: string;
   tenant_slug?: string;
   tenant_name?: string;
@@ -37,14 +38,14 @@ export class AuthorizationError extends Error {
 }
 
 /**
- * Extrai o tenant_id do hostname (subdominio).
+ * Extrai o tenant_slug do hostname (subdominio).
  *
- * Em ambiente multi-tenant, o tenant e identificado pelo subdominio:
- * - ramada.skyller.ai -> tenant_id: "ramada"
- * - wink.skyller.ai -> tenant_id: "wink"
- * - localhost:3004 -> tenant_id: "default" (desenvolvimento)
+ * Em ambiente multi-tenant, o slug e identificado pelo subdominio:
+ * - ramada.skyller.ai -> tenant_slug: "ramada"
+ * - wink.skyller.ai -> tenant_slug: "wink"
+ * - localhost:3004 -> tenant_slug: "default" (desenvolvimento)
  *
- * @returns O tenant_id extraido do hostname
+ * @returns O tenant_slug extraido do hostname
  *
  * @example
  * // Em ramada.skyller.ai
@@ -55,20 +56,20 @@ export async function getTenantFromHost(): Promise<string> {
   const headersList = await headers();
   const host = headersList.get("host") || headersList.get("x-forwarded-host") || "";
 
-  // Em desenvolvimento local, retornar tenant padrao
+  // Em desenvolvimento local, retornar slug padrao
   if (host.includes("localhost") || host.includes("127.0.0.1")) {
     return process.env.DEFAULT_TENANT || "default";
   }
 
-  // Extrair subdominio: tenant.skyller.ai -> tenant
+  // Extrair subdominio: tenant.skyller.ai -> tenant_slug
   const parts = host.split(".");
 
-  // Se temos pelo menos 3 partes (tenant.skyller.ai), o primeiro e o tenant
+  // Se temos pelo menos 3 partes (tenant.skyller.ai), o primeiro e o slug
   if (parts.length >= 3) {
     return parts[0];
   }
 
-  // Fallback para tenant padrao
+  // Fallback para slug padrao
   return process.env.DEFAULT_TENANT || "default";
 }
 

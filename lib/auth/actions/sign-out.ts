@@ -144,12 +144,3 @@ export async function getKeycloakLogoutUrl(idToken?: string): Promise<string> {
   const baseUrl = process.env.AUTH_URL || process.env.NEXTAUTH_URL || "http://localhost:3004";
   return generateKeycloakLogoutUrl(baseUrl, idToken);
 }
-
-/**
- * Server Action para logout completo com redirect limpo.
- *
- * Alias para signOutFromKeycloak - mantido para compatibilidade.
- */
-export async function signOutComplete(): Promise<void> {
-  return signOutFromKeycloak("/");
-}

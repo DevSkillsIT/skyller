@@ -19,7 +19,7 @@ import type { JWT as DefaultJWT } from "next-auth/jwt";
 interface OrganizationMeta {
   id: string;
   name: string;
-  tenant_id: string[];
+  tenant_uuid: string[];
 }
 
 /**
@@ -40,8 +40,6 @@ interface KeycloakClaims {
   tenant_slug: string;
   /** Nome amigavel do tenant para exibicao */
   tenant_name: string;
-  /** Organizations (Keycloak Organizations) - array de aliases (ex: ["skills", "ramada"]) */
-  organization: string[];
   /** Grupos do usuario no Keycloak (ex: ["/MCP/whm", "/Admin"]) */
   groups: string[];
   /** Roles do usuario (realm + client roles combinadas) */
@@ -66,14 +64,12 @@ declare module "next-auth" {
     user: {
       /** ID unico do usuario (sub claim) */
       id: string;
-      /** ID do tenant */
+      /** UUID do tenant */
       tenant_id: string;
       /** Slug do tenant */
       tenant_slug: string;
       /** Nome do tenant */
       tenant_name: string;
-      /** Organizations (Keycloak Organizations) - array de aliases */
-      organization: string[];
       /** Organizations - Array de aliases derivado de Object.keys (Keycloak 26) */
       organizations: string[];
       /** Organizations - Objeto original com metadados (Keycloak 26) */
@@ -112,14 +108,16 @@ declare module "next-auth" {
    * popular a session.
    */
   interface User extends DefaultUser {
-    /** ID do tenant */
+    /** UUID do tenant */
     tenant_id?: string;
     /** Slug do tenant */
     tenant_slug?: string;
     /** Nome do tenant */
     tenant_name?: string;
-    /** Organizations (Keycloak Organizations) - array de aliases */
-    organization?: string[];
+    /** Organizations - Array de aliases derivado de Object.keys (Keycloak 26) */
+    organizations?: string[];
+    /** Organizations - Objeto original com metadados (Keycloak 26) */
+    organizationObject?: OrganizationClaim;
     /** Grupos do Keycloak */
     groups?: string[];
     /** Roles do usuario */
@@ -141,14 +139,12 @@ declare module "next-auth/jwt" {
    * a session em cada request.
    */
   interface JWT extends DefaultJWT {
-    /** ID do tenant */
+    /** UUID do tenant */
     tenant_id?: string;
     /** Slug do tenant */
     tenant_slug?: string;
     /** Nome do tenant */
     tenant_name?: string;
-    /** Organizations (Keycloak Organizations) - array de aliases */
-    organization?: string[];
     /** Organizations - Array de aliases derivado de Object.keys (Keycloak 26) */
     organizations?: string[];
     /** Organizations - Objeto original com metadados (Keycloak 26) */
@@ -199,8 +195,8 @@ export interface KeycloakToken {
   tenant_slug?: string;
   /** Nome do tenant */
   tenant_name?: string;
-  /** Organizations (Keycloak Organizations) - array de aliases (LEGACY) */
-  organization?: string[];
+  /** Claim bruto "organization" do Keycloak (array legado ou objeto Keycloak 26) */
+  organization?: string[] | OrganizationClaim;
   /** Organizations (Keycloak 26) - OBJETO com metadados */
   organizationObject?: OrganizationClaim;
   /** Grupos do usuario */

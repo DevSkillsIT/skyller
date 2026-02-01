@@ -44,7 +44,6 @@ export {
   signInSkyller,
   // Sign-in
   signInWithKeycloak,
-  signOutComplete,
   // Sign-out
   signOutFromKeycloak,
 } from "./actions";

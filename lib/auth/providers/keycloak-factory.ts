@@ -240,7 +240,7 @@ export function createKeycloakProviderForTenant(tenantId: string) {
   // O white-label e implementado no /api/auth/login route handler.
   const authorizationConfig = {
     params: {
-      scope: "openid email profile",
+      scope: "openid email profile organization",
     },
   };
 
@@ -376,7 +376,7 @@ export function createKeycloakProvider(clientKey: "skyller" | "nexus-admin") {
 
   // Configuracao de authorization para admin
   // NOTA: NAO usamos authorization.url aqui - white-label no route handler
-  const authorizationConfig = { params: { scope: "openid email profile" } };
+  const authorizationConfig = { params: { scope: "openid email profile organization" } };
 
   return KeycloakProvider({
     id: "nexus-admin",

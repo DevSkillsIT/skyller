@@ -16,21 +16,12 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ApiContext } from "@/lib/api/auth-headers";
 
 // ==============================================================================
 // Types
 // ==============================================================================
 
-/**
- * Contexto completo para headers de API
- */
-export interface ApiContext {
-  sessionId: string;
-  conversationId?: string;
-  threadId?: string;
-  workspaceId?: string;
-  agentId?: string;
-}
 
 /**
  * Estado retornado pelo hook

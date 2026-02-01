@@ -8,15 +8,9 @@ import { AgnoAgent } from "@ag-ui/agno";
 import { CopilotRuntime, createCopilotEndpoint } from "@copilotkitnext/runtime";
 import { handle } from "hono/vercel";
 import type { NextRequest } from "next/server";
+import { createAuthHeaders, isUuid } from "@/lib/api/auth-headers";
 import { forbidden, unauthorized } from "@/lib/error-handling";
 import { auth } from "../../../auth";
-
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-function isUuid(value: string | undefined | null): value is string {
-  return !!value && UUID_REGEX.test(value);
-}
 
 // URL do backend Nexus Core (AG-UI Protocol)
 const NEXUS_AGUI_URL = process.env.NEXUS_API_URL
@@ -76,21 +70,13 @@ function extractContextHeaders(req: NextRequest): Record<string, string> {
  * da sessão do usuário autenticado via NextAuth e do request do cliente.
  */
 function createAuthenticatedAgent(
-  accessToken: string | undefined,
-  tenantId: string,
-  userId: string,
+  session: Awaited<ReturnType<typeof auth>>,
   contextHeaders: Record<string, string> = {}
 ) {
   const headers: Record<string, string> = {
-    "X-Tenant-ID": tenantId,
-    "X-User-ID": userId,
+    ...createAuthHeaders(session),
     ...contextHeaders,
   };
-
-  // Adicionar token JWT se disponível
-  if (accessToken) {
-    headers.Authorization = `Bearer ${accessToken}`;
-  }
 
   return new AgnoAgent({
     url: NEXUS_AGUI_URL,
@@ -125,12 +111,7 @@ async function createCopilotApp(req: NextRequest, session: Awaited<ReturnType<ty
   }
 
   // Criar AgnoAgent com headers de autenticação + contexto
-  const authenticatedAgent = createAuthenticatedAgent(
-    accessToken,
-    tenantId,
-    userId,
-    contextHeaders
-  );
+  const authenticatedAgent = createAuthenticatedAgent(session, contextHeaders);
 
   // Criar runtime com o agente autenticado
   const runtime = new CopilotRuntime({

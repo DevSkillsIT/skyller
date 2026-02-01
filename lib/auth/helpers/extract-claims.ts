@@ -93,8 +93,8 @@ export function extractGroups(profile: Profile | undefined): string[] {
  * Extract organization array from Keycloak token.
  *
  * SPEC-ORGS-001: Multi-Organization Support
- * - Keycloak Organizations expõe claim organization[] com aliases
- * - Ex: ["skills", "ramada"] para usuários multi-org
+ * - Keycloak Organizations expõe claim "organization" (array legado ou objeto Keycloak 26)
+ * - Ex: ["skills", "ramada"] ou {"skills": {...}, "ramada": {...}}
  *
  * @param profile - The Keycloak profile object
  * @returns Array of organization aliases
@@ -105,7 +105,17 @@ export function extractOrganization(profile: Profile | undefined): string[] {
   }
 
   const keycloakProfile = profile as KeycloakToken;
-  return keycloakProfile.organization || [];
+  const orgClaim = keycloakProfile.organization;
+
+  if (Array.isArray(orgClaim)) {
+    return orgClaim;
+  }
+
+  if (orgClaim && typeof orgClaim === "object") {
+    return Object.keys(orgClaim);
+  }
+
+  return [];
 }
 
 /**

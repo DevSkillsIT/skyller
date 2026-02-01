@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { SessionProvider } from "next-auth/react";
+import TenantUuidGuard from "@/components/auth/tenant-uuid-guard";
 import type React from "react";
 import { CopilotProvider } from "@/components/providers/copilot-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -53,6 +54,7 @@ export default function RootLayout({
     <html lang="pt-BR" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
         <SessionProvider>
+          <TenantUuidGuard />
           <CopilotProvider>
             {children}
             <Toaster position="top-right" />

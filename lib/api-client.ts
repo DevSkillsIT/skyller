@@ -8,6 +8,12 @@
  */
 
 import type { Session } from "next-auth";
+import {
+  type ApiContext,
+  type AuthSession,
+  createAuthHeaders,
+  mergeHeaders,
+} from "@/lib/api/auth-headers";
 
 // ==============================================================================
 // Constantes
@@ -264,13 +270,15 @@ export class ApiError extends Error {
  * @throws {ApiError} Quando a requisicao falha (exceto 401 que redireciona para login)
  */
 export async function apiGet<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  // IMPORTANTE: nao permitir que headers externos sobrescrevam Content-Type
+  const { headers: optionHeaders, ...rest } = options || {};
+  const headers = new Headers(optionHeaders || {});
+  headers.set("Content-Type", "application/json");
+
   const response = await fetch(`${getApiBaseUrl()}${endpoint}`, {
     method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
-    ...options,
+    ...rest,
+    headers,
   });
 
   if (!response.ok) {
@@ -302,14 +310,16 @@ export async function apiPost<T, D = unknown>(
   data?: D,
   options?: RequestInit
 ): Promise<T> {
+  // IMPORTANTE: nao permitir que headers externos sobrescrevam Content-Type
+  const { headers: optionHeaders, ...rest } = options || {};
+  const headers = new Headers(optionHeaders || {});
+  headers.set("Content-Type", "application/json");
+
   const response = await fetch(`${getApiBaseUrl()}${endpoint}`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
+    ...rest,
+    headers,
     body: data ? JSON.stringify(data) : undefined,
-    ...options,
   });
 
   if (!response.ok) {
@@ -334,104 +344,6 @@ export async function apiPost<T, D = unknown>(
 /**
  * Interface para session com campos customizados
  */
-interface AuthSession {
-  user?: {
-    id?: string;
-    tenant_id?: string;
-    email?: string | null;
-  };
-  accessToken?: string;
-}
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-function isUuid(value: string | undefined | null): value is string {
-  return !!value && UUID_REGEX.test(value);
-}
-
-/**
- * Contexto adicional para headers de API
- *
- * Esses headers sao usados para logging, auditoria e RBAC no backend:
- * - X-Session-ID: Identificacao da sessao do navegador
- * - X-Conversation-ID: Identificacao da conversa atual
- * - X-Thread-ID: Alternativa ao conversation_id (AG-UI)
- * - X-Workspace-ID: Identificacao do workspace atual
- * - X-Agent-ID: Identificacao do agente sendo usado
- */
-export interface ApiContext {
-  sessionId?: string;
-  conversationId?: string;
-  threadId?: string;
-  workspaceId?: string;
-  agentId?: string;
-}
-
-/**
- * Cria headers de autenticacao a partir da session do NextAuth
- *
- * @param session - Session do NextAuth (com accessToken)
- * @param context - Contexto adicional opcional (sessionId, conversationId, etc.)
- * @returns Headers com Authorization, X-Tenant-ID, X-User-ID e headers de contexto
- *
- * @example
- * // Uso basico (sem contexto)
- * const headers = createAuthHeaders(session);
- *
- * @example
- * // Uso com contexto completo
- * const headers = createAuthHeaders(session, {
- *   sessionId: "sess_abc123",
- *   conversationId: "conv_xyz789",
- *   workspaceId: "ws_123",
- *   agentId: "skyller"
- * });
- */
-export function createAuthHeaders(session: AuthSession | null, context?: ApiContext): HeadersInit {
-  if (!session?.user) return {};
-
-  const headers: Record<string, string> = {};
-
-  // Authorization header (JWT token)
-  if (session.accessToken) {
-    headers.Authorization = `Bearer ${session.accessToken}`;
-  }
-
-  // Headers de contexto multi-tenant (obrigatorios)
-  if (session.user.tenant_id) {
-    if (isUuid(session.user.tenant_id)) {
-      headers["X-Tenant-ID"] = session.user.tenant_id;
-    } else {
-      console.error(
-        `[api-client] tenant_id invalido (nao UUID) recebido na session: ${session.user.tenant_id}`
-      );
-    }
-  }
-  if (session.user.id) {
-    headers["X-User-ID"] = session.user.id;
-  }
-
-  // Headers de contexto adicional (opcionais)
-  if (context) {
-    if (context.sessionId) {
-      headers["X-Session-ID"] = context.sessionId;
-    }
-    if (context.conversationId) {
-      headers["X-Conversation-ID"] = context.conversationId;
-    }
-    if (context.threadId) {
-      headers["X-Thread-ID"] = context.threadId;
-    }
-    if (context.workspaceId) {
-      headers["X-Workspace-ID"] = context.workspaceId;
-    }
-    if (context.agentId) {
-      headers["X-Agent-ID"] = context.agentId;
-    }
-  }
-
-  return headers;
-}
 
 /**
  * Opcoes estendidas para requisicoes autenticadas
@@ -465,17 +377,15 @@ export async function authGet<T>(
   session: AuthSession | null,
   options?: AuthRequestOptions
 ): Promise<T> {
-  const { context, ...fetchOptions } = options || {};
+  const { context, headers: optionHeaders, ...rest } = options || {};
   const authHeaders = createAuthHeaders(session, context);
+  const headers = mergeHeaders(optionHeaders, authHeaders);
 
   // Nota: credentials: "include" removido pois autenticacao e via header Authorization
   // e nao via cookies. Isso evita problemas de CORS com wildcard origins.
   return apiGet<T>(endpoint, {
-    ...fetchOptions,
-    headers: {
-      ...authHeaders,
-      ...fetchOptions?.headers,
-    },
+    ...rest,
+    headers,
   });
 }
 
@@ -509,17 +419,15 @@ export async function authPost<T, D = unknown>(
   data?: D,
   options?: AuthRequestOptions
 ): Promise<T> {
-  const { context, ...fetchOptions } = options || {};
+  const { context, headers: optionHeaders, ...rest } = options || {};
   const authHeaders = createAuthHeaders(session, context);
+  const headers = mergeHeaders(optionHeaders, authHeaders);
 
   // Nota: credentials: "include" removido pois autenticacao e via header Authorization
   // e nao via cookies. Isso evita problemas de CORS com wildcard origins.
   return apiPost<T, D>(endpoint, data, {
-    ...fetchOptions,
-    headers: {
-      ...authHeaders,
-      ...fetchOptions?.headers,
-    },
+    ...rest,
+    headers,
   });
 }
 
@@ -545,18 +453,17 @@ export async function authPut<T, D = unknown>(
   data?: D,
   options?: AuthRequestOptions
 ): Promise<T> {
-  const { context, ...fetchOptions } = options || {};
+  const { context, headers: optionHeaders, ...rest } = options || {};
   const authHeaders = createAuthHeaders(session, context);
+  const headers = mergeHeaders(optionHeaders, authHeaders);
+  const requestHeaders = new Headers(headers);
+  requestHeaders.set("Content-Type", "application/json");
 
   const response = await fetch(`${getApiBaseUrl()}${endpoint}`, {
     method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      ...authHeaders,
-      ...fetchOptions?.headers,
-    },
+    headers: requestHeaders,
     body: data ? JSON.stringify(data) : undefined,
-    ...fetchOptions,
+    ...rest,
   });
 
   if (!response.ok) {
@@ -590,16 +497,14 @@ export async function authDelete(
   session: AuthSession | null,
   options?: AuthRequestOptions
 ): Promise<void> {
-  const { context, ...fetchOptions } = options || {};
+  const { context, headers: optionHeaders, ...rest } = options || {};
   const authHeaders = createAuthHeaders(session, context);
+  const headers = mergeHeaders(optionHeaders, authHeaders);
 
   const response = await fetch(`${getApiBaseUrl()}${endpoint}`, {
     method: "DELETE",
-    headers: {
-      ...authHeaders,
-      ...fetchOptions?.headers,
-    },
-    ...fetchOptions,
+    headers,
+    ...rest,
   });
 
   if (!response.ok) {

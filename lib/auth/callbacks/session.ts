@@ -39,7 +39,6 @@ export async function sessionCallback({ session, token }: SessionCallbackParams)
     name: (token.name as string) || "Usuario",
     clientId: (token.clientId as string) || "skyller",
     // SPEC-ORGS-001: Propagar campos de organization
-    organization: (token.organization as string[]) || [],
     organizations: (token.organizations as string[]) || [],
     organizationObject: (token.organizationObject as OrganizationClaim) || {},
     activeOrganization: (token.activeOrganization as string | null) || null,

@@ -27,6 +27,5 @@ export {
 export {
   generateKeycloakLogoutUrl,
   getKeycloakLogoutUrl,
-  signOutComplete,
   signOutFromKeycloak,
 } from "./sign-out";

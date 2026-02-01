@@ -102,20 +102,20 @@ DEFAULT_TENANT=skills
 ### 1. **keycloak-factory.ts** (Automático ✅)
 - `admin.skyller.ai` agora usa realm `Skyller` ao invés de `master`
 - Suporte a `KEYCLOAK_DEFAULT_REALM` com fallback para "Skyller"
-- Extração de `organization[]` claim em ambos providers (tenant e admin)
+- Extração do claim `organization` (array legado ou objeto Keycloak 26) em ambos providers
 
-### 2. **callbacks.ts** (Novo ✅)
-- Extração de `organization[]` claim do JWT
-- Mapeamento de `organization[0]` para `tenant_id` (compatibilidade)
-- Suporte completo a usuários multi-org
+### 2. **callbacks/jwt.ts** (Atual ✅)
+- Extração do claim `organization` do access_token (Keycloak 26: objeto)
+- Popula `organizations[]` e `organizationObject` na session
+- `tenant_id` vem de `tenant_uuid` (UUID canônico)
 
-### 3. **Tipos TypeScript** (Automático ✅)
-- `lib/auth/types/index.ts`: Adicionado `organization?: string[]`
-- `types/next-auth.d.ts`: Adicionado `organization: string[]` em Session/User/JWT
+### 3. **Tipos TypeScript** (Atual ✅)
+- `lib/auth/types/index.ts`: `organizations[]` e `organizationObject`
+- `types/next-auth.d.ts`: `organizations[]` e `organizationObject` em Session/User/JWT
 
-### 4. **extract-claims.ts** (Automático ✅)
-- Nova função `extractOrganization()` para extrair array de organizations
-- `extractTenant()` atualizado para priorizar `organization[0]`
+### 4. **extract-claims.ts** (Atual ✅)
+- `extractOrganization()` lida com array legado ou objeto Keycloak 26
+- `extractTenant()` usa `organization[0]` apenas para `tenant_slug` (UI), nunca para UUID
 
 ### 5. **OrganizationSelector** (Novo ✅)
 - Componente React para usuários multi-org selecionarem organization ativa
@@ -149,8 +149,8 @@ grep "KEYCLOAK_DEFAULT_REALM" .env.local
 
 3. **Testar login em admin.skyller.ai:**
    - Deve autenticar usando realm "Skyller"
-   - Deve extrair `organization[]` claim do JWT
-   - Session deve conter `user.organization` array
+   - Deve extrair claim `organization` do JWT (array legado ou objeto Keycloak 26)
+   - Session deve conter `user.organizations` (aliases)
 
 4. **Testar usuário multi-org:**
    - Verificar se `<OrganizationSelector />` aparece no header
@@ -162,7 +162,7 @@ grep "KEYCLOAK_DEFAULT_REALM" .env.local
 ## 📚 Referências
 
 - **SPEC-ORGS-001**: Migração de 7 realms → 1 realm "Skyller" + 7 Organizations
-- **Backend RBACMiddleware**: Valida `X-Tenant-ID` contra `organization[]` claim
+- **Backend RBACMiddleware**: Valida `X-Tenant-ID` contra claim `organization`
 - **Keycloak Organizations**: [Documentação](https://www.keycloak.org/docs/latest/server_admin/#organizations)
 
 ---

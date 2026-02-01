@@ -6,15 +6,9 @@ import { AgnoAgent } from "@ag-ui/agno";
 import { CopilotRuntime, createCopilotEndpoint } from "@copilotkitnext/runtime";
 import { handle } from "hono/vercel";
 import type { NextRequest } from "next/server";
+import { createAuthHeaders, isUuid } from "@/lib/api/auth-headers";
 import { forbidden, unauthorized } from "@/lib/error-handling";
 import { auth } from "../../../../auth";
-
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-function isUuid(value: string | undefined | null): value is string {
-  return !!value && UUID_REGEX.test(value);
-}
 
 // URL do backend Nexus Core (AG-UI Protocol)
 const NEXUS_AGUI_URL = process.env.NEXUS_API_URL
@@ -54,20 +48,13 @@ function extractContextHeaders(req: NextRequest): Record<string, string> {
  * Cria AgnoAgent dinamicamente com headers de autenticação.
  */
 function createAuthenticatedAgent(
-  accessToken: string | undefined,
-  tenantId: string,
-  userId: string,
+  session: Awaited<ReturnType<typeof auth>> | null,
   contextHeaders: Record<string, string> = {}
 ) {
   const headers: Record<string, string> = {
-    "X-Tenant-ID": tenantId,
-    "X-User-ID": userId,
+    ...createAuthHeaders(session),
     ...contextHeaders,
   };
-
-  if (accessToken) {
-    headers.Authorization = `Bearer ${accessToken}`;
-  }
 
   return new AgnoAgent({
     url: NEXUS_AGUI_URL,
@@ -79,7 +66,10 @@ function createAuthenticatedAgent(
 /**
  * Cria runtime e app Hono com AgnoAgent autenticado
  */
-async function createCopilotApp(_req: NextRequest, session: Awaited<ReturnType<typeof auth>>) {
+async function createCopilotApp(
+  _req: NextRequest,
+  session: Awaited<ReturnType<typeof auth>> | null
+) {
   const accessToken = session?.accessToken;
   const tenantId = session?.user?.tenant_id || "";
   const userId = session?.user?.id || "";
@@ -94,12 +84,7 @@ async function createCopilotApp(_req: NextRequest, session: Awaited<ReturnType<t
   }
 
   const contextHeaders = extractContextHeaders(_req);
-  const authenticatedAgent = createAuthenticatedAgent(
-    accessToken,
-    tenantId,
-    userId,
-    contextHeaders
-  );
+  const authenticatedAgent = createAuthenticatedAgent(session, contextHeaders);
 
   const runtime = new CopilotRuntime({
     agents: {
@@ -116,6 +101,14 @@ async function createCopilotApp(_req: NextRequest, session: Awaited<ReturnType<t
 // Endpoint GET para /info e outras rotas GET
 export const GET = async (req: NextRequest) => {
   const session = await auth();
+  const isInfoRequest = req.nextUrl.pathname.endsWith("/info");
+
+  // INFO deve ser publico para descoberta de agentes (CopilotKit)
+  if (!session && isInfoRequest) {
+    const app = await createCopilotApp(req, session);
+    const handler = handle(app);
+    return handler(req);
+  }
   if (!session) {
     return unauthorized();
   }
@@ -140,6 +133,14 @@ export const GET = async (req: NextRequest) => {
 // Endpoint POST para JSON-RPC e outras rotas POST
 export const POST = async (req: NextRequest) => {
   const session = await auth();
+  const isInfoRequest = req.nextUrl.pathname.endsWith("/info");
+
+  // INFO deve ser publico para descoberta de agentes (CopilotKit)
+  if (!session && isInfoRequest) {
+    const app = await createCopilotApp(req, session);
+    const handler = handle(app);
+    return handler(req);
+  }
   if (!session) {
     return unauthorized();
   }

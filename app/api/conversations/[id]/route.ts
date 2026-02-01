@@ -9,15 +9,9 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { createAuthHeaders, isUuid } from "@/lib/api/auth-headers";
 import { getBackendBaseUrl } from "@/lib/env-validation";
 import { forbidden, handleApiError, unauthorized } from "@/lib/error-handling";
-
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-function isUuid(value: string | undefined | null): value is string {
-  return !!value && UUID_REGEX.test(value);
-}
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -55,9 +49,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${session.accessToken}`,
-        "X-Tenant-ID": session.user.tenant_id,
-        "X-User-ID": session.user.id,
+        ...createAuthHeaders(session),
       },
     });
 
@@ -114,9 +106,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${session.accessToken}`,
-        "X-Tenant-ID": session.user.tenant_id,
-        "X-User-ID": session.user.id,
+        ...createAuthHeaders(session),
       },
       body: JSON.stringify(body),
     });
@@ -169,9 +159,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${session.accessToken}`,
-        "X-Tenant-ID": session.user.tenant_id,
-        "X-User-ID": session.user.id,
+        ...createAuthHeaders(session),
       },
     });
 

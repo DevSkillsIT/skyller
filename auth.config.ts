@@ -24,7 +24,8 @@ export const authConfig: NextAuthConfig = {
       name: "Skyller",
       clientId: process.env.KEYCLOAK_CLIENT_ID!,
       clientSecret: process.env.KEYCLOAK_CLIENT_SECRET!,
-      issuer: process.env.KEYCLOAK_ISSUER, // https://idp.servidor.one/realms/Skyller
+      issuer: process.env.KEYCLOAK_ISSUER,
+      authorization: { params: { scope: "openid email profile organization" } },
     }),
     KeycloakProvider({
       id: "keycloak-admin",
@@ -32,6 +33,7 @@ export const authConfig: NextAuthConfig = {
       clientId: process.env.KEYCLOAK_ADMIN_CLIENT_ID!,
       clientSecret: process.env.KEYCLOAK_ADMIN_CLIENT_SECRET!,
       issuer: process.env.KEYCLOAK_ISSUER,
+      authorization: { params: { scope: "openid email profile organization" } },
     }),
   ],
 

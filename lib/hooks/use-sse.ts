@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
- * ⚠️ LEGACY HOOK - DESCONTINUADO NO CAMINHO PRINCIPAL
  *
  * Este hook foi descontinuado no caminho principal da aplicação em favor do
  * gerenciamento nativo de SSE fornecido pelo CopilotKit useAgent v2.
@@ -51,7 +50,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * - SPEC-COPILOT-INTEGRATION-001 v1.2.1 (Migração para useAgent v2)
  * - Consolidação de Reauditorias Multi-IA (OBS-02)
  *
- * @deprecated Use CopilotKit useAgent v2 com subscription a eventos SSE
  */
 
 /**

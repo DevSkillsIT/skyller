@@ -11,7 +11,7 @@
  * Features:
  * - Dropdown com lista de organizations do usuário
  * - Persiste seleção em localStorage
- * - Atualiza header X-Tenant-ID para chamadas API
+ * - Seleciona organization (slug) para UI/branding
  * - Visual feedback da organization ativa
  */
 
@@ -51,7 +51,7 @@ export function OrganizationSelector({
   const [selectedOrg, setSelectedOrg] = useState<string>("");
 
   // Extrair organizations da session
-  const organizations = session?.user?.organization || [];
+  const organizations = session?.user?.organizations || [];
   const isMultiOrg = organizations.length > 1;
 
   // Inicializar selectedOrg do localStorage ou session
@@ -64,7 +64,7 @@ export function OrganizationSelector({
       if (stored && organizations.includes(stored)) {
         setSelectedOrg(stored);
       } else {
-        // Fallback para tenant_id atual (organization[0] da session)
+        // Fallback para tenant_slug atual (organization[0] da session)
         const currentTenantSlug = session?.user?.tenant_slug || organizations[0];
         setSelectedOrg(currentTenantSlug);
       }
@@ -81,8 +81,8 @@ export function OrganizationSelector({
     // Callback externo
     onOrganizationChange?.(orgAlias);
 
-    // TODO: Atualizar X-Tenant-ID header para próximas chamadas API
-    // Isso pode ser feito via Context API ou hook customizado
+    // TODO: Quando houver multi-org real, mapear slug -> UUID e atualizar header X-Tenant-ID
+    // A regra permanece: header sempre UUID, nunca slug.
     console.log("[OrganizationSelector] Organization changed to:", orgAlias);
   };
 

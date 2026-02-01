@@ -6,6 +6,7 @@
  */
 
 import type { DefaultSession } from "next-auth";
+import type { OrganizationClaim } from "@/types/next-auth";
 
 // =============================================================================
 // Keycloak Token Types
@@ -60,8 +61,8 @@ export interface KeycloakToken {
   tenant_slug?: string;
   /** Tenant display name */
   tenant_name?: string;
-  /** Organizations (Keycloak Organizations) - array of organization aliases */
-  organization?: string[];
+  /** Claim bruto "organization" do Keycloak (array legado ou objeto Keycloak 26) */
+  organization?: string[] | OrganizationClaim;
   /** User groups */
   groups?: string[];
   /** Department */
@@ -117,7 +118,8 @@ export interface ExtendedUser {
   tenant_name: string;
 
   // Multi-organization support (Keycloak Organizations)
-  organization: string[];
+  organizations: string[];
+  organizationObject: OrganizationClaim;
 
   // Authorization
   roles: string[];
@@ -158,7 +160,8 @@ export interface ExtendedJWT {
   tenant_name?: string;
 
   // Multi-organization support (Keycloak Organizations)
-  organization?: string[];
+  organizations?: string[];
+  organizationObject?: OrganizationClaim;
 
   // Authorization claims
   roles?: string[];
