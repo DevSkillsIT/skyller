@@ -4,9 +4,11 @@
  */
 "use client";
 
+
 import { Archive, MoreHorizontal, Pencil, Sparkles, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { BlurFade } from "@/components/ui/blur-fade";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -159,88 +161,90 @@ export function ConversationHistoryList({
         const isEditing = editingId === conversation.id;
 
         return (
-          <SidebarMenuItem key={conversation.id}>
-            <SidebarMenuButton
-              onClick={() => !isEditing && handleSelect(conversation)}
-              isActive={isSelected}
-              className={`h-auto w-full justify-start ${compact ? "py-2" : "py-2.5"} cursor-pointer hover:bg-accent/50 transition-colors group`}
-            >
-              {/* Icon */}
-              <div className="flex-shrink-0">
-                <div className="w-5 h-5 rounded-md bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-                  <Sparkles className="h-3 w-3 text-white" />
+          <BlurFade key={conversation.id} delay={0.05} inView>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => !isEditing && handleSelect(conversation)}
+                isActive={isSelected}
+                className={`h-auto w-full justify-start ${compact ? "py-2" : "py-2.5"} cursor-pointer hover:bg-accent/50 transition-colors group`}
+              >
+                {/* Icon */}
+                <div className="flex-shrink-0">
+                  <div className="w-5 h-5 rounded-md bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+                    <Sparkles className="h-3 w-3 text-white" />
+                  </div>
                 </div>
-              </div>
 
-              {/* Content */}
-              <div className="flex-1 min-w-0 overflow-hidden max-w-[calc(100%-32px)]">
-                {isEditing ? (
-                  <Input
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                    onBlur={() => handleRename(conversation.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleRename(conversation.id);
-                      if (e.key === "Escape") {
-                        setEditingId(null);
-                        setEditTitle("");
-                      }
-                    }}
-                    autoFocus
-                    className="h-6 text-sm"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                ) : (
-                  <>
-                    <div className="flex items-center gap-1">
-                      <span className="text-sm truncate min-w-0 flex-1">
-                        {conversation.title || "Nova Conversa"}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground flex-shrink-0 whitespace-nowrap">
-                        {formatRelativeTime(conversation.created_at)}
-                      </span>
-                    </div>
-                    {/* GAP-IMP-07: Ocultar contador em modo compacto */}
-                    {!compact && (
-                      <div className="text-[10px] text-muted-foreground truncate min-w-0">
-                        {conversation.message_count} mensagens
+                {/* Content */}
+                <div className="flex-1 min-w-0 overflow-hidden max-w-[calc(100%-32px)]">
+                  {isEditing ? (
+                    <Input
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      onBlur={() => handleRename(conversation.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleRename(conversation.id);
+                        if (e.key === "Escape") {
+                          setEditingId(null);
+                          setEditTitle("");
+                        }
+                      }}
+                      autoFocus
+                      className="h-6 text-sm"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm truncate min-w-0 flex-1">
+                          {conversation.title || "Nova Conversa"}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground flex-shrink-0 whitespace-nowrap">
+                          {formatRelativeTime(conversation.created_at)}
+                        </span>
                       </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </SidebarMenuButton>
+                      {/* GAP-IMP-07: Ocultar contador em modo compacto */}
+                      {!compact && (
+                        <div className="text-[10px] text-muted-foreground truncate min-w-0">
+                          {conversation.message_count} mensagens
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </SidebarMenuButton>
 
-            {/* Context menu - usando SidebarMenuAction do Shadcn */}
-            {!isEditing && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <SidebarMenuAction showOnHover>
-                    <MoreHorizontal className="h-4 w-4" />
-                    <span className="sr-only">Mais opcoes</span>
-                  </SidebarMenuAction>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40">
-                  <DropdownMenuItem onClick={() => startEdit(conversation)}>
-                    <Pencil className="h-4 w-4 mr-2" />
-                    Renomear
-                  </DropdownMenuItem>
-                  <DropdownMenuItem disabled>
-                    <Archive className="h-4 w-4 mr-2" />
-                    Arquivar
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className="text-destructive"
-                    onClick={() => handleDelete(conversation.id)}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Excluir
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </SidebarMenuItem>
+              {/* Context menu - usando SidebarMenuAction do Shadcn */}
+              {!isEditing && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <SidebarMenuAction showOnHover>
+                      <MoreHorizontal className="h-4 w-4" />
+                      <span className="sr-only">Mais opcoes</span>
+                    </SidebarMenuAction>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-40">
+                    <DropdownMenuItem onClick={() => startEdit(conversation)}>
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Renomear
+                    </DropdownMenuItem>
+                    <DropdownMenuItem disabled>
+                      <Archive className="h-4 w-4 mr-2" />
+                      Arquivar
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive"
+                      onClick={() => handleDelete(conversation.id)}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Excluir
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </SidebarMenuItem>
+          </BlurFade>
         );
       })}
 

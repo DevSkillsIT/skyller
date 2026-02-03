@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ChatInput } from "@/components/chat/chat-input";
@@ -54,7 +55,17 @@ export function ChatScreen() {
   };
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="flex flex-col h-full min-h-0 relative">
+      {/* Loading Overlay */}
+      {isLoadingHistory && (
+        <div className="absolute inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">
+          <div className="flex flex-col items-center gap-2">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">Carregando histórico...</p>
+          </div>
+        </div>
+      )}
+
       {/* Chat Messages */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <ChatMessages
