@@ -14,6 +14,9 @@
 - [UIs Avançadas (TypingMind-like)](#-uis-avançadas-typingmind-like)
 - [Workplace Search (Glean-like)](#-workplace-search-glean-like)
 - [Chat com Documentos (DocsRAG)](#-chat-com-documentos-docsrag)
+- [SaaS RAG Builders](#-saas-rag-builders)
+- [Local-First / Browser-Based](#-local-first--browser-based)
+- [Documentação & SOPs com IA](#-documentação--sops-com-ia)
 - [Plataformas/Builders (ToolRAG + Workflows)](#-plataformasbuilders-toolrag--workflows)
 - [RAG Engines](#-rag-engines)
 - [Foundations (Componentes Core)](#-foundations-componentes-core)
@@ -385,6 +388,192 @@
 
 ---
 
+## 💰 SaaS RAG Builders
+
+### CustomGPT.ai
+**Descrição:** Plataforma SaaS para criar chatbots personalizados com RAG. Permite criar assistentes de IA treinados em documentos próprios sem código.
+
+**Preços (2025):**
+| Plano | Preço Mensal | Preço Anual | Observações |
+|-------|-------------|-------------|-------------|
+| **Standard** | $99/mês | $89/mês | Entrada |
+| **Premium** | $499/mês | $449/mês | White-label, mais recursos |
+| **Enterprise** | Custom | Custom | SOC-2, GDPR, dedicado |
+
+**Diferenciais:**
+- **No-code**: criação de chatbots RAG sem programação
+- 1400+ formatos de arquivo suportados para upload
+- 100+ integrações (Slack, Teams, Zendesk, etc.)
+- White-label disponível no Premium+
+- SOC-2 Type 2 e GDPR compliant
+- 92+ idiomas suportados
+- API para integração em apps próprios
+
+**Limites (estimados):**
+- Words stored: compartilhado entre todos os bots da conta
+- Monthly GPT-4 queries: limite por conta (não por bot)
+- Sem plano gratuito (apenas trial de 7 dias)
+
+**Casos de Uso para Skyller:**
+- Referência de modelo de negócio SaaS para RAG
+- Estrutura de pricing por tiers
+- Sistema de white-label
+
+**Referências:**
+- [CustomGPT.ai Pricing](https://customgpt.ai/pricing/)
+- [CustomGPT.ai Platform](https://customgpt.ai/)
+
+---
+
+## 🌐 Local-First / Browser-Based
+
+### VTChat
+**Descrição:** App de chat AI local-first com RAG avançado. Todos os dados ficam no browser via IndexedDB.
+
+**Diferenciais:**
+- **100% Local-First**: dados armazenados no IndexedDB do browser
+- Zero server storage - conversas nunca saem do dispositivo
+- API keys ficam apenas no browser (nem o desenvolvedor vê)
+- Multi-provider: OpenAI, Anthropic, Google, etc.
+- Deep Research: pesquisa multi-step com verificação de fontes
+- AI Memory: cria knowledge base das suas conversas
+- Processamento de PDFs e documentos
+- Modo "thinking" para ver raciocínio completo da IA
+
+**Stack:** TypeScript, Dexie.js (IndexedDB), React
+**Licença:** Open Source
+**GitHub:** [vinhnx/vtchat](https://github.com/vinhnx/vtchat)
+**Demo:** [vtchat.io.vn](https://vtchat.io.vn)
+
+**Casos de Uso para Skyller:**
+- Arquitetura local-first para privacidade total
+- Cache inteligente no browser
+- Modo offline-first
+
+---
+
+### Raggy Chats
+**Descrição:** Chatbot RAG minimalista com embeddings armazenados localmente no IndexedDB.
+
+**Diferenciais:**
+- **RAG 100% no browser**: embeddings salvos no IndexedDB via Dexie.js
+- Upload de documentos → busca semântica → resposta contextualizada
+- Cosine Similarity para ranking de chunks relevantes
+- Setup mínimo (apenas API key do OpenAI)
+- Ideal para uso pessoal e prototipagem
+
+**Stack:** TypeScript, Dexie.js, OpenAI API
+**Licença:** Open Source
+**GitHub:** [Amnish04/raggy-chats](https://github.com/Amnish04/raggy-chats)
+
+**Casos de Uso para Skyller:**
+- Referência para RAG minimalista
+- Implementação de vector search no browser
+
+---
+
+### Shinzo-UI
+**Descrição:** Interface AI completa em um único arquivo HTML standalone. RAG local com IndexedDB.
+
+**Diferenciais:**
+- **Arquivo HTML único**: sem backend, sem instalação
+- Suporta Ollama (local) e OpenAI
+- RAG com vector search no browser
+- Real-time voice/video calls
+- Análise de documentos (PDF, DOCX)
+- Workspaces de projeto
+- Privacidade total (tudo no browser)
+
+**Stack:** HTML/JS standalone, IndexedDB
+**Licença:** Open Source
+**GitHub:** [one-man-studios/Shinzo-UI](https://github.com/one-man-studios/Shinzo-UI)
+
+**Casos de Uso para Skyller:**
+- Conceito de app "portable" sem instalação
+- RAG totalmente offline
+- Simplicidade arquitetural extrema
+
+---
+
+### TypingMind
+**Descrição:** Interface web premium para ChatGPT com execução 100% no browser. BYOK (Bring Your Own Key).
+
+**Diferenciais:**
+- **Zero infraestrutura**: execução totalmente no browser do cliente
+- Dados armazenados localmente (localStorage/IndexedDB)
+- **Prompt Library**: templates com variáveis customizáveis
+- Gestão visual de múltiplas API keys
+- UX simplificada para usuários não-técnicos
+- Suporte multi-provider (OpenAI, Claude, etc.)
+- Plugins e extensões
+
+**Modelo:** SaaS (licença única ~$79) ou self-hosted
+**Website:** [typingmind.com](https://www.typingmind.com/)
+
+**Casos de Uso para Skyller:**
+- Sistema de Prompt Templates com variáveis
+- UX para gerenciamento de prompts
+- Modelo de licença única (não subscription)
+- Interface clean e produtiva
+
+---
+
+### NextChat / ChatGPT-Next-Web
+**Descrição:** Cliente ChatGPT leve, rápido e com PWA. Um dos mais populares (60k+ stars no GitHub).
+
+**Diferenciais:**
+- **PWA completo**: funciona offline, instalável
+- Dados 100% locais no browser
+- Deploy one-click (Vercel, Netlify, Docker)
+- Markdown rendering avançado
+- Suporte a GPT-4 Vision (imagens)
+- Máscaras/Personas customizáveis
+- Sync opcional via WebDAV
+- i18n (múltiplos idiomas)
+
+**Stack:** Next.js, TypeScript, TailwindCSS
+**Licença:** MIT
+**GitHub:** [ChatGPTNextWeb/ChatGPT-Next-Web](https://github.com/ChatGPTNextWeb/ChatGPT-Next-Web)
+
+**Casos de Uso para Skyller:**
+- Arquitetura PWA para modo offline
+- Sistema de máscaras/personas
+- Deploy simplificado
+- UI responsiva e moderna
+
+---
+
+## 📋 Documentação & SOPs com IA
+
+### DocuFlows
+**Descrição:** Plataforma para documentação de processos, SOPs e onboarding com IA. Foco em PMEs que querem sistematizar conhecimento.
+
+**Diferenciais:**
+- **Magic Text (IA)**: gera documentos e sugere conteúdo automaticamente
+- Knowledge Base centralizada com Spaces e Libraries
+- 250+ templates prontos (onboarding, vendas, marketing, RH)
+- Onboarding automatizado: processos viram manuais de treinamento
+- Quizzes e trilhas de aprendizado para avaliação
+- Controle granular de permissões (quem edita, visualiza, revisa)
+- Versionamento automático de documentos
+
+**Modelo de Negócio:**
+- SaaS com foco em PMEs
+- Automação de conhecimento empresarial
+- Treinamento e integração de funcionários
+
+**Casos de Uso para Skyller:**
+- Conceito de "Knowledge Base organizacional"
+- Sistema de permissões granular
+- Onboarding automatizado como diferencial
+- Templates pré-definidos por indústria
+
+**Referências:**
+- [DocuFlows Website](https://docuflows.com/en/)
+- [DocuFlows Blog](https://docuflows.com/en/blog)
+
+---
+
 ## 🏗️ Plataformas/Builders (ToolRAG + Workflows)
 
 ### Dify
@@ -514,6 +703,12 @@
 | **Langflow** | Builder | ✅✅ | ✅✅ | ⚠️ | ✅ | MIT |
 | **LlamaIndex** | Library | ✅✅✅ | ⚠️ | ❌ | ✅ | MIT |
 | **Haystack** | Library | ✅✅✅ | ⚠️ | ❌ | ✅ | Apache 2.0 |
+| **CustomGPT.ai** | SaaS Builder | ✅✅ | ⚠️ | ✅ | ❌ (SaaS) | Proprietária |
+| **VTChat** | Local-First | ✅✅ | ⚠️ | ❌ | ✅ (Browser) | Open Source |
+| **Raggy Chats** | Local-First | ✅✅ | ❌ | ❌ | ✅ (Browser) | Open Source |
+| **TypingMind** | Local-First | ⚠️ | ✅ (Plugins) | ✅ | ✅ (Browser) | Proprietária |
+| **NextChat** | Local-First | ⚠️ | ❌ | ✅ | ✅ (Browser) | MIT |
+| **DocuFlows** | SaaS Docs | ⚠️ | ❌ | ✅✅ | ❌ (SaaS) | Proprietária |
 
 **Legenda:**
 ✅✅✅ = Excelente | ✅✅ = Muito Bom | ✅ = Bom | ⚠️ = Limitado | ❌ = Não Suportado
@@ -603,7 +798,20 @@
 ---
 
 **Documento criado em:** 2026-01-22
-**Versão:** 1.0
-**Última atualização:** 2026-01-22
+**Versão:** 1.1
+**Última atualização:** 2026-02-02
 **Autor:** SKILLS IT - Soluções em TI
 **Projeto:** Skyller AI Platform
+
+---
+
+## 📝 Changelog
+
+### v1.1 (2026-02-02)
+- Adicionada seção "SaaS RAG Builders" com CustomGPT.ai
+- Adicionada seção "Local-First / Browser-Based" com VTChat, Raggy Chats, Shinzo-UI, TypingMind e NextChat
+- Adicionada seção "Documentação & SOPs com IA" com DocuFlows
+- Atualizada matriz de comparação com 7 novas ferramentas
+
+### v1.0 (2026-01-22)
+- Versão inicial do documento

@@ -139,6 +139,8 @@ const FALLBACK_AGENT_ID = "skyller";
 export function ChatProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname(); // GAP-IMP-01: Para atualizar URL após 1ª mensagem
+  // FIX: Ref para evitar stale closure no useEffect do SSE
+  const pathnameRef = useRef(pathname);
   const { data: session } = useSession();
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [messages, setMessagesState] = useState<Message[]>([]);
@@ -153,6 +155,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const creatingConversationRef = useRef<Promise<string> | null>(null);
   // CC-04: Track se esta carregando historico
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  // FIX: Manter pathnameRef sincronizado para evitar stale closure
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
 
   // GAP-CRIT-02: Estado para lazy loading de mensagens anteriores
   const [loadState, setLoadState] = useState<LoadState>({
@@ -346,7 +353,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           console.info(
             `[ChatContext] conversationId capturado via SSE: ${conversationIdFromEvent}`
           );
-          if (pathname === "/") {
+          // FIX: Usar pathnameRef.current para evitar stale closure
+          if (pathnameRef.current === "/") {
             router.replace(`/chat/${conversationIdFromEvent}`, { scroll: false });
             console.info(`[ChatContext] URL atualizada para /chat/${conversationIdFromEvent}`);
           }
@@ -396,7 +404,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         // GAP-IMP-01: Atualizar URL se estiver na home após primeira mensagem
         // Usar activeConversationIdRef (sincrono) em vez de estado React (assincrono)
         const conversationIdForRedirect = activeConversationIdRef.current;
-        if (pathname === "/" && conversationIdForRedirect) {
+        // FIX: Usar pathnameRef.current para evitar stale closure
+        if (pathnameRef.current === "/" && conversationIdForRedirect) {
           router.replace(`/chat/${conversationIdForRedirect}`, { scroll: false });
           console.info(`[ChatContext] URL atualizada para /chat/${conversationIdForRedirect}`);
         }
@@ -853,7 +862,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
         // Garantir que temos conversation_id antes de rodar o agente
-        let conversationIdForRun = currentConversationId;
+        // FIX: Usar ref como fallback para evitar race condition com estado React async
+        let conversationIdForRun = currentConversationId || activeConversationIdRef.current;
         if (!conversationIdForRun && session?.user) {
           if (!creatingConversationRef.current) {
             const usedAgentId = selectedAgentId || FALLBACK_AGENT_ID;
@@ -875,7 +885,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 const newConversationId = data.id;
                 setCurrentConversationId(newConversationId);
                 activeConversationIdRef.current = newConversationId;
-                if (pathname === "/") {
+                // FIX: Usar pathnameRef.current para evitar stale closure em callback async
+                if (pathnameRef.current === "/") {
                   router.replace(`/chat/${newConversationId}`, { scroll: false });
                   console.info(
                     `[ChatContext] URL atualizada para /chat/${newConversationId} (pre-create)`

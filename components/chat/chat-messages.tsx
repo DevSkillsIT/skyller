@@ -88,8 +88,8 @@ export function ChatMessages({
         scrollClassName="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4"
         className="min-h-full"
       >
-        {/* Espaçamento inferior mínimo para evitar "buraco" visual. */}
-        <div className="max-w-3xl mx-auto py-4 pb-4 md:pb-6 space-y-4">
+        {/* Espaçamento inferior mínimo para evitar "buraco" visual. Updated width for Enterprise look */}
+        <div className="max-w-5xl mx-auto py-4 pb-4 md:pb-6 space-y-6">
           {/* GAP-CRIT-02: Botão para carregar mensagens anteriores */}
           {hasOlderMessages && onLoadOlder && (
             <button
@@ -137,17 +137,16 @@ export function ChatMessages({
                 className={`flex gap-4 ${message.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 {message.role === "assistant" && (
-                  <Avatar className="h-8 w-8 flex-shrink-0">
-                    <AvatarFallback className="bg-gradient-to-br from-[#0A2463] to-[#6366f1] text-white">
-                      <AgentIcon className="h-4 w-4" />
+                  <Avatar className="h-8 w-8 flex-shrink-0 mt-1">
+                    <AvatarFallback className="bg-primary/10 text-primary">
+                      <AgentIcon className="h-5 w-5" />
                     </AvatarFallback>
                   </Avatar>
                 )}
 
                 <div
-                  className={`flex flex-col gap-2 max-w-[80%] ${
-                    message.role === "user" ? "items-end" : "items-start"
-                  }`}
+                  className={`flex flex-col gap-2 max-w-[80%] ${message.role === "user" ? "items-end" : "items-start"
+                    }`}
                 >
                   {/* Message Header - Only for Assistant */}
                   {message.role === "assistant" && agent && (
@@ -157,20 +156,24 @@ export function ChatMessages({
                   )}
 
                   {/* Message Content */}
-                  <div
-                    className={`rounded-2xl px-4 py-3 ${
-                      message.role === "user" ? "bg-accent text-accent-foreground" : "bg-muted"
-                    }`}
-                  >
-                    <Message
-                      message={message}
-                      isStreaming={messageIsStreaming}
-                      thinking={isLastAssistant ? thinking : undefined}
-                      steps={isLastAssistant ? steps : undefined}
-                      toolCalls={isLastAssistant ? toolCalls : undefined}
-                      activities={isLastAssistant ? activities : undefined}
-                    />
-                  </div>
+                  {/* GAP-FIX: Hide ghost messages (empty content & no status) */}
+                  {(message.content || message.toolCalls || messageIsStreaming) && (
+                    <div
+                      className={`relative px-4 py-3 text-base ${message.role === "user"
+                          ? "bg-muted/50 text-foreground rounded-2xl rounded-tr-sm"
+                          : "bg-background text-foreground rounded-2xl rounded-tl-sm pl-0"
+                        }`}
+                    >
+                      <Message
+                        message={message}
+                        isStreaming={messageIsStreaming}
+                        thinking={isLastAssistant ? thinking : undefined}
+                        steps={isLastAssistant ? steps : undefined}
+                        toolCalls={isLastAssistant ? toolCalls : undefined}
+                        activities={isLastAssistant ? activities : undefined}
+                      />
+                    </div>
+                  )}
 
                   {/* Artifacts */}
                   {message.artifacts && message.artifacts.length > 0 && (
@@ -230,10 +233,11 @@ export function ChatMessages({
                   )}
                 </div>
 
+                {/* User Avatar - Hidden in TypingMind style mostly, but keeping for now with better style */}
                 {message.role === "user" && (
-                  <Avatar className="h-8 w-8 flex-shrink-0">
-                    <AvatarFallback className="bg-muted">
-                      <User className="h-4 w-4" />
+                  <Avatar className="h-8 w-8 flex-shrink-0 mt-1">
+                    <AvatarFallback className="bg-muted-foreground/20">
+                      <User className="h-4 w-4 text-muted-foreground" />
                     </AvatarFallback>
                   </Avatar>
                 )}

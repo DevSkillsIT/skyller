@@ -163,7 +163,7 @@ export function ConversationHistoryList({
             <SidebarMenuButton
               onClick={() => !isEditing && handleSelect(conversation)}
               isActive={isSelected}
-              className={`h-auto ${compact ? "py-1" : "py-1.5"}`}
+              className={`h-auto w-full justify-start ${compact ? "py-2" : "py-2.5"} cursor-pointer hover:bg-accent/50 transition-colors group`}
             >
               {/* Icon */}
               <div className="flex-shrink-0">
@@ -173,7 +173,7 @@ export function ConversationHistoryList({
               </div>
 
               {/* Content */}
-              <div className="flex-1 min-w-0 overflow-hidden">
+              <div className="flex-1 min-w-0 overflow-hidden max-w-[calc(100%-32px)]">
                 {isEditing ? (
                   <Input
                     value={editTitle}
@@ -193,16 +193,16 @@ export function ConversationHistoryList({
                 ) : (
                   <>
                     <div className="flex items-center gap-1">
-                      <span className="text-sm truncate">
+                      <span className="text-sm truncate min-w-0 flex-1">
                         {conversation.title || "Nova Conversa"}
                       </span>
-                      <span className="text-[10px] text-muted-foreground flex-shrink-0 whitespace-nowrap ml-auto">
+                      <span className="text-[10px] text-muted-foreground flex-shrink-0 whitespace-nowrap">
                         {formatRelativeTime(conversation.created_at)}
                       </span>
                     </div>
                     {/* GAP-IMP-07: Ocultar contador em modo compacto */}
                     {!compact && (
-                      <div className="text-[10px] text-muted-foreground truncate">
+                      <div className="text-[10px] text-muted-foreground truncate min-w-0">
                         {conversation.message_count} mensagens
                       </div>
                     )}

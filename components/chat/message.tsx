@@ -52,7 +52,7 @@ export function Message({
   const showSteps = FEATURES.SHOW_STEPS && showAuxiliary && hasSteps && Boolean(steps);
 
   return (
-    <div className="message-container">
+    <div className="message-container w-full max-w-none overflow-hidden text-base leading-7">
       {showThinking && thinking && (
         <div className="mb-3">
           <ThinkingPanel thinking={thinking} isStreaming={isStreaming} />
