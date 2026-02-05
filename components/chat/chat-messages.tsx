@@ -157,11 +157,12 @@ export function ChatMessages({
 
                   {/* Message Content */}
                   {/* GAP-FIX: Hide ghost messages (empty content & no status) */}
-                  {(message.content || message.toolCalls || messageIsStreaming) && (
+                  {/* Show if: has content OR is last message with active tools/thinking OR streaming OR has artifacts */}
+                  {(message.content || (isLastAssistant && (toolCalls?.length || thinking)) || messageIsStreaming || (message.artifacts && message.artifacts.length > 0)) && (
                     <div
-                      className={`relative px-4 py-3 text-base ${message.role === "user"
-                          ? "bg-muted/50 text-foreground rounded-2xl rounded-tr-sm"
-                          : "bg-background text-foreground rounded-2xl rounded-tl-sm pl-0"
+                      className={`relative px-5 py-3 text-base ${message.role === "user"
+                          ? "bg-blue-500 text-white rounded-2xl rounded-tr-sm ml-auto max-w-[85%]"
+                          : "bg-transparent text-foreground w-full"
                         }`}
                     >
                       <Message
@@ -233,14 +234,7 @@ export function ChatMessages({
                   )}
                 </div>
 
-                {/* User Avatar - Hidden in TypingMind style mostly, but keeping for now with better style */}
-                {message.role === "user" && (
-                  <Avatar className="h-8 w-8 flex-shrink-0 mt-1">
-                    <AvatarFallback className="bg-muted-foreground/20">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                    </AvatarFallback>
-                  </Avatar>
-                )}
+                {/* TypeMind Style: User avatar hidden for cleaner look */}
               </div>
             );
           })}

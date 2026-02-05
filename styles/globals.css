@@ -76,8 +76,8 @@
 }
 
 @theme inline {
-  --font-sans: 'Geist', 'Geist Fallback';
-  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono: ui-monospace, "SFMono-Regular", "SF Mono", monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -122,5 +122,41 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+
+  /* Scrollbar personalizada - igual referência */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgb(203, 213, 225);
+    border-radius: 2px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(148, 163, 184);
+  }
+
+  /* Sidebar buttons/inputs sem bordas - igual referência */
+  [data-chat-sidebar] button,
+  [data-chat-sidebar] input {
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+  }
+
+  [data-chat-sidebar] button:focus,
+  [data-chat-sidebar] input:focus,
+  [data-chat-sidebar] button:focus-visible,
+  [data-chat-sidebar] input:focus-visible {
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
   }
 }

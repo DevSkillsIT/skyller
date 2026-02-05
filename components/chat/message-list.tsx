@@ -19,7 +19,7 @@ import { Message } from "@/components/chat/message";
 import type { Message as MessageType } from "@/lib/mock/data";
 import type { ActivityState, StepState, ThinkingState, ToolCallState } from "@/lib/types/agui";
 
-interface MessageListProps {
+export interface MessageListProps {
   /** Lista de mensagens a serem exibidas */
   messages: MessageType[];
 
@@ -137,4 +137,9 @@ export function MessageListSkeleton() {
       ))}
     </div>
   );
+}
+export interface ConversationSuggestion {
+  id: string;
+  title: string;
+  projectId?: string;
 }

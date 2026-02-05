@@ -59,14 +59,15 @@ cd "${PROJECT_DIR}"
 create_ecosystem_dev() {
   log_info "Criando config PM2 para ambiente de desenvolvimento..."
 
-  cat > ecosystem.config.dev.js <<EOF
+  cat > skyller-dev.config.js <<EOF
 module.exports = {
   apps: [
     {
       name: "${APP_NAME}",
       cwd: "${PROJECT_DIR}",
-      script: "node_modules/.bin/next",
-      args: "dev --port ${PORT}",
+      script: "pnpm",
+    args: "dev --port ${PORT}",
+      interpreter: "none",
       instances: 1,
       exec_mode: "fork",
 
@@ -84,7 +85,7 @@ module.exports = {
       // Environment
       env: {
         NODE_ENV: "development",
-        PORT: ${PORT},
+      PORT: ${PORT},
       },
 
       // Health monitoring
@@ -99,7 +100,7 @@ module.exports = {
 };
 EOF
 
-  log_success "Config criada: ecosystem.config.dev.js"
+  log_success "Config criada: skyller-dev.config.js"
 }
 
 # Comando: start
@@ -107,7 +108,7 @@ cmd_start() {
   log_info "Iniciando Skyller em modo DEV..."
   
   # Criar config se não existir
-  if [ ! -f ecosystem.config.dev.js ]; then
+  if [ ! -f skyller-dev.config.js ]; then
     create_ecosystem_dev
   fi
 
@@ -117,8 +118,12 @@ cmd_start() {
     pnpm install
   fi
 
-  # Iniciar PM2
-  pm2 start ecosystem.config.dev.js
+  # Deletar processo antigo se existir (evita conflito de nomes)
+  pm2 delete ${APP_NAME} 2>/dev/null || true
+  pm2 delete ecosystem.config.dev 2>/dev/null || true
+
+  # Iniciar PM2 com nome explícito
+  pm2 start skyller-dev.config.js --only ${APP_NAME}
   pm2 save
 
   log_success "Skyller DEV iniciado em http://localhost:${PORT}"
@@ -133,10 +138,15 @@ cmd_stop() {
   log_success "Skyller DEV parado"
 }
 
-# Comando: restart
+# Comando: restart (com limpeza de cache)
 cmd_restart() {
   log_info "Reiniciando Skyller DEV..."
   cmd_stop
+
+  log_info "Limpando cache Next.js..."
+  rm -rf .next .turbo tsconfig.tsbuildinfo
+  log_success "Cache limpo!"
+
   cmd_start
 }
 
@@ -151,6 +161,13 @@ cmd_status() {
   pm2 status
   echo ""
   pm2 describe ${APP_NAME} || echo "App ${APP_NAME} não está rodando"
+}
+
+# Comando: clean (limpar cache sem reiniciar)
+cmd_clean() {
+  log_info "Limpando cache Next.js..."
+  rm -rf .next .turbo tsconfig.tsbuildinfo
+  log_success "Cache limpo! Use 'restart' ou 'start' para iniciar."
 }
 
 # Menu principal
@@ -170,15 +187,19 @@ case "${1:-start}" in
   status)
     cmd_status
     ;;
+  clean)
+    cmd_clean
+    ;;
   *)
-    echo "Uso: $0 [start|stop|restart|logs|status]"
+    echo "Uso: $0 [start|stop|restart|logs|status|clean]"
     echo ""
     echo "Comandos:"
     echo "  start    - Inicia Skyller em modo DEV"
     echo "  stop     - Para o Skyller"
-    echo "  restart  - Reinicia o Skyller"
+    echo "  restart  - Reinicia o Skyller (com limpeza de cache)"
     echo "  logs     - Mostra logs em tempo real"
     echo "  status   - Mostra status do PM2"
+    echo "  clean    - Limpa cache Next.js (.next, .turbo)"
     exit 1
     ;;
 esac

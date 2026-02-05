@@ -1,19 +1,13 @@
 "use client";
 
 import {
-  Bot,
   Building2,
   Check,
   ChevronDown,
   ChevronRight,
-  FileSearch,
-  FileText,
-  FolderKanban,
   FolderOpen,
-  LayoutGrid,
   MessageSquare,
   Plus,
-  Presentation,
   Search,
   X,
 } from "lucide-react";
@@ -51,16 +45,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import type { Project, Workspace } from "@/lib/mock/data";
 import { cn } from "@/lib/utils";
 
-const navigation = [
-  { name: "Kanban", href: "/kanban", icon: FolderKanban },
-  { name: "Canvas", href: "/canvas", icon: LayoutGrid },
-  { name: "Documentos", href: "/knowledge", icon: FileText },
-  { name: "Analise", href: "/analysis", icon: FileSearch },
-  { name: "Agentes", href: "/agents", icon: Bot },
-  { name: "Apresentacoes", href: "/presentations", icon: Presentation },
-  { name: "Pesquisa", href: "/research", icon: Search },
-];
-
 interface AppSidebarProps {
   workspaces: Workspace[];
   currentWorkspace: Workspace | null;
@@ -78,7 +62,7 @@ export function AppSidebar({
   currentWorkspace,
   onWorkspaceChange,
   projects,
-  currentProject, // GAP-IMP-05: Adicionado para filtro de conversas
+  currentProject,
   onProjectChange,
   onConversationSelect,
   onNewConversation,
@@ -87,13 +71,8 @@ export function AppSidebar({
   const pathname = usePathname();
   const router = useRouter();
   const { open } = useSidebar();
-  const [recentsExpanded, setRecentsExpanded] = useState(true);
-  const [toolsExpanded, setToolsExpanded] = useState(true);
+  const [foldersExpanded, setFoldersExpanded] = useState(true);
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
-  const [_expandedProjects, _setExpandedProjects] = useState<string[]>([]);
-  const [_showAllProjects, _setShowAllProjects] = useState(false);
-  const [toolsHovered, setToolsHovered] = useState(false);
-  const [conversationsHovered, setConversationsHovered] = useState(false);
 
   // Filtra projetos do workspace atual
   const workspaceProjects = useMemo(
@@ -104,21 +83,15 @@ export function AppSidebar({
   return (
     <TooltipProvider>
       <Sidebar collapsible="icon" className="border-r border-border">
-        <SidebarHeader className="border-b border-border p-2">
-          {/* Logo + Collapse Toggle */}
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-secondary to-primary text-white font-bold text-sm flex-shrink-0">
-                S
-              </div>
-              {open && <span className="font-semibold text-lg tracking-tight">SKYLLER</span>}
-            </div>
+        <SidebarHeader className="p-2">
+          {/* Header com Toggle e Ações */}
+          <div className="flex items-center justify-between mb-2">
             {open && <SidebarTrigger className="h-7 w-7" />}
           </div>
 
-          {/* Botoes: Nova Conversa + Busca */}
+          {/* Botões: Nova Conversa + Busca */}
           {open && (
-            <div className="flex flex-col gap-1.5 mt-2">
+            <div className="flex flex-col gap-1.5">
               <Button
                 className="w-full gap-2"
                 size="sm"
@@ -129,7 +102,7 @@ export function AppSidebar({
                 }}
               >
                 <Plus className="h-4 w-4" />
-                Nova Conversa
+                New chat
               </Button>
 
               <Button
@@ -139,10 +112,7 @@ export function AppSidebar({
                 onClick={() => onSearchOpen?.()}
               >
                 <Search className="h-4 w-4" />
-                <span className="flex-1 text-left">Buscar...</span>
-                <kbd className="hidden sm:inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium">
-                  ⌘K
-                </kbd>
+                <span className="flex-1 text-left">Search chats</span>
               </Button>
             </div>
           )}
@@ -163,7 +133,7 @@ export function AppSidebar({
                     <Plus className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="right">Nova Conversa</TooltipContent>
+                <TooltipContent side="right">New chat</TooltipContent>
               </Tooltip>
 
               <Tooltip>
@@ -177,7 +147,7 @@ export function AppSidebar({
                     <Search className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="right">Buscar (⌘K)</TooltipContent>
+                <TooltipContent side="right">Search</TooltipContent>
               </Tooltip>
             </div>
           )}
@@ -185,12 +155,12 @@ export function AppSidebar({
 
         <SidebarContent>
           <ScrollArea className="flex-1">
-            {/* WORKSPACE - Projetos e Chat (PRIMEIRO!) */}
+            {/* Workspace Selector */}
             {open && (
               <SidebarGroup className="py-1">
                 <SidebarGroupLabel className="flex items-center gap-2 mb-1">
                   <Building2 className="h-4 w-4" />
-                  <span>Workspace - Projetos e Chat</span>
+                  <span>Workspace</span>
                 </SidebarGroupLabel>
                 <SidebarGroupContent>
                   <DropdownMenu>
@@ -206,7 +176,7 @@ export function AppSidebar({
                               <span className="truncate">{currentWorkspace.name}</span>
                             </>
                           ) : (
-                            <span className="text-muted-foreground">Selecionar workspace...</span>
+                            <span className="text-muted-foreground">Select workspace...</span>
                           )}
                         </div>
                         <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -214,7 +184,7 @@ export function AppSidebar({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start" className="w-56">
                       <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
-                        Trocar Workspace
+                        Switch Workspace
                       </DropdownMenuLabel>
                       <DropdownMenuSeparator />
                       {currentWorkspace && (
@@ -227,7 +197,7 @@ export function AppSidebar({
                             className="text-muted-foreground"
                           >
                             <X className="h-4 w-4 mr-2" />
-                            Nenhum workspace
+                            None
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                         </>
@@ -238,7 +208,6 @@ export function AppSidebar({
                           onClick={() => {
                             onWorkspaceChange(workspace);
                             onProjectChange(null);
-                            // Navega para a página de detalhe do workspace
                             router.push(`/workspaces/${workspace.id}`);
                           }}
                           className="flex items-center justify-between"
@@ -257,30 +226,17 @@ export function AppSidebar({
                           </div>
                         </DropdownMenuItem>
                       ))}
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        className="text-muted-foreground"
-                        onClick={() => router.push("/workspaces")}
-                      >
-                        <Building2 className="h-4 w-4 mr-2" />
-                        Ver todos os workspaces
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="text-muted-foreground">
-                        <Plus className="h-4 w-4 mr-2" />
-                        Novo Workspace
-                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </SidebarGroupContent>
               </SidebarGroup>
             )}
 
-            {/* NAVEGACAO DO WORKSPACE */}
+            {/* Navegação do Workspace */}
             {open && currentWorkspace && (
               <SidebarGroup className="py-1">
                 <SidebarGroupContent>
                   <SidebarMenu>
-                    {/* Link para detalhe do workspace */}
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         asChild
@@ -288,11 +244,10 @@ export function AppSidebar({
                       >
                         <Link href={`/workspaces/${currentWorkspace.id}`}>
                           <Building2 className="h-4 w-4" />
-                          <span>Visao Geral</span>
+                          <span>Overview</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
-                    {/* Link para projetos do workspace */}
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         asChild
@@ -300,7 +255,7 @@ export function AppSidebar({
                       >
                         <Link href={`/projects?workspace=${currentWorkspace.id}`}>
                           <FolderOpen className="h-4 w-4" />
-                          <span>Projetos</span>
+                          <span>Projects</span>
                           <Badge variant="secondary" className="h-5 px-1.5 text-[10px] ml-auto">
                             {workspaceProjects.length}
                           </Badge>
@@ -312,114 +267,29 @@ export function AppSidebar({
               </SidebarGroup>
             )}
 
-            {/* LINK PARA TODOS OS WORKSPACES - Quando não há workspace selecionado */}
-            {open && !currentWorkspace && (
-              <SidebarGroup className="py-1">
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild isActive={pathname === "/workspaces"}>
-                        <Link href="/workspaces">
-                          <Building2 className="h-4 w-4" />
-                          <span>Ver todos os Workspaces</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            )}
-
-            {/* FERRAMENTAS - Colapsável */}
+            {/* Folders / Conversations */}
             {open && (
-              <Collapsible open={toolsExpanded} onOpenChange={setToolsExpanded}>
+              <Collapsible open={foldersExpanded} onOpenChange={setFoldersExpanded}>
                 <SidebarGroup className="py-1">
-                  {/* Wrapper para hover - isolado do Radix Collapsible */}
-                  <div
-                    onMouseEnter={() => setToolsHovered(true)}
-                    onMouseLeave={() => setToolsHovered(false)}
-                  >
-                    <CollapsibleTrigger asChild>
-                      <SidebarGroupLabel className="cursor-pointer hover:bg-accent/50 rounded-md flex items-center justify-between pr-2 mb-1">
-                        <div className="flex items-center gap-2">
-                          <LayoutGrid className="h-4 w-4" />
-                          <span>Ferramentas</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {!toolsHovered && (
-                            <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-                              {navigation.length}
-                            </Badge>
-                          )}
-                          <ChevronRight
-                            className={cn(
-                              "h-4 w-4 transition-all",
-                              toolsExpanded ? "rotate-90" : "",
-                              toolsHovered ? "opacity-60" : "opacity-0"
-                            )}
-                          />
-                        </div>
-                      </SidebarGroupLabel>
-                    </CollapsibleTrigger>
-                  </div>
+                  <CollapsibleTrigger asChild>
+                    <SidebarGroupLabel className="cursor-pointer hover:bg-accent/50 rounded-md flex items-center justify-between pr-2 mb-1">
+                      <div className="flex items-center gap-2">
+                        <MessageSquare className="h-4 w-4" />
+                        <span>Chats</span>
+                      </div>
+                      <ChevronRight
+                        className={cn(
+                          "h-4 w-4 transition-all text-muted-foreground",
+                          foldersExpanded && "rotate-90"
+                        )}
+                      />
+                    </SidebarGroupLabel>
+                  </CollapsibleTrigger>
                   <CollapsibleContent>
                     <SidebarGroupContent>
-                      <SidebarMenu>
-                        {navigation.map((item) => (
-                          <SidebarMenuItem key={item.name}>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <SidebarMenuButton asChild isActive={pathname === item.href}>
-                                  <Link href={item.href}>
-                                    <item.icon className="h-4 w-4" />
-                                    <span>{item.name}</span>
-                                  </Link>
-                                </SidebarMenuButton>
-                              </TooltipTrigger>
-                              {!open && <TooltipContent side="right">{item.name}</TooltipContent>}
-                            </Tooltip>
-                          </SidebarMenuItem>
-                        ))}
-                      </SidebarMenu>
-                    </SidebarGroupContent>
-                  </CollapsibleContent>
-                </SidebarGroup>
-              </Collapsible>
-            )}
-
-            {/* SUAS CONVERSAS - Movido para baixo, sempre visivel */}
-            {open && (
-              <Collapsible open={recentsExpanded} onOpenChange={setRecentsExpanded}>
-                <SidebarGroup className="py-1">
-                  {/* Wrapper para hover - isolado do Radix Collapsible */}
-                  <div
-                    onMouseEnter={() => setConversationsHovered(true)}
-                    onMouseLeave={() => setConversationsHovered(false)}
-                  >
-                    <CollapsibleTrigger asChild>
-                      <SidebarGroupLabel className="cursor-pointer hover:bg-accent/50 rounded-md flex items-center justify-between pr-2 mb-1">
-                        <div className="flex items-center gap-2">
-                          <MessageSquare className="h-4 w-4" />
-                          <span>Suas Conversas</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <ChevronRight
-                            className={cn(
-                              "h-4 w-4 transition-all",
-                              recentsExpanded ? "rotate-90" : "",
-                              conversationsHovered ? "opacity-60" : "opacity-0"
-                            )}
-                          />
-                        </div>
-                      </SidebarGroupLabel>
-                    </CollapsibleTrigger>
-                  </div>
-                  <CollapsibleContent>
-                    <SidebarGroupContent>
-                      {/* GAP-IMP-05: Passar filtros de workspace/project */}
                       <ConversationHistoryList
                         limit={50}
-                        visibleLimit={5}
+                        visibleLimit={10}
                         showExpandButton={true}
                         compact={true}
                         onSelect={(id) => {
@@ -443,7 +313,6 @@ export function AppSidebar({
           </ScrollArea>
         </SidebarContent>
 
-        {/* Footer vazio - Configurações e Ajuda movidos para topbar */}
         <SidebarFooter className="p-0" />
       </Sidebar>
     </TooltipProvider>

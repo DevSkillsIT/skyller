@@ -24,6 +24,8 @@ const nextConfig = {
     serverActions: {
       allowedOrigins: [
         "localhost:3004",
+        "localhost:3005",
+        "dev.skyller.ai",
         "skills.skyller.ai",
         "ramada.skyller.ai",
         "lindacor.skyller.ai",
@@ -38,14 +40,22 @@ const nextConfig = {
   },
 
   // Proxy para backend API (evita CORS)
+  // NOTA: Se o backend estiver fora, o proxy falha mas não deve derrubar o frontend
   async rewrites() {
     const backendUrl = process.env.NEXUS_API_URL || "http://localhost:8000";
-    return [
-      {
-        source: "/api/v1/:path*",
-        destination: `${backendUrl}/api/v1/:path*`,
-      },
-    ];
+    return {
+      // Rewrites que sempre são aplicados
+      beforeFiles: [],
+      // Rewrites aplicados após verificar arquivos/pages
+      afterFiles: [
+        {
+          source: "/api/v1/:path*",
+          destination: `${backendUrl}/api/v1/:path*`,
+        },
+      ],
+      // Fallback - só aplica se nenhum arquivo/page existir
+      fallback: [],
+    };
   },
 
   // Headers para permitir CORS dos subdominios

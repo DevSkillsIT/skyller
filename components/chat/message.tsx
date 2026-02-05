@@ -16,14 +16,14 @@ import {
 } from "@/lib/streamdown-config";
 import type { ActivityState, StepState, ThinkingState, ToolCallState } from "@/lib/types/agui";
 
-interface Message {
+export interface Message {
   id: string;
   role: "user" | "assistant" | "system";
   content: string;
   timestamp: Date;
 }
 
-interface MessageProps {
+export interface MessageProps {
   message: Message;
   isStreaming?: boolean;
   thinking?: ThinkingState;

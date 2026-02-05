@@ -126,8 +126,13 @@ function getTenantCache(): Map<string, TenantConfig> {
 export function getTenantFromHost(host: string | null): string {
   if (!host) return DEFAULT_TENANT;
 
-  // Development: localhost sempre usa tenant default
-  if (host.includes("localhost") || host.includes("127.0.0.1")) {
+  // Development: localhost, dev.skyller.ai e IP do servidor sempre usa tenant default
+  if (
+    host.includes("localhost") ||
+    host.includes("127.0.0.1") ||
+    host.includes("172.16.1.24") ||
+    host.startsWith("dev.")
+  ) {
     return DEFAULT_TENANT;
   }
 

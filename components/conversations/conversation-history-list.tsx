@@ -5,7 +5,7 @@
 "use client";
 
 
-import { Archive, MoreHorizontal, Pencil, Sparkles, Trash2 } from "lucide-react";
+import { Archive, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { BlurFade } from "@/components/ui/blur-fade";
@@ -18,12 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import {
-  SidebarMenu,
-  SidebarMenuAction,
-  SidebarMenuButton,
-  SidebarMenuItem,
-} from "@/components/ui/sidebar";
+import { SidebarMenu, SidebarMenuItem } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type ConversationSummary, useConversations } from "@/lib/hooks/use-conversations";
 
@@ -53,7 +48,6 @@ export function ConversationHistoryList({
   onNewConversation,
   selectedId,
   className,
-  compact = false, // GAP-IMP-07: Layout compacto para sidebar
   workspaceId, // GAP-IMP-05: Filtro de workspace
   projectId, // GAP-IMP-05: Filtro de projeto
 }: ConversationHistoryListProps) {
@@ -67,6 +61,9 @@ export function ConversationHistoryList({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [expanded, setExpanded] = useState(false); // GAP-IMP-06: Estado de expansão
+
+  // FIX: Prefixo único para keys baseado no contexto (evita conflitos entre múltiplas listas)
+  const keyPrefix = projectId ? `p-${projectId}` : workspaceId ? `w-${workspaceId}` : "global";
 
   // GAP-IMP-06: Calcular conversas visíveis baseado em visibleLimit e estado de expansão
   const visibleConversations =
@@ -155,73 +152,78 @@ export function ConversationHistoryList({
   }
 
   return (
-    <SidebarMenu className={className}>
+    <div className={`space-y-0.5 ${className || ""}`}>
       {visibleConversations.map((conversation) => {
         const isSelected = selectedId === conversation.id;
         const isEditing = editingId === conversation.id;
 
         return (
-          <BlurFade key={conversation.id} delay={0.05} inView>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                onClick={() => !isEditing && handleSelect(conversation)}
-                isActive={isSelected}
-                className={`h-auto w-full justify-start ${compact ? "py-2" : "py-2.5"} cursor-pointer hover:bg-accent/50 transition-colors group`}
-              >
-                {/* Icon */}
-                <div className="flex-shrink-0">
-                  <div className="w-5 h-5 rounded-md bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-                    <Sparkles className="h-3 w-3 text-white" />
-                  </div>
-                </div>
+          <BlurFade key={`${keyPrefix}-${conversation.id}`} delay={0.05} inView>
+            <div
+              onClick={() => !isEditing && handleSelect(conversation)}
+              className={`group relative flex cursor-pointer items-start gap-3 rounded-md px-2 py-2.5 transition-colors ${
+                isSelected ? "bg-accent" : "hover:bg-accent/50"
+              }`}
+            >
+              {/* Avatar circular com gradiente - igual referência */}
+              <div className="h-9 w-9 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center flex-shrink-0">
+                <span className="text-white text-xs font-semibold">AI</span>
+              </div>
 
-                {/* Content */}
-                <div className="flex-1 min-w-0 overflow-hidden max-w-[calc(100%-32px)]">
-                  {isEditing ? (
-                    <Input
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                      onBlur={() => handleRename(conversation.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleRename(conversation.id);
-                        if (e.key === "Escape") {
-                          setEditingId(null);
-                          setEditTitle("");
-                        }
-                      }}
-                      autoFocus
-                      className="h-6 text-sm"
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  ) : (
-                    <>
-                      <div className="flex items-center gap-1">
-                        <span className="text-sm truncate min-w-0 flex-1">
-                          {conversation.title || "Nova Conversa"}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground flex-shrink-0 whitespace-nowrap">
-                          {formatRelativeTime(conversation.created_at)}
-                        </span>
-                      </div>
-                      {/* GAP-IMP-07: Ocultar contador em modo compacto */}
-                      {!compact && (
-                        <div className="text-[10px] text-muted-foreground truncate min-w-0">
-                          {conversation.message_count} mensagens
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </SidebarMenuButton>
+              {/* Content */}
+              <div className="flex-1 min-w-0 flex flex-col gap-1">
+                {isEditing ? (
+                  <Input
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    onBlur={() => handleRename(conversation.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleRename(conversation.id);
+                      if (e.key === "Escape") {
+                        setEditingId(null);
+                        setEditTitle("");
+                      }
+                    }}
+                    autoFocus
+                    className="h-6 text-sm"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  <>
+                    {/* Título */}
+                    <h4
+                      className={`truncate text-sm leading-tight ${
+                        isSelected ? "font-semibold" : "font-normal text-foreground/90"
+                      }`}
+                    >
+                      {conversation.title || "Nova Conversa"}
+                    </h4>
+                    {/* Preview */}
+                    <p className="text-xs text-muted-foreground/70 leading-tight truncate">
+                      {conversation.message_count > 0
+                        ? `${conversation.message_count} mensagens`
+                        : "Conversa vazia"}
+                    </p>
+                    {/* Tempo */}
+                    <span className="text-[10px] text-muted-foreground/60">
+                      {formatRelativeTime(conversation.created_at)}
+                    </span>
+                  </>
+                )}
+              </div>
 
-              {/* Context menu - usando SidebarMenuAction do Shadcn */}
+              {/* Context menu no hover */}
               {!isEditing && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <SidebarMenuAction showOnHover>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <MoreHorizontal className="h-4 w-4" />
-                      <span className="sr-only">Mais opcoes</span>
-                    </SidebarMenuAction>
+                    </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-40">
                     <DropdownMenuItem onClick={() => startEdit(conversation)}>
@@ -243,24 +245,22 @@ export function ConversationHistoryList({
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
-            </SidebarMenuItem>
+            </div>
           </BlurFade>
         );
       })}
 
-      {/* GAP-IMP-06: Botão "Ver mais" quando há conversas ocultas */}
+      {/* Botão "Ver mais" quando há conversas ocultas */}
       {showExpandButton && !expanded && visibleLimit && conversations.length > visibleLimit && (
-        <SidebarMenuItem>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setExpanded(true)}
-            className="w-full justify-center text-xs text-muted-foreground hover:text-foreground"
-          >
-            Ver mais ({conversations.length - visibleLimit})
-          </Button>
-        </SidebarMenuItem>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setExpanded(true)}
+          className="w-full justify-center text-xs text-muted-foreground hover:text-foreground"
+        >
+          Ver mais ({conversations.length - visibleLimit})
+        </Button>
       )}
-    </SidebarMenu>
+    </div>
   );
 }

@@ -66,11 +66,12 @@ export const proxy = auth((req) => {
   }
 
   // SPEC-ORGS-001: Validar se usuario pertence ao tenant
-  // Ignorar validacao para localhost e admin
+  // Ignorar validacao para localhost, admin e dev
   const isLocalhost = hostname.includes("localhost");
   const isAdmin = subdomain === "admin";
+  const isDev = subdomain === "dev";
 
-  if (!isLocalhost && !isAdmin && req.auth?.user?.organizations) {
+  if (!isLocalhost && !isAdmin && !isDev && req.auth?.user?.organizations) {
     const userOrgs = req.auth.user.organizations;
     if (!userOrgs.includes(subdomain)) {
       // Redirecionar para org padrao do usuario

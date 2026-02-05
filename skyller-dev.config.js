@@ -3,8 +3,9 @@ module.exports = {
     {
       name: "skyller-dev",
       cwd: "/opt/skills-ia-platform/skyller",
-      script: "node_modules/.bin/next",
+      script: "pnpm",
       args: "dev --port 3005",
+      interpreter: "none",
       instances: 1,
       exec_mode: "fork",
 

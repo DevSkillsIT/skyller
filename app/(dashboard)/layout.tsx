@@ -7,15 +7,16 @@ import type React from "react";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { SearchDialog } from "@/components/dialogs/search-dialog";
 import { AppHeader } from "@/components/layout/app-header";
-import { AppSidebar } from "@/components/layout/app-sidebar";
+import { ChatSidebar } from "@/components/layout/chat-sidebar";
 import { ArtifactPanel } from "@/components/layout/artifact-panel";
+import { IconDock } from "@/components/layout/icon-dock";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { CopilotProvider } from "@/components/providers/copilot-provider";
 import { Button } from "@/components/ui/button";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { ChatProvider, useChat } from "@/lib/contexts/chat-context";
 import { PanelProvider, usePanel } from "@/lib/contexts/panel-context";
-import { mockProjects, mockWorkspaces } from "@/lib/mock/data";
+import { mockWorkspaces } from "@/lib/mock/data";
 import { cn } from "@/lib/utils";
 
 function DashboardInner({ children }: { children: React.ReactNode }) {
@@ -23,18 +24,15 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   const { status } = useSession();
   const router = useRouter();
   const pathname = usePathname();
-  const [currentWorkspace, setCurrentWorkspace] = useState<(typeof mockWorkspaces)[0] | null>(
-    () => {
-      if (typeof window !== "undefined") {
-        const saved = localStorage.getItem("currentWorkspaceId");
-        if (saved) {
-          return mockWorkspaces.find((w) => w.id === saved) || null;
-        }
+  const [currentWorkspace] = useState<(typeof mockWorkspaces)[0] | null>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("currentWorkspaceId");
+      if (saved) {
+        return mockWorkspaces.find((w) => w.id === saved) || null;
       }
-      return null;
     }
-  );
-  const [currentProject, setCurrentProject] = useState<(typeof mockProjects)[0] | null>(null);
+    return null;
+  });
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const { loadConversation, startNewConversation } = useChat();
   const { isPanelOpen, panelContent, isPanelExpanded, setPanelContent, setIsPanelOpen } =
@@ -46,18 +44,6 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     startNewConversation();
     router.push("/");
   }, [startNewConversation, router]);
-
-  // Persist workspace to localStorage
-  const handleWorkspaceChange = useCallback((workspace: (typeof mockWorkspaces)[0] | null) => {
-    setCurrentWorkspace(workspace);
-    if (typeof window !== "undefined") {
-      if (workspace) {
-        localStorage.setItem("currentWorkspaceId", workspace.id);
-      } else {
-        localStorage.removeItem("currentWorkspaceId");
-      }
-    }
-  }, []);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -87,35 +73,30 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen w-full bg-background pb-16 md:pb-0">
-      {/* Sidebar - 240px expandido, 64px colapsado */}
+      {/* Icon Dock - Navegação principal estilo TypingMind */}
+      <IconDock className="hidden md:flex flex-shrink-0" />
+
+      {/* Sidebar de Conversas */}
       <Suspense fallback={<div>Loading Sidebar...</div>}>
-        <AppSidebar
+        <ChatSidebar
           workspaces={mockWorkspaces}
           currentWorkspace={currentWorkspace}
-          onWorkspaceChange={handleWorkspaceChange}
-          projects={mockProjects}
-          currentProject={currentProject}
-          onProjectChange={setCurrentProject}
           onConversationSelect={loadConversation}
           onNewConversation={handleNewConversation}
-          onSearchOpen={() => setIsSearchOpen(true)}
+          onCollapse={toggleSidebar}
+          selectedConversationId={null}
         />
       </Suspense>
 
-      {/* Logo Skyller quando sidebar colapsada + botão expand no hover */}
+      {/* Botão expand sidebar quando colapsada */}
       {!open && (
-        <div className="group fixed left-2 top-3 z-50">
-          {/* Logo Skyller */}
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-secondary to-primary text-white font-bold text-sm shadow-md group-hover:opacity-0 transition-opacity">
-            S
-          </div>
-          {/* Botão expand aparece no hover */}
+        <div className="group fixed left-[112px] top-3 z-50 hidden md:block">
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
             onClick={toggleSidebar}
-            className="absolute inset-0 h-9 w-9 rounded-md opacity-0 group-hover:opacity-100 transition-opacity bg-transparent"
-            title="Abrir barra lateral"
+            className="h-8 w-8 rounded-md opacity-60 hover:opacity-100 transition-opacity"
+            title="Abrir lista de conversas"
           >
             <PanelLeft className="h-4 w-4" />
           </Button>

@@ -4,6 +4,7 @@ import { CopilotChatConfigurationProvider, CopilotKitProvider } from "@copilotki
 import type React from "react";
 import { useEffect, useState } from "react";
 import "@copilotkitnext/react/styles.css";
+import { CopilotErrorHandler } from "./copilot-error-handler";
 
 // Constantes para sessionStorage (sincronizado com use-session-context.ts)
 const SESSION_ID_KEY = "skyller_session_id";
@@ -45,19 +46,25 @@ function getOrCreateSessionId(): string {
  * CopilotProvider - Wrapper para CopilotKit com AG-UI Protocol
  *
  * Conecta o frontend Skyller ao backend Nexus Core via /api/copilot
- * que implementa AgnoAgent para comunicação AG-UI.
+ * que implementa AgnoAgent para comunicacao AG-UI.
  *
- * MIGRAÇÃO @copilotkitnext/react:
- * - Usa JSON-RPC em vez de GraphQL (compatível com AgnoAgent via AbstractAgent)
- * - A seleção do agent é feita via CopilotChatConfigurationProvider (agentId="skyller")
+ * MIGRACAO @copilotkitnext/react (v1.51.2):
+ * - Usa JSON-RPC em vez de GraphQL (compativel com AgnoAgent via AbstractAgent)
+ * - A selecao do agent e feita via CopilotChatConfigurationProvider (agentId="skyller")
  * - CopilotSidebar movido para rota dedicada (/lite-chat)
  * - Suporte completo a AG-UI Protocol (THINKING, STEPS, TOOL_CALLS, ACTIVITY)
+ *
+ * ERROR HANDLING (via subscriber pattern):
+ * - CopilotErrorHandler: Captura erros via copilotkit.subscribe({ onError })
+ * - Suporte a error codes tipados (AGENT_RUN_FAILED, TOOL_HANDLER_FAILED, etc.)
+ * - Toast notifications para erros com mensagens amigaveis
+ * - showDevConsole: Banner visual de erro em desenvolvimento
  *
  * GAP-CONTEXT-HEADERS:
  * - Passa X-Session-ID para rastreamento de sessao do navegador
  * - Headers dinamicos (conversationId, agentId) sao enviados via forwardedProps
  */
-export function CopilotProvider({ children }: { children: React.ReactNode }) {
+export function CopilotProvider({ children }: { children: React.ReactNode }): React.ReactElement {
   // Estado para session ID (hidratado no client)
   const [sessionId, setSessionId] = useState<string | null>(null);
 
@@ -81,6 +88,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       showDevConsole={process.env.NODE_ENV === "development"}
       headers={contextHeaders}
     >
+      <CopilotErrorHandler />
       <CopilotChatConfigurationProvider agentId="skyller">
         {children}
       </CopilotChatConfigurationProvider>

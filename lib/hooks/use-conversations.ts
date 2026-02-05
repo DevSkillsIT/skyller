@@ -190,7 +190,20 @@ export function useConversations(options: UseConversationsOptions = {}): UseConv
         total: response.total,
         itemsCount: response.items?.length,
       });
-      setConversations(response.items);
+      // FIX: Deduplicar conversas por ID para evitar React key warnings
+      const uniqueConversations = response.items.reduce((acc, conv) => {
+        if (!acc.some((c) => c.id === conv.id)) {
+          acc.push(conv);
+        }
+        return acc;
+      }, [] as ConversationSummary[]);
+      if (uniqueConversations.length !== response.items.length) {
+        console.warn("[useConversations] Duplicatas removidas:", {
+          original: response.items.length,
+          unique: uniqueConversations.length,
+        });
+      }
+      setConversations(uniqueConversations);
       setTotal(response.total);
     } catch (err) {
       console.error("[useConversations] Erro ao buscar conversas:", err);

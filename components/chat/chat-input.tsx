@@ -35,7 +35,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useAgents } from "@/lib/hooks/use-agents";
 
-interface ChatInputProps {
+export interface ChatInputProps {
   input: string;
   setInput: (value: string) => void;
   onSend: () => void;
@@ -105,7 +105,7 @@ export function ChatInput({
 
   return (
     <div className="bg-background px-4 py-3">
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         {/* Rate Limit Indicator */}
         <RateLimitIndicator />
 
@@ -137,11 +137,11 @@ export function ChatInput({
                   canStop
                     ? false
                     : !input.trim() ||
-                      isLoading ||
-                      isHistoryLoading ||
-                      rateLimit.isLimited ||
-                      rateLimit.remaining === 0 ||
-                      input.trim().length > 10000
+                    isLoading ||
+                    isHistoryLoading ||
+                    rateLimit.isLimited ||
+                    rateLimit.remaining === 0 ||
+                    input.trim().length > 10000
                 }
                 data-testid="send-button"
               >

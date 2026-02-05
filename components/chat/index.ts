@@ -16,13 +16,11 @@ export type { ErrorInfo } from "react";
 export type { Artifact } from "@/lib/contexts/chat-context";
 export { ChatErrorBoundary } from "./chat-error-boundary";
 export {
-  type Agent as ChatAgent,
   ChatInput,
   type ChatInputProps,
-  type RateLimitInfo,
 } from "./chat-input";
 // Componentes principais
-export { type Agent, Message, type MessageData, type MessageProps } from "./message";
+export { Message, type Message as MessageData, type MessageProps } from "./message";
 export { type ConversationSuggestion, MessageList, type MessageListProps } from "./message-list";
 export {
   ActiveToolCalls,
