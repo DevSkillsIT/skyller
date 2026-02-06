@@ -39,3 +39,4 @@ pnpm-debug.log*
 # Misc
 *.min.js
 *.min.css
+*.tsbuildinfo
